@@ -6,7 +6,12 @@ import re
 import requests
 from typing import List, Dict, Optional
 from dataclasses import dataclass
-import json
+from datetime import datetime
+import uuid
+
+# ============================================
+# Data Classes
+# ============================================
 
 @dataclass
 class VulnerabilityInfo:
@@ -17,6 +22,10 @@ class VulnerabilityInfo:
     fixed_version: Optional[str] = None
     published_date: Optional[str] = None
 
+# ============================================
+# Vulnerability Checker
+# ============================================
+
 class VulnerabilityChecker:
     """OSV API를 사용한 취약점 검사"""
     
@@ -24,9 +33,7 @@ class VulnerabilityChecker:
         self.osv_api_url = "https://api.osv.dev/v1/query"
     
     def check_package(self, package_name: str, version: str) -> List[VulnerabilityInfo]:
-        """
-        패키지의 취약점 검사
-        """
+        """패키지의 취약점 검사"""
         if not version or not package_name:
             return []
         
@@ -35,7 +42,6 @@ class VulnerabilityChecker:
         
         # 버전이 유효한지 확인
         if not clean_version or not re.match(r'^\d+(\.\d+)*', clean_version):
-            print(f"유효하지 않은 버전: {version} -> {clean_version}")
             return []
         
         try:
@@ -48,8 +54,6 @@ class VulnerabilityChecker:
                 "version": clean_version
             }
             
-            print(f"  Checking {package_name} {clean_version}...")  # 디버깅용
-            
             response = requests.post(
                 self.osv_api_url, 
                 json=payload,
@@ -57,7 +61,6 @@ class VulnerabilityChecker:
             )
             
             if response.status_code != 200:
-                print(f"  OSV API 응답 오류: {response.status_code}")
                 return []
             
             data = response.json()
@@ -65,10 +68,7 @@ class VulnerabilityChecker:
             
             # OSV 응답에서 취약점 정보 추출
             for vuln in data.get("vulns", []):
-                # 심각도 결정
                 severity = self._get_severity(vuln)
-                
-                # 수정된 버전 찾기
                 fixed_version = self._get_fixed_version(vuln, package_name)
                 
                 vuln_info = VulnerabilityInfo(
@@ -80,28 +80,17 @@ class VulnerabilityChecker:
                 )
                 vulnerabilities.append(vuln_info)
             
-            if vulnerabilities:
-                print(f"  ⚠️ {len(vulnerabilities)}개 취약점 발견!")
-            else:
-                print(f"  ✅ 취약점 없음")
-            
             return vulnerabilities
             
-        except requests.exceptions.Timeout:
-            print(f"  OSV API 타임아웃: {package_name}")
-            return []
-        except Exception as e:
-            print(f"  OSV API 오류: {e}")
+        except (requests.exceptions.Timeout, Exception):
             return []
     
     def _get_severity(self, vuln_data: dict) -> str:
         """취약점 심각도 판단"""
-        # CVSS 점수 기반 심각도
         severity_data = vuln_data.get("severity", [])
         
         for sev in severity_data:
             if sev.get("type") == "CVSS_V3":
-                # score가 문자열일 수 있으므로 float로 변환
                 try:
                     score = float(sev.get("score", 0))
                     if score >= 9.0:
@@ -115,7 +104,6 @@ class VulnerabilityChecker:
                 except (TypeError, ValueError):
                     continue
         
-        # CVSS 점수가 없으면 중간으로 설정
         return "MEDIUM"
     
     def _get_fixed_version(self, vuln_data: dict, package_name: str) -> Optional[str]:
@@ -133,7 +121,172 @@ class VulnerabilityChecker:
         
         return None
 
+# ============================================
+# SBOM Formatter
+# ============================================
+
+class SBOMFormatter:
+    """SBOM을 표준 형식으로 변환"""
+    
+    def to_spdx(self, packages: List[Dict], metadata: Dict = None) -> Dict:
+        """SPDX 2.3 형식으로 변환"""
+        metadata = metadata or {}
+        doc_id = f"SPDXRef-DOCUMENT-{uuid.uuid4().hex[:8]}"
+        
+        spdx_doc = {
+            "spdxVersion": "SPDX-2.3",
+            "dataLicense": "CC0-1.0",
+            "SPDXID": doc_id,
+            "name": metadata.get("project_name", "Python-Project"),
+            "documentNamespace": f"https://sbom.example/spdxdocs/{doc_id}",
+            "creationInfo": {
+                "created": datetime.now().isoformat(),
+                "creators": ["Tool: SBOM Security Analyzer-0.1.0"],
+                "licenseListVersion": "3.19"
+            },
+            "packages": []
+        }
+        
+        # 패키지 정보 변환
+        for idx, pkg in enumerate(packages):
+            spdx_pkg = {
+                "SPDXID": f"SPDXRef-Package-{idx}",
+                "name": pkg.get("install_name", pkg["name"]),
+                "downloadLocation": "NOASSERTION",
+                "filesAnalyzed": False,
+                "supplier": "NOASSERTION",
+                "homepage": f"https://pypi.org/project/{pkg.get('install_name', pkg['name'])}/",
+            }
+            
+            # 버전 정보
+            if pkg.get("version"):
+                clean_version = re.sub(r'[><=!~^]', '', pkg["version"]).strip()
+                spdx_pkg["versionInfo"] = clean_version
+            
+            # 취약점 정보를 외부 참조로 추가
+            if pkg.get("vulnerabilities"):
+                spdx_pkg["externalRefs"] = []
+                for vuln in pkg["vulnerabilities"]:
+                    spdx_pkg["externalRefs"].append({
+                        "referenceCategory": "SECURITY",
+                        "referenceType": "vulnerability",
+                        "referenceLocator": vuln["id"],
+                        "comment": f"{vuln['severity']}: {vuln['summary'][:50]}..."
+                    })
+            
+            spdx_doc["packages"].append(spdx_pkg)
+        
+        # 관계 정보 추가
+        spdx_doc["relationships"] = [
+            {
+                "spdxElementId": doc_id,
+                "relatedSpdxElement": f"SPDXRef-Package-{idx}",
+                "relationshipType": "DESCRIBES"
+            }
+            for idx in range(len(packages))
+        ]
+        
+        return spdx_doc
+    
+    def to_cyclonedx(self, packages: List[Dict], metadata: Dict = None) -> Dict:
+        """CycloneDX 1.4 형식으로 변환"""
+        metadata = metadata or {}
+        
+        cyclonedx_doc = {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.4",
+            "serialNumber": f"urn:uuid:{uuid.uuid4()}",
+            "version": 1,
+            "metadata": {
+                "timestamp": datetime.now().isoformat(),
+                "tools": [
+                    {
+                        "vendor": "SBOM Security Analyzer",
+                        "name": "sbom-analyzer",
+                        "version": "0.1.0"
+                    }
+                ],
+                "component": {
+                    "type": "application",
+                    "name": metadata.get("project_name", "Python-Project"),
+                    "version": metadata.get("project_version", "unknown")
+                }
+            },
+            "components": []
+        }
+        
+        # 컴포넌트 정보 변환
+        for pkg in packages:
+            component = {
+                "type": "library",
+                "bom-ref": f"pkg:{pkg.get('install_name', pkg['name'])}",
+                "name": pkg.get("install_name", pkg["name"]),
+                "purl": f"pkg:pypi/{pkg.get('install_name', pkg['name'])}",
+            }
+            
+            # 버전 정보
+            if pkg.get("version"):
+                clean_version = re.sub(r'[><=!~^]', '', pkg["version"]).strip()
+                component["version"] = clean_version
+                component["purl"] += f"@{clean_version}"
+            
+            # 취약점 정보
+            if pkg.get("vulnerabilities"):
+                component["vulnerabilities"] = []
+                for vuln in pkg["vulnerabilities"]:
+                    vuln_info = {
+                        "id": vuln["id"],
+                        "description": vuln["summary"],
+                        "ratings": [
+                            {
+                                "severity": vuln["severity"].lower(),
+                                "method": "other"
+                            }
+                        ]
+                    }
+                    
+                    if vuln.get("fixed_version"):
+                        vuln_info["recommendation"] = f"Update to version {vuln['fixed_version']}"
+                    
+                    component["vulnerabilities"].append(vuln_info)
+            
+            cyclonedx_doc["components"].append(component)
+        
+        # 취약점 요약 추가
+        total_vulns = sum(len(pkg.get("vulnerabilities", [])) for pkg in packages)
+        if total_vulns > 0:
+            cyclonedx_doc["metadata"]["properties"] = [
+                {
+                    "name": "total_vulnerabilities",
+                    "value": str(total_vulns)
+                },
+                {
+                    "name": "vulnerable_components",
+                    "value": str(sum(1 for pkg in packages if pkg.get("vulnerabilities")))
+                }
+            ]
+        
+        return cyclonedx_doc
+    
+    def format_sbom(self, packages: List[Dict], format_type: str, metadata: Dict = None) -> Dict:
+        """지정된 형식으로 SBOM 변환"""
+        format_type = format_type.upper()
+        
+        if format_type == "SPDX":
+            return self.to_spdx(packages, metadata)
+        elif format_type == "CYCLONEDX":
+            return self.to_cyclonedx(packages, metadata)
+        else:
+            # Custom JSON 형식은 app.py에서 처리
+            raise ValueError(f"Unsupported format: {format_type}")
+
+# ============================================
+# Main SBOM Analyzer
+# ============================================
+
 class SBOMAnalyzer:
+    """메인 SBOM 분석기"""
+    
     def __init__(self):
         # 패키지명 매핑 (import명 -> 설치명)
         self.PACKAGE_NAME_MAPPING = {
@@ -144,11 +297,20 @@ class SBOMAnalyzer:
             "bs4": "beautifulsoup4",
         }
         
-        # 취약점 검사기 추가
+        # 표준 라이브러리 목록
+        self.STDLIB_MODULES = {
+            'os', 'sys', 'json', 're', 'math', 'random', 'datetime',
+            'collections', 'itertools', 'functools', 'typing', 'pathlib',
+            'urllib', 'http', 'csv', 'io', 'time', 'logging', 'ast',
+            'copy', 'pickle', 'subprocess', 'threading', 'queue'
+        }
+        
+        # 컴포넌트 초기화
         self.vulnerability_checker = VulnerabilityChecker()
+        self.formatter = SBOMFormatter()
     
     def extract_imports(self, code: str) -> List[Dict]:
-        """Python 코드에서 import 문을 찾아서 추출"""
+        """Python 코드에서 import 문 추출"""
         imports = []
         
         try:
@@ -177,6 +339,7 @@ class SBOMAnalyzer:
         # 중복 제거
         unique_imports = []
         seen = set()
+        
         for imp in imports:
             package_name = imp["name"].split(".")[0]
             if package_name and package_name not in seen:
@@ -190,7 +353,7 @@ class SBOMAnalyzer:
         return unique_imports
     
     def parse_requirements(self, requirements_text: str) -> Dict[str, Optional[str]]:
-        """requirements.txt 내용을 파싱해서 패키지명과 버전 추출"""
+        """requirements.txt 파싱"""
         packages = {}
         
         if not requirements_text:
@@ -216,19 +379,8 @@ class SBOMAnalyzer:
         
         return packages
     
-    def _get_package_install_name(self, import_name: str) -> str:
-        """import명을 실제 설치 패키지명으로 변환"""
-        return self.PACKAGE_NAME_MAPPING.get(import_name, import_name)
-    
     def analyze(self, code: str, requirements: str = None, check_vulnerabilities: bool = True) -> Dict:
-        """
-        메인 분석 함수 - 코드와 requirements를 분석해서 SBOM 정보 생성
-        
-        Args:
-            code: Python 코드
-            requirements: requirements.txt 내용
-            check_vulnerabilities: 취약점 검사 여부
-        """
+        """메인 분석 함수"""
         # 1. 코드에서 import 추출
         imports = self.extract_imports(code)
         
@@ -303,16 +455,22 @@ class SBOMAnalyzer:
             }
         }
     
+    def generate_sbom(self, packages: List[Dict], format_type: str, metadata: Dict = None) -> Dict:
+        """분석 결과를 지정된 SBOM 형식으로 변환"""
+        return self.formatter.format_sbom(packages, format_type, metadata)
+    
+    def _get_package_install_name(self, import_name: str) -> str:
+        """import명을 실제 설치 패키지명으로 변환"""
+        return self.PACKAGE_NAME_MAPPING.get(import_name, import_name)
+    
     def _is_standard_library(self, module_name: str) -> bool:
         """Python 표준 라이브러리인지 확인"""
-        stdlib = {
-            'os', 'sys', 'json', 're', 'math', 'random', 'datetime',
-            'collections', 'itertools', 'functools', 'typing', 'pathlib',
-            'urllib', 'http', 'csv', 'io', 'time', 'logging', 'ast'
-        }
-        return module_name in stdlib
+        return module_name in self.STDLIB_MODULES
 
-# 테스트
+# ============================================
+# Test Code
+# ============================================
+
 if __name__ == "__main__":
     analyzer = SBOMAnalyzer()
     
@@ -321,9 +479,9 @@ import pandas as pd
 import numpy as np
 import requests
 from sklearn.model_selection import train_test_split
+import json  # 표준 라이브러리
     """
     
-    # 일부러 오래된 버전 사용 (취약점 테스트)
     test_requirements = """
 pandas==2.0.0
 numpy>=1.24.0
@@ -331,24 +489,26 @@ requests==2.25.0
 scikit-learn
     """
     
-    print("취약점 검사 중...")
+    print("=" * 50)
+    print("SBOM 분석 테스트")
+    print("=" * 50)
+    
+    # 기본 분석
     result = analyzer.analyze(test_code, test_requirements)
     
     if result["success"]:
-        print("\n=== 분석 결과 ===")
-        print(f"전체 import: {result['summary']['total_imports']}")
-        print(f"외부 패키지: {result['summary']['external_packages']}")
-        print(f"발견된 취약점: {result['summary']['total_vulnerabilities']}")
+        print(f"\n✅ 분석 성공!")
+        print(f"- 전체 imports: {result['summary']['total_imports']}")
+        print(f"- 외부 패키지: {result['summary']['external_packages']}")
+        print(f"- 취약점: {result['summary']['total_vulnerabilities']}")
         
-        print("\n=== 패키지 목록 ===")
-        for pkg in result["packages"]:
-            print(f"{pkg['status']} {pkg['name']}")
-            if pkg['version']:
-                print(f"   버전: {pkg['version']}")
-            
-            if pkg['vulnerabilities']:
-                print(f"   🚨 취약점:")
-                for vuln in pkg['vulnerabilities']:
-                    print(f"      - {vuln['id']} ({vuln['severity']})")
-                    if vuln['fixed_version']:
-                        print(f"        수정 버전: {vuln['fixed_version']}")
+        # SBOM 형식 테스트
+        print("\n📦 SBOM 형식 변환 테스트:")
+        
+        for format_type in ["SPDX", "CycloneDX"]:
+            sbom = analyzer.generate_sbom(
+                result["packages"], 
+                format_type,
+                {"project_name": "Test-Project", "project_version": "1.0.0"}
+            )
+            print(f"- {format_type}: ✅ (packages: {len(sbom.get('packages', sbom.get('components', [])))}")

@@ -42,6 +42,14 @@ def main():
         st.subheader("🔍 검사 옵션")
         check_vulnerabilities = st.checkbox("취약점 검사", value=True)
         st.caption("OSV 데이터베이스를 사용한 실시간 검사")
+
+            # SBOM 형식 선택 추가
+        st.subheader("📦 SBOM 형식")
+        sbom_format = st.selectbox(
+            "출력 형식 선택",
+            options=["Custom JSON", "SPDX", "CycloneDX"],
+            help="Custom JSON: 간단한 형식\nSPDX: 라이선스 중심\nCycloneDX: 보안 중심"
+        )
     
     # 메인 탭
     tab1, tab2, tab3 = st.tabs(["📝 코드 분석", "💬 Q&A", "📚 가이드라인"])
@@ -168,23 +176,41 @@ requests==2.31.0"""
                         styled_df = df.style.apply(highlight_vulnerabilities, axis=1)
                         st.dataframe(styled_df, use_container_width=True)
                         
-                        # SBOM JSON 생성 (취약점 정보 포함)
-                        sbom_data = {
-                            "tool": "SBOM Security Analyzer",
-                            "version": "0.1.0",
-                            "timestamp": pd.Timestamp.now().isoformat(),
-                            "packages": result["packages"],
-                            "vulnerabilities_summary": {
-                                "total": result["summary"].get("total_vulnerabilities", 0),
-                                "affected_packages": result["summary"].get("vulnerable_packages", 0)
+                        # SBOM 생성 부분 수정
+                        if sbom_format == "Custom JSON":
+                            # 기존 코드
+                            sbom_data = {
+                                "tool": "SBOM Security Analyzer",
+                                "version": "0.1.0",
+                                "timestamp": pd.Timestamp.now().isoformat(),
+                                "packages": result["packages"],
+                                "vulnerabilities_summary": {
+                                    "total": result["summary"].get("total_vulnerabilities", 0),
+                                    "affected_packages": result["summary"].get("vulnerable_packages", 0)
+                                }
                             }
-                        }
-                        
+                        else:
+                            # 표준 형식 사용 - analyzer 객체 직접 사용
+                            metadata = {
+                                "project_name": "MyPythonProject",
+                                "project_version": "1.0.0"
+                            }
+                            sbom_data = analyzer.generate_sbom(
+                                result["packages"], 
+                                sbom_format, 
+                                metadata
+                            )
+
+                        # SBOM 표시
+                        with st.expander(f"📄 {sbom_format} 형식 보기", expanded=False):
+                            st.json(sbom_data)
+
                         # JSON 다운로드 버튼
+                        filename = f"sbom_{sbom_format.lower()}.json"
                         st.download_button(
-                            label="📥 SBOM JSON 다운로드 (취약점 정보 포함)",
+                            label=f"📥 SBOM 다운로드 ({sbom_format})",
                             data=json.dumps(sbom_data, indent=2),
-                            file_name="sbom_with_vulnerabilities.json",
+                            file_name=filename,
                             mime="application/json"
                         )
                 
