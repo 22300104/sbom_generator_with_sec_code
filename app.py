@@ -9,7 +9,6 @@ from config import app_config
 # UI 모듈 임포트
 from ui.code_analysis_tab import render_code_analysis_tab
 from ui.qa_tab import render_qa_tab
-from ui.guideline_tab import render_guideline_tab
 
 # 환경 변수 로드
 load_dotenv()
@@ -55,8 +54,6 @@ def main():
     with tab2:
         render_qa_tab()
     
-    with tab3:
-        render_guideline_tab()
 
 if __name__ == "__main__":
     main()
