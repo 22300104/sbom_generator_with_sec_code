@@ -37,6 +37,11 @@ def main():
         else:
             st.warning("⚠️ OpenAI API Key 필요")
             st.text_input("API Key 입력:", type="password", key="api_key_input")
+
+        # 사이드바에 옵션 추가 (약 30번째 줄)
+        st.subheader("🔍 검사 옵션")
+        check_vulnerabilities = st.checkbox("취약점 검사", value=True)
+        st.caption("OSV 데이터베이스를 사용한 실시간 검사")
     
     # 메인 탭
     tab1, tab2, tab3 = st.tabs(["📝 코드 분석", "💬 Q&A", "📚 가이드라인"])
@@ -84,35 +89,68 @@ requests==2.31.0"""
                 analyzer = get_analyzer()
                 
                 with st.spinner("코드 분석 중..."):
+                    # analyze 호출 부분 수정 (약 90번째 줄)
                     result = analyzer.analyze(code_input, req_input)
                 
                 if result.get("success"):
                     # 성공 메시지
                     st.success("✅ 분석 완료!")
                     
-                    # 요약 정보 표시
-                    col1, col2, col3, col4 = st.columns(4)
+                    # 요약 정보 표시 부분 수정 (약 98번째 줄)
+                    col1, col2, col3, col4, col5 = st.columns(5)  # 5개 컬럼으로 변경
                     with col1:
                         st.metric("전체 Import", result["summary"]["total_imports"])
                     with col2:
-                        st.metric("외부 패키지", result["summary"]["external_packages"])
+                        st.metric("외부 패키지", result["summary"].get("external_packages", 0))
                     with col3:
                         st.metric("버전 확인", result["summary"]["with_version"])
                     with col4:
                         st.metric("버전 미확인", result["summary"]["without_version"])
-                    
-                    # 패키지 목록 테이블
+                    with col5:
+                        # 취약점 메트릭 추가
+                        vuln_count = result["summary"].get("total_vulnerabilities", 0)
+                        if vuln_count > 0:
+                            st.metric("🚨 취약점", vuln_count, delta_color="inverse")
+                        else:
+                            st.metric("🛡️ 취약점", "0")
+
+                    # 패키지 목록 테이블 부분도 수정
                     st.subheader("📋 발견된 패키지")
-                    
+
                     if result["packages"]:
-                        # 테이블 데이터 준비
+                        # 취약점이 있는 패키지 먼저 표시
+                        vulnerable_packages = [p for p in result["packages"] if p.get("vulnerabilities")]
+                        safe_packages = [p for p in result["packages"] if not p.get("vulnerabilities")]
+                        
+                        # 취약점 경고
+                        if vulnerable_packages:
+                            st.error(f"⚠️ {len(vulnerable_packages)}개 패키지에서 취약점이 발견되었습니다!")
+                            
+                            # 취약한 패키지 상세 정보
+                            with st.expander("🚨 취약점 상세 정보", expanded=True):
+                                for pkg in vulnerable_packages:
+                                    st.markdown(f"### {pkg['name']} ({pkg['version']})")
+                                    
+                                    for vuln in pkg["vulnerabilities"]:
+                                        col1, col2 = st.columns([3, 1])
+                                        with col1:
+                                            st.write(f"**{vuln['id']}** - {vuln['severity']}")
+                                            st.write(f"📝 {vuln['summary']}")
+                                        with col2:
+                                            if vuln.get('fixed_version'):
+                                                st.info(f"수정 버전:\n{vuln['fixed_version']}")
+                                    st.divider()
+                        
+                        # 전체 패키지 테이블
                         table_data = []
                         for pkg in result["packages"]:
+                            vuln_count = len(pkg.get("vulnerabilities", []))
                             row = {
                                 "상태": pkg["status"],
                                 "Import명": pkg["name"],
                                 "설치 패키지명": pkg["install_name"],
                                 "버전": pkg["version"] if pkg["version"] else "미지정",
+                                "취약점": f"{vuln_count}개" if vuln_count > 0 else "없음",
                                 "별칭": pkg["alias"] if pkg["alias"] else "-"
                             }
                             table_data.append(row)
@@ -120,29 +158,35 @@ requests==2.31.0"""
                         # 데이터프레임으로 표시
                         import pandas as pd
                         df = pd.DataFrame(table_data)
-                        st.dataframe(df, use_container_width=True)
                         
-                        # SBOM JSON 생성
+                        # 취약점이 있는 행 강조
+                        def highlight_vulnerabilities(row):
+                            if "개" in row["취약점"] and row["취약점"] != "0개":
+                                return ['background-color: #ffcccc'] * len(row)
+                            return [''] * len(row)
+                        
+                        styled_df = df.style.apply(highlight_vulnerabilities, axis=1)
+                        st.dataframe(styled_df, use_container_width=True)
+                        
+                        # SBOM JSON 생성 (취약점 정보 포함)
                         sbom_data = {
                             "tool": "SBOM Security Analyzer",
                             "version": "0.1.0",
                             "timestamp": pd.Timestamp.now().isoformat(),
-                            "packages": result["packages"]
+                            "packages": result["packages"],
+                            "vulnerabilities_summary": {
+                                "total": result["summary"].get("total_vulnerabilities", 0),
+                                "affected_packages": result["summary"].get("vulnerable_packages", 0)
+                            }
                         }
                         
                         # JSON 다운로드 버튼
                         st.download_button(
-                            label="📥 SBOM JSON 다운로드",
+                            label="📥 SBOM JSON 다운로드 (취약점 정보 포함)",
                             data=json.dumps(sbom_data, indent=2),
-                            file_name="sbom.json",
+                            file_name="sbom_with_vulnerabilities.json",
                             mime="application/json"
                         )
-                        
-                        # 상세 정보 (접을 수 있게)
-                        with st.expander("🔍 상세 분석 결과"):
-                            st.json(result)
-                    else:
-                        st.info("외부 패키지를 찾을 수 없습니다.")
                 
                 elif "error" in result:
                     st.error(f"❌ 오류 발생: {result['error']}")
