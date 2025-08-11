@@ -1,13 +1,30 @@
 # core/llm_analyzer.py
 """
-LLM 기반 코드 보안 분석 모듈 - GPT 우선 버전
-패턴 매칭 제거, GPT가 메인 탐지, RAG는 설명 보강용
+LLM 기반 코드 보안 분석 모듈 - 프롬프트 분리 버전
 """
 from openai import OpenAI
 import json
 import os
 from typing import Dict, List, Optional
 from rag.simple_rag import SimpleRAG
+
+# 프롬프트 임포트
+try:
+    from prompts.security_prompts import (
+        SYSTEM_PROMPT,
+        get_analysis_prompt,
+        get_rag_prompt,
+        translate_vulnerability_type,
+        get_common_fix,
+        SEVERITY_DESCRIPTIONS
+    )
+except ImportError:
+    # 프롬프트 파일이 없으면 기본값 사용
+    SYSTEM_PROMPT = "You are a Python security expert. Respond with JSON only."
+    def get_analysis_prompt(code): return f"Analyze this code:\n{code}"
+    def translate_vulnerability_type(t): return t
+    def get_common_fix(t): return {}
+    SEVERITY_DESCRIPTIONS = {}
 
 class LLMSecurityAnalyzer:
     """GPT 중심 보안 분석기"""
@@ -31,17 +48,16 @@ class LLMSecurityAnalyzer:
     
     def analyze_code_security(self, code: str, context: Dict = None) -> Dict:
         """
-        코드 보안 분석 메인 함수
+        코드 보안 분석 메인 함수 - 최적화 버전
         1. GPT가 취약점 탐지
-        2. RAG로 공식 설명 검색
-        3. 없으면 GPT가 설명 생성
+        2. 설명과 수정을 한 번에 생성
         """
         
-        # 1단계: GPT로 취약점 탐지
-        print("🔍 GPT 보안 분석 시작...")
-        vulnerabilities = self._gpt_detect_vulnerabilities(code)
+        # 1단계: GPT로 취약점 탐지 + 수정까지 한번에
+        print("🔍 AI 보안 분석 시작...")
+        result = self._gpt_analyze_all_at_once(code)
         
-        if not vulnerabilities:
+        if not result or not result.get('vulnerabilities'):
             return {
                 "success": True,
                 "analysis": {
@@ -53,30 +69,188 @@ class LLMSecurityAnalyzer:
                 }
             }
         
-        # 2단계: 각 취약점에 대한 설명 추가
-        print(f"📚 {len(vulnerabilities)}개 취약점에 대한 설명 생성 중...")
-        enhanced_vulnerabilities = self._add_explanations(vulnerabilities, code)
+        vulnerabilities = result['vulnerabilities']
         
-        # 3단계: 보안 점수 계산 및 권장사항 생성
-        security_score = self._calculate_security_score(enhanced_vulnerabilities)
-        immediate_actions = self._generate_immediate_actions(enhanced_vulnerabilities)
-        best_practices = self._generate_best_practices(enhanced_vulnerabilities)
+        # 2단계: RAG로 설명 보강 (선택적, 빠르게)
+        if self.rag_available:
+            self._enhance_with_rag(vulnerabilities)
+        
+        # 3단계: 보안 점수 및 권장사항
+        security_score = self._calculate_security_score(vulnerabilities)
+        immediate_actions = self._generate_immediate_actions(vulnerabilities)
+        best_practices = self._generate_best_practices(vulnerabilities)
         
         return {
             "success": True,
             "analysis": {
-                "code_vulnerabilities": enhanced_vulnerabilities,
+                "code_vulnerabilities": vulnerabilities,
                 "security_score": security_score,
-                "summary": self._generate_summary(enhanced_vulnerabilities),
+                "summary": self._generate_summary(vulnerabilities),
                 "immediate_actions": immediate_actions,
                 "best_practices": best_practices
             },
             "metadata": {
                 "gpt_model": self.model,
                 "rag_available": self.rag_available,
-                "total_vulnerabilities": len(enhanced_vulnerabilities)
+                "total_vulnerabilities": len(vulnerabilities)
             }
         }
+    
+    def _gpt_analyze_all_at_once(self, code: str) -> Dict:
+        """GPT로 탐지, 설명, 수정을 한 번에 처리 (프롬프트 파일 사용)"""
+        
+        # 코드에 라인 번호 추가
+        lines = code.split('\n')
+        code_with_lines = '\n'.join([f"{i+1:3}: {line}" for i, line in enumerate(lines)])
+        
+        # 프롬프트 파일에서 가져오기
+        prompt = get_analysis_prompt(code_with_lines)
+        
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.2,
+                max_tokens=2500
+            )
+            
+            result_text = response.choices[0].message.content
+            
+            # JSON 파싱
+            if "```json" in result_text:
+                result_text = result_text.split("```json")[1].split("```")[0]
+            elif "```" in result_text:
+                result_text = result_text.split("```")[1].split("```")[0]
+            
+            result = json.loads(result_text.strip())
+            
+            # 후처리: 한글 번역 및 설명 개선
+            for vuln in result.get('vulnerabilities', []):
+                # 취약점 타입 한글 추가
+                if 'type' in vuln:
+                    vuln['type_korean'] = translate_vulnerability_type(vuln['type'])
+                
+                # 설명이 너무 짧으면 보강
+                if vuln.get('description', '') and len(vuln['description']) < 20:
+                    common_fix = get_common_fix(vuln['type'])
+                    if common_fix:
+                        vuln['description'] = f"{vuln['description']}. {common_fix.get('pattern', '')}을 사용하면 위험합니다."
+                
+                # 영향도 설명 추가
+                if not vuln.get('impact'):
+                    severity = vuln.get('severity', 'MEDIUM')
+                    vuln['impact'] = SEVERITY_DESCRIPTIONS.get(severity, '')
+                
+                vuln['explanation_source'] = 'AI 분석'
+            
+            return result
+            
+        except Exception as e:
+            print(f"❌ GPT 분석 오류: {e}")
+            return {"vulnerabilities": []}
+    
+    def _enhance_with_rag(self, vulnerabilities: List[Dict]):
+        """RAG로 설명 보강 - 간결하고 정확하게"""
+        
+        if not self.rag_available:
+            return
+        
+        # 타입별로 한 번만 검색
+        searched_types = {}
+        
+        for vuln in vulnerabilities[:5]:  # 최대 5개만 RAG 검색
+            vuln_type = vuln.get('type', '')
+            
+            if vuln_type not in searched_types:
+                # RAG 검색 및 정제
+                rag_result = self._search_and_refine_rag(vuln_type)
+                if rag_result:
+                    searched_types[vuln_type] = rag_result
+            
+            # RAG 설명이 있으면 추가 (대체가 아닌 보강)
+            if vuln_type in searched_types:
+                # AI 설명은 그대로 유지
+                ai_description = vuln.get('description', '')
+                rag_enhancement = searched_types[vuln_type]
+                
+                # RAG 설명을 별도 필드로 저장 (UI에서 구분 표시)
+                vuln['ai_description'] = ai_description
+                vuln['rag_explanation'] = rag_enhancement
+                vuln['explanation_source'] = 'AI 분석 + KISIA 가이드라인'
+                
+                # 전체 설명은 간결하게 유지
+                vuln['explanation'] = ai_description  # 기본은 AI 설명만
+    
+    def _search_and_refine_rag(self, vuln_type: str) -> Optional[str]:
+        """RAG 검색 후 GPT로 정제 - 관련 내용만 추출"""
+        if not self.rag_available:
+            return None
+        
+        try:
+            # 한글 변환
+            korean_type = translate_vulnerability_type(vuln_type)
+            
+            # 더 정확한 검색 쿼리
+            search_queries = [
+                f"{korean_type} 취약점",
+                f"{korean_type} 공격",
+                f"{korean_type} 방어"
+            ]
+            
+            relevant_docs = []
+            for query in search_queries:
+                results = self.rag.search_similar(query, top_k=1)
+                if results['documents'][0]:
+                    doc = results['documents'][0][0]
+                    # 관련성 체크 - 해당 취약점 키워드가 있는 문서만
+                    if korean_type in doc or vuln_type.lower() in doc.lower():
+                        relevant_docs.append(doc[:300])  # 300자만
+            
+            if not relevant_docs:
+                return None
+            
+            # 가장 관련성 높은 문서만 사용
+            rag_context = relevant_docs[0] if relevant_docs else ""
+            
+            # GPT로 정제 - 관련 내용만 추출
+            prompt = f"""다음 텍스트에서 {korean_type} 취약점에 대한 설명만 추출하세요.
+
+[텍스트]
+{rag_context}
+
+[요구사항]
+- {korean_type}에 대한 내용만 추출
+- 다른 취약점 설명 제외
+- 최대 2문장, 100자 이내
+- 핵심만 간결하게
+
+설명:"""
+            
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "보안 전문가. 요청된 취약점 정보만 정확히 추출."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,  # 더 정확한 추출을 위해 낮춤
+                max_tokens=150
+            )
+            
+            refined_explanation = response.choices[0].message.content.strip()
+            
+            # 너무 짧거나 관련 없는 내용이면 무시
+            if len(refined_explanation) < 20 or korean_type not in refined_explanation:
+                return None
+                
+            return refined_explanation
+                
+        except Exception as e:
+            print(f"RAG 검색 오류: {e}")
+        
+        return None
     
     def _gpt_detect_vulnerabilities(self, code: str) -> List[Dict]:
         """GPT를 사용한 취약점 탐지 (메인 엔진)"""
@@ -157,36 +331,116 @@ class LLMSecurityAnalyzer:
             return []
     
     def _add_explanations(self, vulnerabilities: List[Dict], code: str) -> List[Dict]:
-        """각 취약점에 대한 설명 추가 (RAG 우선, 없으면 GPT)"""
+        """각 취약점에 대한 설명 추가 - 배치 처리로 속도 개선"""
         
-        for vuln in vulnerabilities:
-            vuln_type = vuln.get('type', '')
-            
-            # RAG에서 공식 가이드라인 검색
-            if self.rag_available:
-                rag_explanation = self._search_rag_explanation(vuln_type)
-                if rag_explanation:
-                    vuln['explanation'] = rag_explanation
+        if not vulnerabilities:
+            return vulnerabilities
+        
+        # RAG 사용 가능하면 먼저 일괄 검색
+        rag_explanations = {}
+        if self.rag_available:
+            print(f"📚 RAG에서 {len(vulnerabilities)}개 취약점 설명 검색...")
+            for vuln in vulnerabilities:
+                vuln_type = vuln.get('type', '')
+                if vuln_type not in rag_explanations:
+                    rag_explanations[vuln_type] = self._search_rag_explanation(vuln_type)
+        
+        # 배치로 수정 코드 생성 (한 번의 GPT 호출로 모든 수정 생성)
+        if len(vulnerabilities) <= 3:
+            # 3개 이하면 개별 처리 (더 정확)
+            for vuln in vulnerabilities:
+                vuln_type = vuln.get('type', '')
+                
+                # RAG 설명 사용 또는 GPT 생성
+                if vuln_type in rag_explanations and rag_explanations[vuln_type]:
+                    vuln['explanation'] = rag_explanations[vuln_type]
                     vuln['explanation_source'] = 'KISIA 가이드라인'
-                    
-                    # RAG에서 수정 방법도 검색
-                    rag_fix = self._search_rag_fix(vuln_type)
-                    if rag_fix:
-                        vuln['recommended_fix'] = rag_fix
-                    else:
-                        vuln['recommended_fix'] = self._gpt_generate_fix(vuln, code)
                 else:
-                    # RAG에 없으면 GPT가 설명 생성
                     vuln['explanation'] = self._gpt_generate_explanation(vuln)
                     vuln['explanation_source'] = 'AI 생성'
-                    vuln['recommended_fix'] = self._gpt_generate_fix(vuln, code)
-            else:
-                # RAG 없으면 GPT만 사용
-                vuln['explanation'] = self._gpt_generate_explanation(vuln)
-                vuln['explanation_source'] = 'AI 생성'
+                
+                # 수정 코드 생성
                 vuln['recommended_fix'] = self._gpt_generate_fix(vuln, code)
+        else:
+            # 4개 이상이면 배치 처리 (빠름)
+            print(f"⚡ {len(vulnerabilities)}개 취약점 배치 처리...")
+            
+            # 설명은 RAG 또는 간단 생성
+            for vuln in vulnerabilities:
+                vuln_type = vuln.get('type', '')
+                if vuln_type in rag_explanations and rag_explanations[vuln_type]:
+                    vuln['explanation'] = rag_explanations[vuln_type]
+                    vuln['explanation_source'] = 'KISIA 가이드라인'
+                else:
+                    vuln['explanation'] = vuln.get('description', '')  # 기본 설명 사용
+                    vuln['explanation_source'] = 'AI 생성'
+            
+            # 수정 코드는 배치로 생성
+            fixes = self._batch_generate_fixes(vulnerabilities, code)
+            for i, vuln in enumerate(vulnerabilities):
+                vuln['recommended_fix'] = fixes[i] if i < len(fixes) else None
         
         return vulnerabilities
+    
+    def _batch_generate_fixes(self, vulnerabilities: List[Dict], code: str) -> List[Dict]:
+        """여러 취약점의 수정 코드를 한 번에 생성 (속도 개선)"""
+        
+        # 취약점 요약
+        vuln_summary = []
+        for i, vuln in enumerate(vulnerabilities[:10]):  # 최대 10개만
+            vuln_summary.append(f"{i+1}. {vuln['type']} (라인 {vuln.get('line_numbers', ['?'])[0]}): {vuln.get('vulnerable_code', '')[:50]}")
+        
+        prompt = f"""
+        다음 Python 코드의 여러 취약점을 수정하세요.
+        
+        취약점 목록:
+        {chr(10).join(vuln_summary)}
+        
+        각 취약점에 대해 간단한 수정 코드를 제시하세요.
+        JSON 배열 형식으로 응답:
+        [
+            {{
+                "original_code": "취약한 코드",
+                "fixed_code": "수정된 코드",
+                "description": "변경 설명"
+            }},
+            ...
+        ]
+        """
+        
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "Python 보안 전문가. 간결한 수정 코드 제공."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.2,
+                max_tokens=1500
+            )
+            
+            result_text = response.choices[0].message.content
+            if "```json" in result_text:
+                result_text = result_text.split("```json")[1].split("```")[0]
+            
+            fixes = json.loads(result_text.strip())
+            
+            # Dict 형태로 변환
+            return [
+                {
+                    "original_code": fix.get("original_code", ""),
+                    "fixed_code": fix.get("fixed_code", ""),
+                    "description": fix.get("description", ""),
+                    "imports": [],
+                    "confidence": 0.7
+                }
+                for fix in fixes
+            ]
+            
+        except Exception as e:
+            print(f"배치 수정 생성 실패: {e}")
+            # 실패시 빈 수정 반환
+            return [{"fixed_code": "# 자동 수정 실패", "description": "수동 수정 필요"} for _ in vulnerabilities]
     
     def _search_rag_explanation(self, vuln_type: str) -> Optional[str]:
         """RAG에서 취약점 설명 검색하고 GPT로 정제"""
@@ -310,32 +564,82 @@ class LLMSecurityAnalyzer:
         except:
             return vuln.get('description', '설명 생성 실패')
     
-    def _gpt_generate_fix(self, vuln: Dict, code: str) -> str:
-        """GPT로 수정 방법 생성"""
+    def _gpt_generate_fix(self, vuln: Dict, code: str) -> Dict:
+        """GPT로 실제 수정 코드 생성"""
         vulnerable_code = vuln.get('vulnerable_code', '')
+        line_numbers = vuln.get('line_numbers', [])
+        
+        # 코드 컨텍스트 추출 (취약한 라인 전후 포함)
+        code_lines = code.split('\n')
+        context_start = max(0, line_numbers[0] - 3) if line_numbers else 0
+        context_end = min(len(code_lines), line_numbers[0] + 2) if line_numbers else len(code_lines)
+        code_context = '\n'.join(code_lines[context_start:context_end])
         
         prompt = f"""
-        다음 취약한 코드를 안전하게 수정하는 방법을 제시하세요:
+        다음 Python 코드의 보안 취약점을 수정하세요.
         
-        취약점: {vuln['type']}
-        취약한 코드: {vulnerable_code}
+        취약점 종류: {vuln['type']}
+        취약한 코드 라인: {vulnerable_code}
         
-        구체적인 수정 코드를 제시하세요. 최대 3줄 이내로.
+        코드 컨텍스트:
+        ```python
+        {code_context}
+        ```
+        
+        JSON 형식으로 응답:
+        {{
+            "original_code": "취약한 원본 코드 (해당 라인만)",
+            "fixed_code": "수정된 코드 (동일한 기능 유지)",
+            "changes_description": "무엇을 어떻게 바꿨는지 간단 설명",
+            "additional_imports": ["필요한 추가 import 문"],
+            "confidence": 0.0-1.0
+        }}
+        
+        중요: 
+        - 원본 기능은 그대로 유지하면서 보안 취약점만 수정
+        - 실제로 실행 가능한 코드 제공
+        - 필요한 import 문도 명시
         """
         
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "Python 보안 전문가"},
+                    {"role": "system", "content": "Python 보안 전문가. 실제 동작하는 수정 코드를 JSON으로 제공."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,
-                max_tokens=200
+                temperature=0.2,
+                max_tokens=500
             )
-            return response.choices[0].message.content.strip()
-        except:
-            return "수정 방법을 생성할 수 없습니다."
+            
+            result_text = response.choices[0].message.content
+            
+            # JSON 파싱
+            if "```json" in result_text:
+                result_text = result_text.split("```json")[1].split("```")[0]
+            elif "```" in result_text:
+                result_text = result_text.split("```")[1].split("```")[0]
+            
+            import json
+            fix_data = json.loads(result_text.strip())
+            
+            return {
+                "original_code": fix_data.get("original_code", vulnerable_code),
+                "fixed_code": fix_data.get("fixed_code", "# 수정 코드 생성 실패"),
+                "description": fix_data.get("changes_description", ""),
+                "imports": fix_data.get("additional_imports", []),
+                "confidence": fix_data.get("confidence", 0.5)
+            }
+            
+        except Exception as e:
+            # 실패 시 기본 제안
+            return {
+                "original_code": vulnerable_code,
+                "fixed_code": "# 자동 수정 실패 - 수동 수정 필요",
+                "description": f"수정 코드 생성 실패: {str(e)}",
+                "imports": [],
+                "confidence": 0.0
+            }
     
     def _calculate_security_score(self, vulnerabilities: List[Dict]) -> int:
         """보안 점수 계산"""

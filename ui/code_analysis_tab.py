@@ -1,6 +1,6 @@
 ﻿# ui/code_analysis_tab.py
 """
-Enhanced Code analysis tab UI with GPT-first integration
+Enhanced Code analysis tab UI - 성능 최적화 및 상태 유지 개선
 """
 import streamlit as st
 import json
@@ -11,9 +11,10 @@ from core.llm_analyzer import LLMSecurityAnalyzer
 from security.vulnerability import check_vulnerabilities_enhanced
 import time
 import os
+import hashlib
 
 def render_code_analysis_tab():
-    """강화된 코드 분석 탭 - GPT 중심"""
+    """강화된 코드 분석 탭 - 최적화 버전"""
     st.header("🔍 AI 기반 코드 보안 분석")
     
     # 분석기 초기화
@@ -45,18 +46,16 @@ def render_code_analysis_tab():
     with col1:
         analysis_mode = st.radio(
             "분석 모드 선택",
-            ["⚡ 빠른 분석 (SBOM + 취약점)", "🤖 AI 보안 분석 (GPT + RAG)", "🔥 전체 분석 (All)"],
+            ["⚡ 빠른 분석 (SBOM)", "🤖 AI 보안 분석 (GPT)", "🔥 전체 분석"],
             horizontal=True,
-            help="AI 보안 분석은 OpenAI API 키가 필요합니다"
+            help="AI 분석이 느리다면 빠른 분석을 먼저 시도하세요"
         )
     
     with col2:
         if llm_available and llm_analyzer:
-            st.success(f"✅ GPT 모델: {llm_analyzer.model}")
-            if llm_analyzer.rag_available:
-                st.success("✅ RAG: KISIA 가이드")
+            st.success(f"✅ GPT: {llm_analyzer.model}")
         else:
-            st.error("❌ AI 분석 불가")
+            st.error("❌ AI 불가")
     
     # 입력 영역
     col1, col2 = st.columns([1, 1])
@@ -82,7 +81,7 @@ def render_code_analysis_tab():
             "코드를 입력하세요:",
             height=400,
             value=default_code,
-            key="code_input",
+            key="code_input_area",
             placeholder="import pandas as pd\nimport numpy as np\n..."
         )
     
@@ -90,11 +89,14 @@ def render_code_analysis_tab():
         st.subheader("📦 requirements.txt")
         
         req_input = st.text_area(
-            "requirements.txt 내용:",
+            "requirements.txt 내용 (선택):",
             height=400,
             placeholder="pandas==2.0.0\nnumpy>=1.24.0\n...",
-            key="req_input"
+            key="req_input_area"
         )
+    
+    # 코드 해시 생성 (캐싱용)
+    code_hash = hashlib.md5((code_input + req_input + analysis_mode).encode()).hexdigest()
     
     # 분석 버튼
     if st.button("🔍 보안 분석 시작", type="primary", use_container_width=True):
@@ -102,378 +104,255 @@ def render_code_analysis_tab():
             st.warning("코드를 입력해주세요.")
             return
         
-        # 진행 상태 표시
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        results = {}
-        
-        try:
-            # 1단계: SBOM 생성 (모든 모드에서 실행)
-            if analysis_mode in ["⚡ 빠른 분석 (SBOM + 취약점)", "🔥 전체 분석 (All)"]:
-                status_text.text("📊 SBOM 생성 중...")
-                progress_bar.progress(20)
+        # 이미 분석한 결과가 있는지 확인
+        if f'analysis_result_{code_hash}' in st.session_state:
+            st.info("📌 캐시된 결과를 표시합니다. 재분석하려면 코드를 수정하세요.")
+        else:
+            # 새로운 분석 실행
+            with st.spinner("분석 중... (10-20초 소요)"):
+                results = perform_analysis(
+                    code_input, 
+                    req_input, 
+                    analysis_mode, 
+                    analyzer, 
+                    llm_analyzer, 
+                    llm_available
+                )
                 
-                sbom_result = analyzer.analyze(code_input, req_input, scan_environment=True)
-                
-                if not sbom_result.get("success"):
-                    st.error(f"SBOM 생성 실패: {sbom_result.get('error')}")
-                    return
-                
-                results['sbom'] = sbom_result
-                
-                # 2단계: 취약점 검사
-                status_text.text("🔍 패키지 취약점 검사 중...")
-                progress_bar.progress(40)
-                
-                if sbom_result.get('packages') and sbom_result.get('indirect_dependencies'):
-                    vuln_result = check_vulnerabilities_enhanced(
-                        sbom_result["packages"],
-                        sbom_result.get("indirect_dependencies", []),
-                        sbom_result
-                    )
-                    results['vulnerability'] = vuln_result
-            
-            # 3단계: AI 보안 분석 (선택적)
-            if analysis_mode in ["🤖 AI 보안 분석 (GPT + RAG)", "🔥 전체 분석 (All)"]:
-                if not llm_available:
-                    st.error("AI 분석을 위해 OpenAI API 키를 설정해주세요.")
-                else:
-                    status_text.text("🤖 AI 보안 분석 중...")
-                    progress_bar.progress(60)
-                    
-                    # 컨텍스트 준비
-                    context = {}
-                    if 'sbom' in results:
-                        context['sbom_summary'] = create_sbom_summary(results['sbom'])
-                    
-                    # AI 분석 실행
-                    ai_result = llm_analyzer.analyze_code_security(code_input, context)
-                    results['ai_analysis'] = ai_result
-            
-            progress_bar.progress(100)
-            status_text.text("✅ 분석 완료!")
-            time.sleep(0.5)
-            progress_bar.empty()
-            status_text.empty()
-            
-            # 결과 표시
-            display_analysis_results(results, analysis_mode)
-            
-        except Exception as e:
-            st.error(f"❌ 분석 중 오류 발생: {e}")
-            progress_bar.empty()
-            status_text.empty()
+                # 결과를 세션에 저장
+                st.session_state[f'analysis_result_{code_hash}'] = results
+                st.session_state.last_analysis_hash = code_hash
+    
+    # 저장된 결과 표시
+    if 'last_analysis_hash' in st.session_state:
+        result_key = f'analysis_result_{st.session_state.last_analysis_hash}'
+        if result_key in st.session_state:
+            display_cached_results(st.session_state[result_key])
 
-def display_analysis_results(results, analysis_mode):
-    """분석 결과 통합 표시"""
+def perform_analysis(code_input, req_input, analysis_mode, analyzer, llm_analyzer, llm_available):
+    """실제 분석 수행 - 한 번만 실행"""
+    results = {}
+    start_time = time.time()
     
-    st.success("✅ 보안 분석 완료!")
+    try:
+        # SBOM 분석 (빠른 분석 또는 전체 분석)
+        if analysis_mode in ["⚡ 빠른 분석 (SBOM)", "🔥 전체 분석"]:
+            sbom_result = analyzer.analyze(code_input, req_input, scan_environment=False)  # 환경 스캔 비활성화로 속도 개선
+            if sbom_result.get("success"):
+                results['sbom'] = sbom_result
+        
+        # AI 보안 분석 (AI 분석 또는 전체 분석)
+        if analysis_mode in ["🤖 AI 보안 분석 (GPT)", "🔥 전체 분석"]:
+            if llm_available:
+                context = {}
+                if 'sbom' in results:
+                    context['packages'] = len(results['sbom'].get('packages', []))
+                
+                ai_result = llm_analyzer.analyze_code_security(code_input, context)
+                results['ai_analysis'] = ai_result
     
-    # 전체 요약
+    except Exception as e:
+        st.error(f"❌ 분석 오류: {e}")
+    
+    results['analysis_time'] = time.time() - start_time
+    return results
+
+def display_cached_results(results):
+    """캐시된 결과 표시 - 리렌더링 없이"""
+    
+    # 분석 시간 표시
+    if 'analysis_time' in results:
+        st.success(f"✅ 분석 완료 (소요시간: {results['analysis_time']:.1f}초)")
+    
+    # 요약 메트릭
     display_summary_metrics(results)
     
-    # 탭으로 결과 구성
-    tabs = []
-    if 'sbom' in results:
-        tabs.append("📊 SBOM")
-    if 'vulnerability' in results:
-        tabs.append("🛡️ 패키지 취약점")
-    if 'ai_analysis' in results:
-        tabs.append("🤖 AI 코드 분석")
-    tabs.extend(["📋 보고서", "💾 다운로드"])
-    
-    tab_objects = st.tabs(tabs)
-    tab_index = 0
-    
-    # SBOM 탭
-    if '📊 SBOM' in tabs:
-        with tab_objects[tab_index]:
-            display_sbom_info(results.get('sbom'))
-        tab_index += 1
-    
-    # 패키지 취약점 탭
-    if '🛡️ 패키지 취약점' in tabs:
-        with tab_objects[tab_index]:
-            display_package_vulnerabilities(results.get('vulnerability'))
-        tab_index += 1
-    
-    # AI 코드 분석 탭
-    if '🤖 AI 코드 분석' in tabs:
-        with tab_objects[tab_index]:
-            display_ai_analysis(results.get('ai_analysis'))
-        tab_index += 1
-    
-    # 보고서 탭
-    with tab_objects[tab_index]:
-        generate_integrated_report(results)
-    tab_index += 1
-    
-    # 다운로드 탭
-    with tab_objects[tab_index]:
-        provide_download_options(results)
+    # 결과가 있을 때만 탭 표시
+    if results:
+        # AI 분석 결과가 있으면 우선 표시
+        if 'ai_analysis' in results and results['ai_analysis'].get('success'):
+            display_ai_results_optimized(results['ai_analysis'])
+        
+        # SBOM 결과
+        if 'sbom' in results:
+            with st.expander("📊 SBOM 및 패키지 정보", expanded=False):
+                display_sbom_info(results['sbom'])
+        
+        # 다운로드 옵션
+        with st.expander("💾 결과 다운로드", expanded=False):
+            provide_download_options(results)
 
-def display_summary_metrics(results):
-    """전체 요약 메트릭 표시"""
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    # SBOM 메트릭
-    if 'sbom' in results:
-        sbom = results['sbom']
-        with col1:
-            st.metric(
-                "전체 패키지",
-                sbom['summary']['external_packages'],
-                delta=f"+{sbom['summary'].get('indirect_dependencies', 0)} 간접"
-            )
-    
-    # 패키지 취약점 메트릭
-    if 'vulnerability' in results:
-        vuln = results['vulnerability'].get('vulnerability_scan', {}).get('statistics', {})
-        with col2:
-            total_vulns = vuln.get('total_vulnerabilities', 0)
-            st.metric(
-                "패키지 취약점",
-                total_vulns,
-                delta="위험" if total_vulns > 0 else "안전",
-                delta_color="inverse"
-            )
-    
-    # AI 분석 메트릭
-    if 'ai_analysis' in results:
-        ai = results['ai_analysis']
-        if ai.get('success'):
-            analysis = ai['analysis']
-            with col3:
-                score = analysis.get('security_score', 0)
-                st.metric(
-                    "보안 점수",
-                    f"{score}/100",
-                    delta="양호" if score >= 70 else "위험" if score < 40 else "주의",
-                    delta_color="normal" if score >= 70 else "inverse"
-                )
-            
-            with col4:
-                code_vulns = len(analysis.get('code_vulnerabilities', []))
-                st.metric(
-                    "코드 취약점",
-                    code_vulns,
-                    delta="CRITICAL" if any(v.get('severity') == 'CRITICAL' for v in analysis.get('code_vulnerabilities', [])) else None,
-                    delta_color="inverse" if code_vulns > 0 else "off"
-                )
-
-def display_ai_analysis(ai_result):
-    """AI 분석 결과 표시"""
+def display_ai_results_optimized(ai_result):
+    """AI 분석 결과 최적화 표시"""
     if not ai_result or not ai_result.get('success'):
-        st.error("AI 분석 결과가 없습니다.")
         return
     
     analysis = ai_result['analysis']
-    metadata = ai_result.get('metadata', {})
-    
-    # 분석 정보
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.info(f"**모델**: {metadata.get('gpt_model', 'unknown')}")
-    with col2:
-        st.info(f"**RAG**: {'활성' if metadata.get('rag_available') else '비활성'}")
-    with col3:
-        st.info(f"**발견**: {metadata.get('total_vulnerabilities', 0)}개")
-    
-    # 보안 점수
-    score = analysis.get('security_score', 0)
-    st.metric("🎯 보안 점수", f"{score}/100")
-    st.progress(score / 100)
-    
-    # 발견된 취약점
     vulns = analysis.get('code_vulnerabilities', [])
-    if vulns:
-        st.subheader(f"⚠️ 발견된 코드 취약점 ({len(vulns)}개)")
-        
-        # 심각도별 그룹화
+    
+    if not vulns:
+        st.success("✅ 코드 취약점이 발견되지 않았습니다!")
+        return
+    
+    st.subheader(f"⚠️ 발견된 보안 취약점 ({len(vulns)}개)")
+    
+    # 탭으로 구성 (더 깔끔한 UI)
+    tab1, tab2, tab3 = st.tabs(["🔍 취약점 목록", "🔧 수정 코드", "📋 전체 보고서"])
+    
+    with tab1:
+        # 취약점 목록 (간단히)
         for severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']:
             severity_vulns = [v for v in vulns if v.get('severity') == severity]
             if severity_vulns:
                 severity_color = {
-                    'CRITICAL': '🔴',
-                    'HIGH': '🟠',
-                    'MEDIUM': '🟡',
-                    'LOW': '🟢'
+                    'CRITICAL': '🔴', 'HIGH': '🟠', 
+                    'MEDIUM': '🟡', 'LOW': '🟢'
                 }[severity]
                 
                 st.write(f"### {severity_color} {severity} ({len(severity_vulns)}개)")
                 
                 for vuln in severity_vulns:
-                    with st.expander(f"**라인 {vuln.get('line_numbers', ['?'])[0]}**: {vuln['type']}"):
-                        st.write(f"**설명**: {vuln.get('description', '')}")
-                        
-                        # 취약한 코드
-                        if vuln.get('vulnerable_code'):
-                            st.code(vuln['vulnerable_code'], language='python')
-                        
-                        # 설명 출처
-                        if vuln.get('explanation'):
-                            source = vuln.get('explanation_source', '')
-                            if source == 'KISIA 가이드라인':
-                                st.info(f"📚 **{source}**:\n{vuln['explanation']}")
-                            else:
-                                st.write(f"🤖 **{source}**:\n{vuln['explanation']}")
-                        
-                        # 권장 수정
-                        if vuln.get('recommended_fix'):
-                            st.success(f"✅ **권장 수정**:\n```python\n{vuln['recommended_fix']}\n```")
-    else:
-        st.success("✅ 코드 취약점이 발견되지 않았습니다!")
+                    line = vuln.get('line_numbers', ['?'])[0]
+                    col1, col2 = st.columns([3, 1])
+                    
+                    with col1:
+                        st.write(f"**라인 {line}:** {vuln['type']}")
+                        # AI 설명 (간결)
+                        st.caption(vuln.get('description', '')[:100])
+                    
+                    with col2:
+                        if st.button("상세", key=f"detail_{severity}_{line}"):
+                            st.session_state[f'show_detail_{line}'] = True
+                    
+                    # 상세 정보 (클릭시만)
+                    if st.session_state.get(f'show_detail_{line}', False):
+                        with st.container():
+                            # 취약한 코드
+                            st.code(vuln.get('vulnerable_code', ''), language='python')
+                            
+                            # AI 설명
+                            if vuln.get('ai_description'):
+                                st.write("**🤖 AI 분석:**")
+                                st.info(vuln.get('ai_description'))
+                            
+                            # RAG 설명 (있으면)
+                            if vuln.get('rag_explanation'):
+                                st.write("**📚 KISIA 가이드라인:**")
+                                st.success(vuln.get('rag_explanation'))
+                            
+                            # 영향
+                            if vuln.get('impact'):
+                                st.write("**⚠️ 공격 시 영향:**")
+                                st.warning(vuln.get('impact'))
     
-    # 즉시 조치사항
-    if analysis.get('immediate_actions'):
-        st.subheader("🚨 즉시 필요한 조치")
-        for action in analysis['immediate_actions']:
-            st.write(f"• {action}")
-    
-    # 모범 사례
-    if analysis.get('best_practices'):
-        st.subheader("💡 권장 보안 사례")
-        for practice in analysis['best_practices']:
-            st.write(f"• {practice}")
-
-def display_sbom_info(result):
-    """SBOM 정보 표시"""
-    if not result:
-        return
-    
-    st.subheader("📦 발견된 패키지")
-    
-    # 패키지 테이블
-    if result.get("packages"):
-        df_data = []
-        for pkg in result["packages"]:
-            df_data.append({
-                "패키지": pkg["name"],
-                "설치명": pkg["install_name"],
-                "요구 버전": pkg.get("required_version", "미지정"),
-                "실제 버전": pkg.get("actual_version", "미설치"),
-                "종속성": pkg.get("dependencies_count", 0),
-                "상태": pkg["status"]
-            })
+    with tab2:
+        # 수정 코드 (전체)
+        st.write("### 🔧 취약점 수정 코드")
         
-        df = pd.DataFrame(df_data)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        for vuln in vulns:
+            if vuln.get('recommended_fix') and isinstance(vuln['recommended_fix'], dict):
+                fix = vuln['recommended_fix']
+                line = vuln.get('line_numbers', ['?'])[0]
+                
+                with st.expander(f"라인 {line}: {vuln['type']}", expanded=False):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.write("**Before:**")
+                        st.code(fix.get('original_code', ''), language='python')
+                    
+                    with col2:
+                        st.write("**After:**")
+                        st.code(fix.get('fixed_code', ''), language='python')
+                    
+                    if fix.get('description'):
+                        st.caption(f"💡 {fix['description']}")
     
-    # 간접 종속성
-    if result.get("indirect_dependencies"):
-        with st.expander(f"📎 간접 종속성 ({len(result['indirect_dependencies'])}개)"):
-            for dep in result['indirect_dependencies'][:20]:
-                st.write(f"• {dep['name']} ({dep.get('version', 'unknown')})")
+    with tab3:
+        # 전체 보고서
+        generate_simple_report(analysis)
 
-def display_package_vulnerabilities(result):
-    """패키지 취약점 표시"""
-    if not result or 'vulnerability_scan' not in result:
-        st.info("취약점 검사 결과가 없습니다.")
-        return
-    
-    scan = result['vulnerability_scan']
-    stats = scan['statistics']
-    
-    # 통계
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("검사한 패키지", stats['total_checked'])
-    with col2:
-        st.metric("발견된 취약점", stats['total_vulnerabilities'])
-    with col3:
-        st.metric("API 호출", stats['api_calls'])
-    
-    # 취약점 상세
-    if stats['total_vulnerabilities'] > 0:
-        st.warning(f"⚠️ {stats['total_vulnerabilities']}개 취약점 발견")
-        
-        # 직접 패키지 취약점
-        if scan.get('direct_vulnerabilities'):
-            st.subheader("📦 직접 패키지 취약점")
-            for pkg_name, data in scan['direct_vulnerabilities'].items():
-                with st.expander(f"{pkg_name} ({data['version']}) - {len(data['vulnerabilities'])}개"):
-                    for vuln in data['vulnerabilities']:
-                        st.write(f"• **{vuln['severity']}**: {vuln['id']}")
-                        st.write(f"  {vuln['summary']}")
-                        if vuln.get('fixed_version'):
-                            st.success(f"  수정 버전: {vuln['fixed_version']}")
-        
-        # 간접 종속성 취약점
-        if scan.get('indirect_vulnerabilities'):
-            st.subheader("📎 간접 종속성 취약점")
-            st.write(f"{len(scan['indirect_vulnerabilities'])}개 종속성에서 취약점 발견")
-    else:
-        st.success("✅ 알려진 패키지 취약점이 없습니다!")
-
-def generate_integrated_report(results):
-    """통합 보고서 생성"""
-    st.subheader("📋 종합 보안 보고서")
-    
+def generate_simple_report(analysis):
+    """간단한 보고서 생성"""
     report = f"""# 보안 분석 보고서
-생성 시간: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-## 1. 분석 요약
-"""
-    
-    # SBOM 요약
-    if 'sbom' in results:
-        sbom = results['sbom']
-        report += f"""
-### SBOM 분석
-- 전체 패키지: {sbom['summary']['external_packages']}개
-- 간접 종속성: {sbom['summary'].get('indirect_dependencies', 0)}개
-- 버전 확인: {sbom['summary']['with_version']}개
-"""
-    
-    # 패키지 취약점 요약
-    if 'vulnerability' in results:
-        vuln_stats = results['vulnerability'].get('vulnerability_scan', {}).get('statistics', {})
-        report += f"""
-### 패키지 취약점
-- 검사한 패키지: {vuln_stats.get('total_checked', 0)}개
-- 발견된 취약점: {vuln_stats.get('total_vulnerabilities', 0)}개
-  - CRITICAL: {vuln_stats.get('critical', 0)}개
-  - HIGH: {vuln_stats.get('high', 0)}개
-  - MEDIUM: {vuln_stats.get('medium', 0)}개
-  - LOW: {vuln_stats.get('low', 0)}개
-"""
-    
-    # AI 분석 요약
-    if 'ai_analysis' in results and results['ai_analysis'].get('success'):
-        analysis = results['ai_analysis']['analysis']
-        report += f"""
-### 코드 보안 분석
+## 요약
 - 보안 점수: {analysis.get('security_score', 0)}/100
-- 코드 취약점: {len(analysis.get('code_vulnerabilities', []))}개
-- {analysis.get('summary', '')}
+- 발견된 취약점: {len(analysis.get('code_vulnerabilities', []))}개
+
+## 취약점 상세
 """
-        
-        # 주요 발견사항
-        critical_vulns = [v for v in analysis.get('code_vulnerabilities', []) if v.get('severity') == 'CRITICAL']
-        if critical_vulns:
-            report += "\n## 2. 치명적 취약점\n"
-            for vuln in critical_vulns:
-                report += f"- **라인 {vuln.get('line_numbers', ['?'])[0]}**: {vuln['type']}\n"
-                report += f"  - {vuln.get('description', '')}\n"
     
-    st.text_area("보고서 내용", report, height=400)
+    for vuln in analysis.get('code_vulnerabilities', []):
+        report += f"\n### {vuln['type']} (라인 {vuln.get('line_numbers', ['?'])[0]})\n"
+        report += f"- 심각도: {vuln.get('severity', 'MEDIUM')}\n"
+        report += f"- 설명: {vuln.get('description', '')}\n"
+    
+    st.text_area("보고서", report, height=400)
     
     st.download_button(
         "📥 보고서 다운로드",
         data=report,
-        file_name=f"security_report_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.md",
+        file_name="security_report.md",
         mime="text/markdown"
     )
 
+def display_summary_metrics(results):
+    """요약 메트릭 표시"""
+    col1, col2, col3, col4 = st.columns(4)
+    
+    # AI 분석 메트릭
+    if 'ai_analysis' in results and results['ai_analysis'].get('success'):
+        analysis = results['ai_analysis']['analysis']
+        
+        with col1:
+            score = analysis.get('security_score', 0)
+            st.metric("보안 점수", f"{score}/100")
+        
+        with col2:
+            vulns = len(analysis.get('code_vulnerabilities', []))
+            st.metric("코드 취약점", vulns, 
+                     delta="위험" if vulns > 0 else "안전",
+                     delta_color="inverse")
+        
+        with col3:
+            critical = sum(1 for v in analysis.get('code_vulnerabilities', []) 
+                          if v.get('severity') == 'CRITICAL')
+            if critical > 0:
+                st.metric("치명적", critical, delta_color="inverse")
+        
+        with col4:
+            high = sum(1 for v in analysis.get('code_vulnerabilities', []) 
+                      if v.get('severity') == 'HIGH')
+            if high > 0:
+                st.metric("높음", high, delta_color="inverse")
+
+def display_sbom_info(result):
+    """SBOM 정보 간단 표시"""
+    if not result:
+        return
+    
+    st.write(f"📦 **패키지 분석 결과**")
+    st.write(f"- 발견된 패키지: {result['summary']['external_packages']}개")
+    st.write(f"- 버전 확인: {result['summary']['with_version']}개")
+    
+    if result.get("packages"):
+        df_data = []
+        for pkg in result["packages"][:10]:  # 상위 10개만
+            df_data.append({
+                "패키지": pkg["name"],
+                "버전": pkg.get("actual_version", "미설치"),
+                "상태": pkg["status"]
+            })
+        
+        if df_data:
+            df = pd.DataFrame(df_data)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
 def provide_download_options(results):
     """다운로드 옵션 제공"""
-    st.subheader("💾 결과 다운로드")
+    col1, col2 = st.columns(2)
     
-    col1, col2, col3 = st.columns(3)
-    
-    # 전체 결과 JSON
     with col1:
         if results:
             st.download_button(
@@ -483,42 +362,32 @@ def provide_download_options(results):
                 mime="application/json"
             )
     
-    # SBOM 다운로드
     with col2:
-        if 'sbom' in results:
-            st.download_button(
-                "📥 SBOM (JSON)",
-                data=json.dumps(results['sbom'], indent=2),
-                file_name="sbom.json",
-                mime="application/json"
-            )
-    
-    # AI 분석 결과
-    with col3:
         if 'ai_analysis' in results:
-            st.download_button(
-                "📥 AI 분석 (JSON)",
-                data=json.dumps(results['ai_analysis'], indent=2, default=str),
-                file_name="ai_analysis.json",
-                mime="application/json"
-            )
-
-def create_sbom_summary(sbom_data):
-    """SBOM 요약 생성"""
-    if not sbom_data:
-        return "SBOM 정보 없음"
-    
-    return {
-        'total_packages': sbom_data['summary']['external_packages'],
-        'indirect_dependencies': sbom_data['summary'].get('indirect_dependencies', 0),
-        'total_vulnerabilities': sbom_data['summary'].get('total_vulnerabilities', 0)
-    }
+            analysis = results['ai_analysis'].get('analysis', {})
+            if analysis.get('code_vulnerabilities'):
+                # 수정 코드만 추출
+                fixes = []
+                for vuln in analysis['code_vulnerabilities']:
+                    if vuln.get('recommended_fix') and isinstance(vuln['recommended_fix'], dict):
+                        fixes.append({
+                            'line': vuln.get('line_numbers', ['?'])[0],
+                            'type': vuln['type'],
+                            'fixed_code': vuln['recommended_fix'].get('fixed_code', '')
+                        })
+                
+                if fixes:
+                    st.download_button(
+                        "📥 수정 코드",
+                        data=json.dumps(fixes, indent=2),
+                        file_name="fixes.json",
+                        mime="application/json"
+                    )
 
 def get_vulnerable_example():
     """취약한 코드 예제"""
     return """import sqlite3
 import hashlib
-import pickle
 
 def get_user(user_id):
     # SQL 인젝션 취약점
@@ -534,11 +403,6 @@ def hash_password(password):
 
 # 하드코딩된 비밀
 API_KEY = "sk-1234567890"
-PASSWORD = "admin123"
-
-def load_data(data):
-    # 안전하지 않은 역직렬화
-    return pickle.loads(data)
 """
 
 def get_safe_example():
@@ -563,5 +427,4 @@ def hash_password(password):
 
 # 환경 변수 사용
 API_KEY = os.environ.get('API_KEY')
-PASSWORD = os.environ.get('DB_PASSWORD')
 """
