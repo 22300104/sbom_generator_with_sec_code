@@ -1,1 +1,6 @@
+# .gitignore에 포함되어 있는지 확인
+.env
+*.env
+.env.*
+!.env.example
 .env
