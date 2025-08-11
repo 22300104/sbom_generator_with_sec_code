@@ -23,7 +23,6 @@ st.set_page_config(
 def main():
     st.title(f"{app_config.PAGE_ICON} {app_config.APP_NAME}")
     
-    # 사이드바
     with st.sidebar:
         st.header("⚙️ 설정")
         
@@ -31,22 +30,15 @@ def main():
         has_api_key = "OPENAI_API_KEY" in os.environ and os.environ["OPENAI_API_KEY"]
         if has_api_key:
             st.success("✅ OpenAI API Key 설정됨")
-        else:
-            st.warning("⚠️ OpenAI API Key 필요")
-            api_key = st.text_input("API Key 입력:", type="password")
-            if api_key:
-                os.environ["OPENAI_API_KEY"] = api_key
+
+            
+            # 캐시 클리어 (개발용)
+            if st.button("🔄 캐시 클리어"):
+                st.cache_data.clear()
                 st.rerun()
-        
-        st.divider()
-        
-        # 캐시 클리어 (개발용)
-        if st.button("🔄 캐시 클리어"):
-            st.cache_data.clear()
-            st.rerun()
     
     # 메인 탭
-    tab1, tab2, tab3 = st.tabs(["📝 코드 분석", "💬 Q&A", "📚 가이드라인"])
+    tab1, tab2 = st.tabs(["📝 코드 분석", "💬 Q&A"])
     
     with tab1:
         render_code_analysis_tab()

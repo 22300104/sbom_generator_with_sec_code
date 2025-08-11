@@ -1,7 +1,15 @@
-# scripts/test_rag.py
+# rag/test_rag.py 수정
+from dotenv import load_dotenv
+load_dotenv()
+
+# 절대 경로로 import
+from rag.simple_rag import SimpleRAG  # 이렇게 수정
+
+# 또는 
 import sys
 sys.path.append('.')
 from rag.simple_rag import SimpleRAG
+
 
 def test_rag():
     print("🚀 RAG 시스템 테스트 시작\n")
