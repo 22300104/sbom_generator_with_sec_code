@@ -1,5 +1,5 @@
 """
-프로젝트 다운로더 - GitHub 링크 및 압축파일 처리
+개선된 프로젝트 다운로더 - 스마트 필터링 및 사용자 코드 우선 분석
 """
 import os
 import shutil
@@ -8,7 +8,7 @@ import zipfile
 import tarfile
 import requests
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Set
 from urllib.parse import urlparse
 import re
 import subprocess
@@ -34,8 +34,8 @@ except ImportError:
     RAR_AVAILABLE = False
 
 
-class ProjectDownloader:
-    """GitHub 저장소 및 압축파일 다운로드/추출"""
+class SmartProjectDownloader:
+    """스마트한 프로젝트 다운로더 - 사용자 코드 중심 분석"""
     
     def __init__(self):
         self.temp_dir = None
@@ -45,14 +45,117 @@ class ProjectDownloader:
             self.supported_archives.append('.7z')
         if RAR_AVAILABLE:
             self.supported_archives.append('.rar')
+        
+        # 확장된 제외 패턴
+        self.EXCLUDE_PATTERNS = {
+            # 가상환경 및 패키지
+            'venv', 'env', '.venv', '.env', 'virtualenv',
+            'site-packages', 'dist-packages', 'node_modules',
+            
+            # 캐시 및 임시 파일
+            '__pycache__', '.pyc', '.pyo', '.pyd',
+            '.pytest_cache', '.tox', '.coverage', 'htmlcov',
+            
+            # 버전 관리
+            '.git', '.svn', '.hg', '.bzr',
+            
+            # 빌드 및 배포
+            'build', 'dist', '.build', 'target', 'out',
+            'bin', 'obj', 'pkg',
+            
+            # IDE 및 편집기
+            '.vscode', '.idea', '.eclipse', '*.swp', '*.swo',
+            
+            # 문서 및 예제
+            'docs', 'documentation', 'doc', 'manual',
+            'examples', 'example', 'samples', 'sample',
+            'tutorial', 'tutorials', 'demo', 'demos',
+            
+            # 테스트 (선택적 제외)
+            'tests', 'test', 'testing', '__tests__',
+            'spec', 'specs', 'fixtures',
+            
+            # 설정 및 메타데이터
+            '.github', '.gitlab', '.circleci', '.travis',
+            'vendor', 'third_party', 'external',
+            
+            # 프레임워크별 제외
+            'migrations',  # Django
+            'static/admin', 'templates/admin',  # Django admin
+            'manage.py',  # Django (때로는 포함하고 싶을 수도)
+            
+            # 언어별 패키지 관리자
+            'bower_components', 'jspm_packages',
+            'composer', 'vendor',
+            
+            # 로그 및 데이터 파일
+            'logs', 'log', '*.log',
+            'data', 'datasets', '*.db', '*.sqlite',
+            
+            # 미디어 파일
+            'media', 'images', 'img', 'assets/images',
+            'uploads', 'files', 'attachments',
+        }
+        
+        # 사용자 코드 식별 패턴
+        self.USER_CODE_PATTERNS = {
+            # 일반적인 소스 디렉터리
+            'src', 'source', 'app', 'application',
+            'lib', 'libs', 'library', 'core',
+            'common', 'shared', 'utils', 'utilities',
+            'helpers', 'services', 'modules',
+            
+            # 웹 개발
+            'web', 'www', 'public', 'static',
+            'frontend', 'backend', 'client', 'server',
+            'api', 'rest', 'graphql',
+            
+            # 프레임워크별
+            'views', 'models', 'controllers',
+            'components', 'pages', 'layouts',
+            'middleware', 'decorators',
+            
+            # 특화 디렉터리
+            'business', 'domain', 'logic',
+            'config', 'settings', 'configurations',
+            'handlers', 'processors', 'workers',
+        }
+        
+        # 우선순위 파일 (반드시 포함)
+        self.PRIORITY_FILES = {
+            # 진입점
+            'main.py', 'app.py', 'run.py', 'start.py',
+            'server.py', 'wsgi.py', 'asgi.py',
+            
+            # Django
+            'manage.py', 'settings.py', 'urls.py',
+            'views.py', 'models.py', 'forms.py',
+            'admin.py', 'serializers.py',
+            
+            # Flask/FastAPI
+            'routes.py', 'blueprints.py', 'api.py',
+            'endpoints.py', 'handlers.py',
+            
+            # 보안 관련
+            'auth.py', 'authentication.py', 'authorization.py',
+            'permissions.py', 'security.py', 'middleware.py',
+            
+            # 설정
+            'config.py', 'configuration.py', 'env.py',
+            'secrets.py', 'constants.py',
+            
+            # 비즈니스 로직
+            'tasks.py', 'celery.py', 'worker.py',
+            'services.py', 'utils.py', 'helpers.py',
+            
+            # 데이터베이스
+            'database.py', 'db.py', 'orm.py',
+            'schemas.py', 'validators.py',
+        }
     
     def download_github(self, github_url: str) -> Tuple[bool, str, Optional[str]]:
-        """
-        GitHub 저장소 다운로드
-        Returns: (성공여부, 메시지, 프로젝트 경로)
-        """
+        """GitHub 저장소 다운로드"""
         try:
-            # URL 파싱
             parsed = self._parse_github_url(github_url)
             if not parsed:
                 return False, "유효한 GitHub URL이 아닙니다.", None
@@ -60,79 +163,19 @@ class ProjectDownloader:
             owner, repo, branch, subpath = parsed
             
             # 임시 디렉토리 생성
-            self.temp_dir = tempfile.mkdtemp(prefix="sbom_analyzer_")
+            self.temp_dir = tempfile.mkdtemp(prefix="smart_analyzer_")
             
-            # 다운로드 방법 선택
-            if GIT_AVAILABLE and not subpath:
-                # Git clone 사용 (전체 저장소)
-                return self._clone_repository(owner, repo, branch)
-            else:
-                # ZIP 다운로드 사용 (빠르고 가벼움)
-                return self._download_as_zip(owner, repo, branch, subpath)
+            # ZIP 다운로드 방법 사용 (더 빠르고 효율적)
+            return self._download_as_zip(owner, repo, branch, subpath)
                 
         except Exception as e:
             return False, f"다운로드 실패: {str(e)}", None
     
-    def extract_archive(self, file_path: str) -> Tuple[bool, str, Optional[str]]:
-        """
-        압축파일 추출
-        Returns: (성공여부, 메시지, 프로젝트 경로)
-        """
-        try:
-            file_path = Path(file_path)
-            if not file_path.exists():
-                return False, "파일이 존재하지 않습니다.", None
-            
-            # 임시 디렉토리 생성
-            self.temp_dir = tempfile.mkdtemp(prefix="sbom_analyzer_")
-            extract_path = Path(self.temp_dir) / "extracted"
-            extract_path.mkdir(exist_ok=True)
-            
-            # 확장자별 처리
-            suffix = file_path.suffix.lower()
-            
-            if suffix == '.zip':
-                with zipfile.ZipFile(file_path, 'r') as zf:
-                    zf.extractall(extract_path)
-                    
-            elif suffix in ['.tar', '.tar.gz', '.tgz', '.tar.bz2']:
-                mode = 'r:gz' if suffix in ['.tar.gz', '.tgz'] else 'r:bz2' if suffix == '.tar.bz2' else 'r'
-                with tarfile.open(file_path, mode) as tf:
-                    tf.extractall(extract_path)
-                    
-            elif suffix == '.7z' and P7Z_AVAILABLE:
-                with py7zr.SevenZipFile(file_path, mode='r') as zf:
-                    zf.extractall(extract_path)
-                    
-            elif suffix == '.rar' and RAR_AVAILABLE:
-                with rarfile.RarFile(file_path) as rf:
-                    rf.extractall(extract_path)
-            else:
-                return False, f"지원하지 않는 파일 형식: {suffix}", None
-            
-            # 프로젝트 루트 찾기
-            self.project_path = self._find_project_root(extract_path)
-            
-            # 프로젝트 정보 수집
-            info = self._analyze_project_structure(self.project_path)
-            
-            return True, f"추출 완료: {info['summary']}", self.project_path
-            
-        except Exception as e:
-            return False, f"압축 해제 실패: {str(e)}", None
-    
     def _parse_github_url(self, url: str) -> Optional[Tuple[str, str, str, Optional[str]]]:
-        """
-        GitHub URL 파싱
-        Returns: (owner, repo, branch, subpath)
-        """
-        # 다양한 GitHub URL 형식 지원
+        """GitHub URL 파싱"""
         patterns = [
-            # https://github.com/owner/repo
             r'github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$',
-            # https://github.com/owner/repo/tree/branch
             r'github\.com/([^/]+)/([^/]+)/tree/([^/]+)/?(.*)$',
-            # https://github.com/owner/repo/blob/branch/path
             r'github\.com/([^/]+)/([^/]+)/blob/([^/]+)/(.+)$',
         ]
         
@@ -147,38 +190,15 @@ class ProjectDownloader:
         
         return None
     
-    def _clone_repository(self, owner: str, repo: str, branch: str) -> Tuple[bool, str, Optional[str]]:
-        """Git clone으로 저장소 다운로드"""
-        try:
-            repo_url = f"https://github.com/{owner}/{repo}.git"
-            clone_path = Path(self.temp_dir) / repo
-            
-            # Clone (shallow clone으로 빠르게)
-            git.Repo.clone_from(
-                repo_url, 
-                clone_path,
-                branch=branch,
-                depth=1  # shallow clone
-            )
-            
-            self.project_path = clone_path
-            info = self._analyze_project_structure(self.project_path)
-            
-            return True, f"저장소 클론 완료: {info['summary']}", self.project_path
-            
-        except Exception as e:
-            return False, f"Git clone 실패: {str(e)}", None
-    
     def _download_as_zip(self, owner: str, repo: str, branch: str, subpath: Optional[str]) -> Tuple[bool, str, Optional[str]]:
         """ZIP 파일로 다운로드"""
         try:
             # GitHub API를 통한 ZIP 다운로드
             zip_url = f"https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip"
             
-            # 다운로드
             response = requests.get(zip_url, stream=True, timeout=30)
             if response.status_code == 404:
-                # branch가 main이 아닐 수도 있음 (master 시도)
+                # main이 아닐 수도 있음 (master 시도)
                 zip_url = f"https://github.com/{owner}/{repo}/archive/refs/heads/master.zip"
                 response = requests.get(zip_url, stream=True, timeout=30)
             
@@ -204,16 +224,73 @@ class ProjectDownloader:
                 if subpath_full.exists():
                     self.project_path = subpath_full
             
+            # 프로젝트 타입 감지
+            project_type = self._detect_project_type(self.project_path)
             info = self._analyze_project_structure(self.project_path)
             
-            return True, f"다운로드 완료: {info['summary']}", self.project_path
+            summary = f"{project_type} 프로젝트 - {info['summary']}"
+            
+            return True, summary, self.project_path
             
         except Exception as e:
-            return False, f"ZIP 다운로드 실패: {str(e)}", None
+            return False, f"다운로드 실패: {str(e)}", None
+    
+    def _detect_project_type(self, project_path: Path) -> str:
+        """프로젝트 타입 감지"""
+        if not project_path or not project_path.exists():
+            return "Unknown"
+        
+        # Django 확인
+        if (project_path / 'manage.py').exists():
+            return "Django"
+        
+        # Flask 확인
+        flask_patterns = ['app.py', 'application.py', 'run.py']
+        for pattern in flask_patterns:
+            if (project_path / pattern).exists():
+                # Flask인지 더 확실히 확인
+                try:
+                    with open(project_path / pattern, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read(1000)
+                        if 'flask' in content.lower():
+                            return "Flask"
+                except:
+                    pass
+        
+        # FastAPI 확인
+        if (project_path / 'main.py').exists():
+            try:
+                with open(project_path / 'main.py', 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read(1000)
+                    if 'fastapi' in content.lower():
+                        return "FastAPI"
+            except:
+                pass
+        
+        # Streamlit 확인
+        py_files = list(project_path.glob('*.py'))
+        for py_file in py_files[:5]:  # 상위 5개 파일만 확인
+            try:
+                with open(py_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read(1000)
+                    if 'streamlit' in content.lower():
+                        return "Streamlit"
+            except:
+                pass
+        
+        # 일반 Python 프로젝트인지 확인
+        if any(project_path.glob('*.py')):
+            if (project_path / 'requirements.txt').exists():
+                return "Python Package"
+            elif (project_path / 'setup.py').exists():
+                return "Python Library"
+            else:
+                return "Python Project"
+        
+        return "Unknown"
     
     def _find_project_root(self, extract_path: Path) -> Path:
         """프로젝트 루트 디렉토리 찾기"""
-        # 추출된 내용 확인
         contents = list(extract_path.iterdir())
         
         # 단일 디렉토리만 있으면 그것이 프로젝트 루트
@@ -221,7 +298,10 @@ class ProjectDownloader:
             return contents[0]
         
         # Python 프로젝트 표시자 찾기
-        markers = ['setup.py', 'pyproject.toml', 'requirements.txt', 'manage.py', 'app.py', 'main.py']
+        markers = [
+            'setup.py', 'pyproject.toml', 'requirements.txt', 
+            'manage.py', 'app.py', 'main.py', 'run.py'
+        ]
         
         # 현재 디렉토리에 마커가 있는지 확인
         for marker in markers:
@@ -235,8 +315,428 @@ class ProjectDownloader:
                     if (item / marker).exists():
                         return item
         
-        # 못 찾으면 추출 경로 반환
         return extract_path
+    
+    def smart_analyze_project_files(self, project_path: Path, include_tests: bool = False) -> Dict:
+        """스마트한 프로젝트 파일 분석 - 사용자 코드 중심"""
+        
+        result = {
+            'files': [],
+            'combined_code': '',
+            'combined_requirements': '',
+            'statistics': {
+                'total_files': 0,
+                'analyzed_files': 0,
+                'skipped_files': 0,
+                'excluded_files': 0,
+                'total_lines': 0,
+                'user_code_lines': 0,
+                'framework_lines': 0,
+                'test_lines': 0,
+            },
+            'file_categories': {
+                'entry_point': [],
+                'core_logic': [],
+                'security': [],
+                'api': [],
+                'utility': [],
+                'config': [],
+                'test': [],
+                'framework': [],
+                'other': []
+            }
+        }
+        
+        # requirements 파일들 읽기
+        result['combined_requirements'] = self._extract_requirements(project_path)
+        
+        # Python 파일 수집 및 분류
+        all_py_files = list(project_path.rglob('*.py'))
+        result['statistics']['total_files'] = len(all_py_files)
+        
+        # 파일 분류
+        categorized_files = self._categorize_files(all_py_files, project_path)
+        
+        # 우선순위에 따라 파일 선택
+        selected_files = self._select_files_by_priority(
+            categorized_files, 
+            include_tests=include_tests
+        )
+        
+        # 코드 결합
+        all_code = []
+        
+        for category, files in selected_files.items():
+            result['file_categories'][category] = []
+            
+            for py_file, rel_path in files:
+                try:
+                    file_info = self._process_file(py_file, rel_path, project_path)
+                    if file_info:
+                        result['files'].append(file_info)
+                        result['file_categories'][category].append(file_info)
+                        
+                        # 코드 결합
+                        all_code.append(f"# ===== File: {rel_path} ({category}) =====\n{file_info['content']}\n")
+                        
+                        # 통계 업데이트
+                        result['statistics']['analyzed_files'] += 1
+                        result['statistics']['total_lines'] += file_info['lines']
+                        
+                        if category in ['entry_point', 'core_logic', 'security', 'api', 'utility', 'config']:
+                            result['statistics']['user_code_lines'] += file_info['lines']
+                        elif category == 'test':
+                            result['statistics']['test_lines'] += file_info['lines']
+                        elif category == 'framework':
+                            result['statistics']['framework_lines'] += file_info['lines']
+                        
+                except Exception as e:
+                    result['statistics']['skipped_files'] += 1
+                    continue
+        
+        result['combined_code'] = '\n'.join(all_code)
+        
+        return result
+    
+    def _extract_requirements(self, project_path: Path) -> str:
+        """requirements 파일들 추출"""
+        req_contents = []
+        
+        req_files = [
+            'requirements.txt', 'requirements-dev.txt', 'requirements-prod.txt',
+            'requirements-test.txt', 'dev-requirements.txt',
+            'Pipfile', 'pyproject.toml', 'setup.py'
+        ]
+        
+        for req_file in req_files:
+            req_path = project_path / req_file
+            if req_path.exists():
+                try:
+                    with open(req_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                        if req_file == 'Pipfile':
+                            req_contents.append(self._parse_pipfile(content))
+                        elif req_file == 'pyproject.toml':
+                            req_contents.append(self._parse_pyproject(content))
+                        elif req_file == 'setup.py':
+                            req_contents.append(self._parse_setup_py(content))
+                        else:
+                            req_contents.append(content)
+                except:
+                    pass
+        
+        return '\n'.join(req_contents)
+    
+    def _categorize_files(self, all_files: List[Path], project_path: Path) -> Dict[str, List[Tuple[Path, Path]]]:
+        """파일들을 카테고리별로 분류"""
+        categories = {
+            'priority': [],      # 우선순위 파일들
+            'user_code': [],     # 사용자 코드
+            'framework': [],     # 프레임워크 관련
+            'test': [],          # 테스트 파일
+            'excluded': []       # 제외할 파일
+        }
+        
+        for py_file in all_files:
+            try:
+                rel_path = py_file.relative_to(project_path)
+                rel_path_str = str(rel_path).lower()
+                file_name = py_file.name.lower()
+                
+                # 제외 패턴 체크
+                if self._should_exclude_file(rel_path_str, file_name):
+                    categories['excluded'].append((py_file, rel_path))
+                    continue
+                
+                # 우선순위 파일
+                if file_name in self.PRIORITY_FILES:
+                    categories['priority'].append((py_file, rel_path))
+                # 테스트 파일
+                elif self._is_test_file(rel_path_str, file_name):
+                    categories['test'].append((py_file, rel_path))
+                # 프레임워크 파일
+                elif self._is_framework_file(rel_path_str, file_name):
+                    categories['framework'].append((py_file, rel_path))
+                # 사용자 코드
+                elif self._is_user_code(rel_path_str, file_name):
+                    categories['user_code'].append((py_file, rel_path))
+                else:
+                    categories['user_code'].append((py_file, rel_path))  # 기본적으로 사용자 코드로 분류
+                    
+            except Exception:
+                categories['excluded'].append((py_file, py_file.name))
+                continue
+        
+        return categories
+    
+    def _should_exclude_file(self, rel_path_str: str, file_name: str) -> bool:
+        """파일 제외 여부 판단"""
+        # 기본 제외 패턴들
+        for pattern in self.EXCLUDE_PATTERNS:
+            if pattern in rel_path_str or pattern in file_name:
+                return True
+        
+        # 특정 디렉터리 패턴
+        exclude_dirs = [
+            'migrations/', 'static/admin/', 'templates/admin/',
+            'site-packages/', 'dist-packages/', 'node_modules/',
+            'venv/', 'env/', '.venv/', '__pycache__/',
+        ]
+        
+        for exclude_dir in exclude_dirs:
+            if exclude_dir in rel_path_str:
+                return True
+        
+        # 파일 크기 체크 (너무 큰 파일 제외)
+        try:
+            if Path(rel_path_str).stat().st_size > 2 * 1024 * 1024:  # 2MB 이상
+                return True
+        except:
+            pass
+        
+        return False
+    
+    def _is_test_file(self, rel_path_str: str, file_name: str) -> bool:
+        """테스트 파일인지 판단"""
+        test_patterns = [
+            'test_', '_test.py', 'tests/', '/test/', 'testing/',
+            'spec_', '_spec.py', 'specs/', '/spec/',
+            'conftest.py', 'pytest.ini'
+        ]
+        
+        for pattern in test_patterns:
+            if pattern in rel_path_str or pattern in file_name:
+                return True
+        
+        return False
+    
+    def _is_framework_file(self, rel_path_str: str, file_name: str) -> bool:
+        """프레임워크 파일인지 판단"""
+        framework_patterns = [
+            'migrations/', 'static/admin/', 'templates/admin/',
+            'django/contrib/', 'flask/ext/', 'sqlalchemy/',
+        ]
+        
+        for pattern in framework_patterns:
+            if pattern in rel_path_str:
+                return True
+        
+        # Django 마이그레이션 파일
+        if 'migrations' in rel_path_str and file_name.startswith('0'):
+            return True
+        
+        return False
+    
+    def _is_user_code(self, rel_path_str: str, file_name: str) -> bool:
+        """사용자 코드인지 판단"""
+        # 사용자 코드 패턴 확인
+        for pattern in self.USER_CODE_PATTERNS:
+            if pattern in rel_path_str:
+                return True
+        
+        # 루트 레벨의 .py 파일은 대부분 사용자 코드
+        if '/' not in rel_path_str and file_name.endswith('.py'):
+            return True
+        
+        return False
+    
+    def _select_files_by_priority(self, categorized_files: Dict, include_tests: bool = False) -> Dict:
+        """우선순위에 따라 파일 선택"""
+        selected = {
+            'entry_point': [],
+            'core_logic': [],
+            'security': [],
+            'api': [],
+            'utility': [],
+            'config': [],
+            'test': [],
+            'framework': [],
+            'other': []
+        }
+        
+        # 1. 우선순위 파일들 (모두 포함)
+        for py_file, rel_path in categorized_files['priority']:
+            category = self._get_file_category(py_file.name, str(rel_path))
+            selected[category].append((py_file, rel_path))
+        
+        # 2. 사용자 코드 (크기 제한 적용)
+        user_code_files = sorted(
+            categorized_files['user_code'],
+            key=lambda x: self._get_file_priority_score(x[0], x[1])
+        )
+        
+        for py_file, rel_path in user_code_files:
+            category = self._get_file_category(py_file.name, str(rel_path))
+            selected[category].append((py_file, rel_path))
+        
+        # 3. 테스트 파일 (선택적)
+        if include_tests:
+            for py_file, rel_path in categorized_files['test'][:10]:  # 최대 10개
+                selected['test'].append((py_file, rel_path))
+        
+        # 4. 프레임워크 파일 (소수만)
+        for py_file, rel_path in categorized_files['framework'][:5]:  # 최대 5개
+            selected['framework'].append((py_file, rel_path))
+        
+        return selected
+    
+    def _get_file_priority_score(self, py_file: Path, rel_path: Path) -> int:
+        """파일 우선순위 점수 계산 (높을수록 우선)"""
+        score = 0
+        file_name = py_file.name.lower()
+        rel_path_str = str(rel_path).lower()
+        
+        # 파일명 기반 점수
+        if file_name in ['views.py', 'models.py', 'api.py']:
+            score += 100
+        elif file_name in ['auth.py', 'security.py', 'permissions.py']:
+            score += 90
+        elif file_name in ['urls.py', 'routes.py', 'handlers.py']:
+            score += 80
+        elif file_name in ['forms.py', 'serializers.py', 'schemas.py']:
+            score += 70
+        elif file_name in ['utils.py', 'helpers.py', 'services.py']:
+            score += 60
+        
+        # 경로 기반 점수
+        if 'api/' in rel_path_str or 'views/' in rel_path_str:
+            score += 50
+        elif 'models/' in rel_path_str or 'core/' in rel_path_str:
+            score += 40
+        elif 'utils/' in rel_path_str or 'helpers/' in rel_path_str:
+            score += 30
+        
+        # 파일 크기 기반 점수 (작은 파일 우선)
+        try:
+            file_size = py_file.stat().st_size
+            if file_size < 10000:  # 10KB 이하
+                score += 20
+            elif file_size < 50000:  # 50KB 이하
+                score += 10
+        except:
+            pass
+        
+        return score
+    
+    def _get_file_category(self, file_name: str, rel_path: str) -> str:
+        """파일 카테고리 결정"""
+        file_name_lower = file_name.lower()
+        rel_path_lower = rel_path.lower()
+        
+        # 진입점
+        if file_name_lower in ['main.py', 'app.py', 'run.py', 'manage.py', 'wsgi.py', 'asgi.py']:
+            return 'entry_point'
+        
+        # 보안 관련
+        if any(keyword in file_name_lower for keyword in ['auth', 'security', 'permission', 'middleware']):
+            return 'security'
+        
+        # API 관련
+        if any(keyword in rel_path_lower for keyword in ['api/', 'rest/', 'graphql/']):
+            return 'api'
+        elif file_name_lower in ['api.py', 'routes.py', 'endpoints.py', 'handlers.py']:
+            return 'api'
+        
+        # 핵심 로직
+        if file_name_lower in ['views.py', 'models.py', 'forms.py', 'serializers.py']:
+            return 'core_logic'
+        
+        # 설정
+        if any(keyword in file_name_lower for keyword in ['config', 'settings', 'env']):
+            return 'config'
+        
+        # 유틸리티
+        if any(keyword in file_name_lower for keyword in ['utils', 'helpers', 'common', 'tools']):
+            return 'utility'
+        
+        # 테스트
+        if any(keyword in rel_path_lower for keyword in ['test', 'spec']):
+            return 'test'
+        
+        return 'other'
+    
+    def _process_file(self, py_file: Path, rel_path: Path, project_path: Path) -> Optional[Dict]:
+        """개별 파일 처리"""
+        try:
+            with open(py_file, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            
+            # 빈 파일이나 너무 작은 파일 스킵
+            if len(content.strip()) < 20:
+                return None
+            
+            lines = content.splitlines()
+            
+            return {
+                'path': str(rel_path),
+                'name': py_file.name,
+                'lines': len(lines),
+                'size': py_file.stat().st_size,
+                'content': content,
+                'category': self._get_file_category(py_file.name, str(rel_path)),
+                'is_user_code': self._is_user_code(str(rel_path).lower(), py_file.name.lower())
+            }
+            
+        except Exception:
+            return None
+    
+    def _parse_pipfile(self, content: str) -> str:
+        """Pipfile에서 패키지 추출"""
+        packages = []
+        in_packages = False
+        
+        for line in content.split('\n'):
+            line = line.strip()
+            if '[packages]' in line:
+                in_packages = True
+                continue
+            elif line.startswith('[') and in_packages:
+                break
+            elif in_packages and '=' in line and not line.startswith('#'):
+                pkg = line.split('=')[0].strip().strip('"').strip("'")
+                if pkg:
+                    packages.append(pkg)
+        
+        return '\n'.join(packages)
+    
+    def _parse_pyproject(self, content: str) -> str:
+        """pyproject.toml에서 패키지 추출"""
+        packages = []
+        in_deps = False
+        
+        for line in content.split('\n'):
+            line = line.strip()
+            if 'dependencies' in line and '=' in line:
+                in_deps = True
+                continue
+            elif line.startswith('[') and in_deps:
+                break
+            elif in_deps and '"' in line:
+                match = re.search(r'"([^"]+)"', line)
+                if match:
+                    pkg = match.group(1)
+                    pkg = re.split(r'[<>=!~]', pkg)[0].strip()
+                    if pkg:
+                        packages.append(pkg)
+        
+        return '\n'.join(packages)
+    
+    def _parse_setup_py(self, content: str) -> str:
+        """setup.py에서 패키지 추출"""
+        packages = []
+        
+        # install_requires에서 패키지 추출
+        install_requires_match = re.search(r'install_requires\s*=\s*\[(.*?)\]', content, re.DOTALL)
+        if install_requires_match:
+            requirements_text = install_requires_match.group(1)
+            for line in requirements_text.split(','):
+                line = line.strip().strip('"').strip("'")
+                if line and not line.startswith('#'):
+                    pkg = re.split(r'[<>=!~]', line)[0].strip()
+                    if pkg:
+                        packages.append(pkg)
+        
+        return '\n'.join(packages)
     
     def _analyze_project_structure(self, project_path: Path) -> Dict:
         """프로젝트 구조 분석"""
@@ -249,58 +749,64 @@ class ProjectDownloader:
             'file_count': 0,
             'has_tests': False,
             'frameworks': [],
+            'security_files': [],
             'summary': ''
         }
         
         if not project_path or not project_path.exists():
             return info
         
-        # Python 파일 검색
-        for py_file in project_path.rglob('*.py'):
-            # 가상환경 및 캐시 제외
-            if any(skip in str(py_file) for skip in ['venv', '__pycache__', '.git', 'node_modules']):
+        # 빠른 스캔으로 기본 정보 수집
+        py_files = list(project_path.rglob('*.py'))[:100]  # 최대 100개만 스캔
+        
+        for py_file in py_files:
+            try:
+                if any(exclude in str(py_file) for exclude in ['venv', '__pycache__', '.git']):
+                    continue
+                
+                rel_path = py_file.relative_to(project_path)
+                info['python_files'].append(str(rel_path))
+                info['file_count'] += 1
+                
+                # 간단한 라인 수 계산
+                try:
+                    with open(py_file, 'r', encoding='utf-8', errors='ignore') as f:
+                        lines = len(f.readlines())
+                        info['total_lines'] += lines
+                except:
+                    pass
+                
+                # 특수 파일 체크
+                file_name = py_file.name.lower()
+                if 'test' in file_name or 'test' in str(rel_path).lower():
+                    info['has_tests'] = True
+                
+                if any(sec in file_name for sec in ['auth', 'security', 'permission']):
+                    info['security_files'].append(str(rel_path))
+                
+                # 프레임워크 감지 (파일명 기반)
+                if file_name in ['manage.py']:
+                    info['frameworks'].append('Django')
+                elif file_name in ['app.py', 'application.py'] and 'flask' not in info['frameworks']:
+                    # 파일 내용 확인 필요시에만
+                    try:
+                        with open(py_file, 'r', encoding='utf-8', errors='ignore') as f:
+                            content = f.read(500)  # 처음 500자만
+                            if 'flask' in content.lower():
+                                info['frameworks'].append('Flask')
+                            elif 'fastapi' in content.lower():
+                                info['frameworks'].append('FastAPI')
+                    except:
+                        pass
+                
+            except Exception:
                 continue
-            
-            rel_path = py_file.relative_to(project_path)
-            info['python_files'].append(str(rel_path))
-            info['file_count'] += 1
-            
-            # 라인 수 계산
-            try:
-                with open(py_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    info['total_lines'] += len(f.readlines())
-            except:
-                pass
-            
-            # 테스트 파일 확인
-            if 'test' in py_file.stem.lower():
-                info['has_tests'] = True
-            
-            # 프레임워크 감지
-            try:
-                with open(py_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read(1000)  # 처음 1000자만
-                    if 'django' in content.lower():
-                        info['frameworks'].append('Django')
-                    if 'flask' in content.lower():
-                        info['frameworks'].append('Flask')
-                    if 'fastapi' in content.lower():
-                        info['frameworks'].append('FastAPI')
-                    if 'streamlit' in content.lower():
-                        info['frameworks'].append('Streamlit')
-            except:
-                pass
         
         # requirements 파일 찾기
-        for req_pattern in ['requirements*.txt', 'Pipfile', 'pyproject.toml', 'setup.py']:
-            for req_file in project_path.glob(req_pattern):
+        req_patterns = ['requirements*.txt', 'Pipfile', 'pyproject.toml', 'setup.py']
+        for pattern in req_patterns:
+            for req_file in project_path.glob(pattern):
                 info['requirements_files'].append(str(req_file.name))
-        
-        # 설정 파일 찾기
-        for config_pattern in ['.env*', '*.ini', '*.yaml', '*.yml', '*.json']:
-            for config_file in project_path.glob(config_pattern):
-                if not config_file.name.startswith('.git'):
-                    info['config_files'].append(str(config_file.name))
         
         # 중복 제거
         info['frameworks'] = list(set(info['frameworks']))
@@ -308,156 +814,18 @@ class ProjectDownloader:
         # 요약 생성
         summary_parts = []
         summary_parts.append(f"Python 파일 {info['file_count']}개")
-        summary_parts.append(f"총 {info['total_lines']:,}줄")
-        
+        if info['total_lines'] > 0:
+            summary_parts.append(f"총 {info['total_lines']:,}줄")
         if info['frameworks']:
-            summary_parts.append(f"프레임워크: {', '.join(info['frameworks'])}")
+            summary_parts.append(f"{', '.join(info['frameworks'])}")
         if info['has_tests']:
             summary_parts.append("테스트 포함")
-        if info['requirements_files']:
-            summary_parts.append(f"의존성: {', '.join(info['requirements_files'])}")
+        if info['security_files']:
+            summary_parts.append("보안 모듈 포함")
         
         info['summary'] = ', '.join(summary_parts)
         
         return info
-    
-    def analyze_project_files(self, project_path: Path, max_files: int = 100) -> Dict:
-        """프로젝트의 모든 Python 파일 분석용 데이터 수집"""
-        result = {
-            'files': [],
-            'combined_code': '',
-            'combined_requirements': '',
-            'statistics': {
-                'total_files': 0,
-                'total_lines': 0,
-                'skipped_files': 0,
-                'large_files': 0
-            }
-        }
-        
-        # requirements 파일들 읽기
-        req_contents = []
-        for req_file in ['requirements.txt', 'requirements-dev.txt', 'requirements-prod.txt']:
-            req_path = project_path / req_file
-            if req_path.exists():
-                try:
-                    with open(req_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        req_contents.append(f.read())
-                except:
-                    pass
-        
-        # Pipfile 처리
-        pipfile_path = project_path / 'Pipfile'
-        if pipfile_path.exists():
-            try:
-                with open(pipfile_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                    # 간단한 파싱 (실제로는 toml 파서 사용 권장)
-                    req_contents.append(self._parse_pipfile(content))
-            except:
-                pass
-        
-        # pyproject.toml 처리
-        pyproject_path = project_path / 'pyproject.toml'
-        if pyproject_path.exists():
-            try:
-                with open(pyproject_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                    req_contents.append(self._parse_pyproject(content))
-            except:
-                pass
-        
-        result['combined_requirements'] = '\n'.join(req_contents)
-        
-        # Python 파일들 수집
-        all_code = []
-        py_files = list(project_path.rglob('*.py'))
-        
-        # 파일 정렬 (중요한 파일 우선)
-        priority_files = ['main.py', 'app.py', 'manage.py', '__init__.py']
-        py_files.sort(key=lambda x: (
-            0 if x.name in priority_files else 1,
-            x.stat().st_size  # 작은 파일 우선
-        ))
-        
-        for py_file in py_files[:max_files]:
-            # 제외 경로
-            if any(skip in str(py_file) for skip in ['venv', '__pycache__', '.git', 'migrations', 'tests']):
-                result['statistics']['skipped_files'] += 1
-                continue
-            
-            try:
-                # 파일 크기 체크 (100KB 이상은 스킵)
-                if py_file.stat().st_size > 100 * 1024:
-                    result['statistics']['large_files'] += 1
-                    continue
-                
-                with open(py_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    code = f.read()
-                    
-                    # 파일 정보 저장
-                    rel_path = py_file.relative_to(project_path)
-                    result['files'].append({
-                        'path': str(rel_path),
-                        'name': py_file.name,
-                        'lines': len(code.splitlines()),
-                        'size': py_file.stat().st_size
-                    })
-                    
-                    # 코드 결합 (파일 구분자 포함)
-                    all_code.append(f"# ===== File: {rel_path} =====\n{code}\n")
-                    
-                    result['statistics']['total_files'] += 1
-                    result['statistics']['total_lines'] += len(code.splitlines())
-                    
-            except Exception as e:
-                print(f"파일 읽기 실패 {py_file}: {e}")
-                continue
-        
-        result['combined_code'] = '\n'.join(all_code)
-        
-        return result
-    
-    def _parse_pipfile(self, content: str) -> str:
-        """Pipfile에서 패키지 추출 (간단한 파싱)"""
-        packages = []
-        in_packages = False
-        
-        for line in content.split('\n'):
-            if '[packages]' in line:
-                in_packages = True
-                continue
-            elif line.startswith('[') and in_packages:
-                break
-            elif in_packages and '=' in line:
-                pkg = line.split('=')[0].strip()
-                if pkg:
-                    packages.append(pkg)
-        
-        return '\n'.join(packages)
-    
-    def _parse_pyproject(self, content: str) -> str:
-        """pyproject.toml에서 패키지 추출 (간단한 파싱)"""
-        packages = []
-        in_deps = False
-        
-        for line in content.split('\n'):
-            if 'dependencies' in line and '=' in line:
-                in_deps = True
-                continue
-            elif line.startswith('[') and in_deps:
-                break
-            elif in_deps:
-                # "package" 형태 추출
-                match = re.search(r'"([^"]+)"', line)
-                if match:
-                    pkg = match.group(1)
-                    # 버전 정보 제거
-                    pkg = re.split(r'[<>=!]', pkg)[0]
-                    if pkg:
-                        packages.append(pkg)
-        
-        return '\n'.join(packages)
     
     def cleanup(self):
         """임시 파일 정리"""
@@ -468,27 +836,5 @@ class ProjectDownloader:
                 pass
 
 
-# 테스트 코드
-if __name__ == "__main__":
-    downloader = ProjectDownloader()
-    
-    # GitHub URL 테스트
-    test_urls = [
-        "https://github.com/streamlit/streamlit",
-        "https://github.com/django/django/tree/main/django/core",
-    ]
-    
-    for url in test_urls:
-        print(f"\nTesting: {url}")
-        success, message, path = downloader.download_github(url)
-        print(f"Success: {success}")
-        print(f"Message: {message}")
-        if path:
-            print(f"Path: {path}")
-            
-            # 프로젝트 분석
-            data = downloader.analyze_project_files(Path(path), max_files=10)
-            print(f"Files analyzed: {data['statistics']['total_files']}")
-            print(f"Total lines: {data['statistics']['total_lines']}")
-        
-        downloader.cleanup()
+# 기존 호환성을 위한 별칭
+ProjectDownloader = SmartProjectDownloader
