@@ -1,6 +1,12 @@
-# Core only
+# Core
 streamlit
 python-dotenv
 openai
 PyPDF2
 pdfplumber
+
+# GitHub & File handling
+requests
+GitPython
+py7zr
+rarfile
