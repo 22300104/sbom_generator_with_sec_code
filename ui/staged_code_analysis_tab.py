@@ -661,31 +661,115 @@ def run_analysis(code: str, file_list: List[Dict], mode: str, use_claude: bool, 
 
 
 def display_ai_results(ai_result: Dict):
-    """AI 분석 결과 표시"""
-    if not ai_result.get('success'):
-        st.error("분석 실패")
+    """AI 분석 결과 표시 - 에러 처리 개선"""
+    
+        # 디버그 출력 추가
+    print(f"🔍 UI 받은 데이터: success={ai_result.get('success')}, "
+          f"vulns={len(ai_result.get('vulnerabilities', []))}, "
+          f"has_error={ai_result.get('has_error')}")
+    
+    vulnerabilities = ai_result.get('vulnerabilities', [])
+    print(f"🔍 vulnerabilities 타입: {type(vulnerabilities)}, 길이: {len(vulnerabilities)}")
+    
+    if vulnerabilities:
+        for i, vuln in enumerate(vulnerabilities):
+            print(f"  - 취약점 {i+1}: {vuln.get('type', 'Unknown')}")
+
+    # 에러 체크
+    if ai_result.get('has_error'):
+        st.error("❌ AI 보안 분석 중 오류 발생")
+        
+        error_type = ai_result.get('error_type', 'Unknown Error')
+        
+        # 에러 타입별 상세 메시지
+        if error_type == "Parse Error":
+            st.warning("""
+            **JSON 파싱 오류**
+            
+            AI가 응답을 생성했지만 형식을 파싱할 수 없습니다.
+            가능한 원인:
+            - AI 응답 형식 오류
+            - 특수 문자 처리 문제
+            - 너무 긴 응답
+            
+            **해결 방법:**
+            1. 다시 분석 시도
+            2. 코드를 더 작은 부분으로 나누기
+            3. 다른 AI 모델 사용 (Claude ↔ GPT)
+            """)
+            
+        elif error_type == "Context Length Error":
+            st.warning("""
+            **토큰 길이 초과**
+            
+            코드가 너무 길어 AI가 처리할 수 없습니다.
+            
+            **해결 방법:**
+            1. 중요한 파일만 선택하여 분석
+            2. 파일을 여러 번 나누어 분석
+            3. GPT-4 또는 Claude 사용 (더 긴 컨텍스트 지원)
+            """)
+            
+        elif error_type == "Analysis Failed":
+            st.warning("""
+            **분석 실패**
+            
+            AI가 코드를 분석할 수 없습니다.
+            
+            **해결 방법:**
+            1. 코드 구문 오류 확인
+            2. Python 코드인지 확인
+            3. 다시 시도
+            """)
+        
+        # 디버그 정보 표시 (선택적)
+        with st.expander("🔍 디버그 정보"):
+            st.json(ai_result)
+        
         return
     
+    # 정상 결과 표시
+    if not ai_result.get('success'):
+        st.error("분석 실패")
+        if ai_result.get('summary'):
+            st.warning(ai_result['summary'])
+        return
+    
+    # 메트릭 표시
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric("보안 점수", f"{ai_result.get('security_score', 100)}/100")
+        score = ai_result.get('security_score', 100)
+        if score >= 80:
+            st.metric("🟢 보안 점수", f"{score}/100")
+        elif score >= 60:
+            st.metric("🟡 보안 점수", f"{score}/100")
+        else:
+            st.metric("🔴 보안 점수", f"{score}/100")
     
     with col2:
         vulns = len(ai_result.get('vulnerabilities', []))
-        st.metric("발견된 취약점", vulns)
+        if vulns == 0:
+            st.metric("✅ 발견된 취약점", vulns)
+        else:
+            st.metric("⚠️ 발견된 취약점", vulns)
     
     with col3:
-        st.metric("분석 엔진", ai_result.get('analyzed_by', 'AI'))
+        engine = ai_result.get('analyzed_by', 'AI')
+        st.metric("🤖 분석 엔진", engine)
     
+    # 요약
     st.info(ai_result.get('summary', ''))
     
+    # 이하 취약점 상세 표시 코드...
+    
+    # 취약점 상세 표시
     vulnerabilities = ai_result.get('vulnerabilities', [])
     
     if vulnerabilities:
         st.subheader("🔍 발견된 취약점")
         
-        for vuln in vulnerabilities:
+        for idx, vuln in enumerate(vulnerabilities, 1):
             severity = vuln.get('severity', 'MEDIUM')
             severity_icon = {
                 'CRITICAL': '🔴',
@@ -695,28 +779,149 @@ def display_ai_results(ai_result: Dict):
             }.get(severity, '⚪')
             
             location = vuln.get('location', {})
-            title = f"{severity_icon} {vuln.get('type', 'Unknown')}"
+            title = f"{severity_icon} [{idx}] {vuln.get('type', 'Unknown')}"
             if location.get('file'):
-                title += f" - {location['file']}"
+                title += f" - {location['file']}:{location.get('line', '?')}"
             
-            with st.expander(title):
-                st.write("**설명:**", vuln.get('description', ''))
+            with st.expander(title, expanded=(idx == 1)):  # 첫 번째 취약점은 펼쳐서 표시
+                # 설명
+                st.write("### 📋 설명")
+                st.write(vuln.get('description', ''))
                 
-                if vuln.get('data_flow'):
-                    st.info(f"**데이터 흐름:** {vuln['data_flow']}")
+                # 취약한 코드와 수정 코드를 나란히 표시
+                col1, col2 = st.columns(2)
                 
-                if vuln.get('exploit_scenario'):
-                    st.warning(f"**공격 시나리오:** {vuln['exploit_scenario']}")
+                with col1:
+                    st.write("#### ❌ 취약한 코드")
+                    if vuln.get('vulnerable_code'):
+                        st.code(vuln['vulnerable_code'], language='python')
+                    else:
+                        st.info("원본 코드를 표시할 수 없습니다")
                 
-                if vuln.get('evidence'):
-                    evidence = vuln['evidence']
-                    st.success(f"**📚 {evidence.get('source', 'KISIA')}:**")
-                    st.caption(evidence.get('content', '')[:300] + "...")
+                with col2:
+                    st.write("#### ✅ 수정된 코드")
+                    if vuln.get('fixed_code'):
+                        st.code(vuln['fixed_code'], language='python')
+                        
+                        # 복사 버튼 (Streamlit 자동 제공)
+                        if st.button(f"📋 수정 코드 복사", key=f"copy_{idx}"):
+                            # 클립보드 복사 기능
+                            st.success("수정 코드를 참고하세요!")
+                    else:
+                        st.warning("수정 코드를 생성할 수 없습니다")
                 
-                if vuln.get('recommendation'):
-                    st.success(f"**개선 방법:** {vuln['recommendation']}")
+                # 수정 설명
+                if vuln.get('fix_explanation'):
+                    st.write("### 💡 수정 설명")
+                    st.info(vuln['fix_explanation'])
+                
+                # 추가 정보들을 탭으로 구성
+                tabs = st.tabs(["🔍 상세 정보", "⚠️ 공격 시나리오", "📚 권장사항"])
+                
+                with tabs[0]:
+                    # 위치 정보
+                    if location:
+                        st.write("**📍 위치 정보:**")
+                        loc_col1, loc_col2, loc_col3 = st.columns(3)
+                        with loc_col1:
+                            st.caption(f"파일: {location.get('file', 'unknown')}")
+                        with loc_col2:
+                            st.caption(f"라인: {location.get('line', '?')}")
+                        with loc_col3:
+                            st.caption(f"함수: {location.get('function', 'unknown')}")
+                        
+                        if location.get('code_snippet'):
+                            st.write("**📝 문제 코드:**")
+                            st.code(location['code_snippet'], language='python')
+                    
+                    # 데이터 흐름
+                    if vuln.get('data_flow'):
+                        st.write("**🔄 데이터 흐름:**")
+                        st.code(vuln['data_flow'], language='text')
+                    
+                    # 신뢰도
+                    confidence = vuln.get('confidence', 'MEDIUM')
+                    confidence_color = {
+                        'HIGH': '🟢',
+                        'MEDIUM': '🟡', 
+                        'LOW': '🔴'
+                    }.get(confidence, '⚪')
+                    st.write(f"**신뢰도:** {confidence_color} {confidence}")
+                    
+                    # RAG 근거 (있는 경우)
+                    if vuln.get('evidence'):
+                        evidence = vuln['evidence']
+                        st.write("**📚 가이드라인 근거:**")
+                        with st.container():
+                            st.success(f"**{evidence.get('source', 'KISIA 가이드라인')}**")
+                            st.caption(evidence.get('content', '')[:500] + "...")
+                            if evidence.get('page'):
+                                st.caption(f"📄 페이지: {evidence['page']}")
+                
+                with tabs[1]:
+                    if vuln.get('exploit_scenario'):
+                        st.warning(vuln['exploit_scenario'])
+                    else:
+                        st.info("공격 시나리오 정보가 없습니다")
+                
+                with tabs[2]:
+                    if vuln.get('recommendation'):
+                        st.success(vuln['recommendation'])
+                    
+                    if vuln.get('additional_context'):
+                        st.write("**추가 확인사항:**")
+                        st.info(vuln['additional_context'])
+                    
+                    # 참고 링크 (있는 경우)
+                    if vuln.get('references'):
+                        st.write("**🔗 참고 자료:**")
+                        for ref in vuln['references']:
+                            st.markdown(f"- [{ref['title']}]({ref['url']})")
+        
+        # 전체 취약점 요약 통계
+        st.divider()
+        st.subheader("📊 취약점 통계")
+        
+        # 심각도별 통계
+        severity_counts = {}
+        for vuln in vulnerabilities:
+            sev = vuln.get('severity', 'MEDIUM')
+            severity_counts[sev] = severity_counts.get(sev, 0) + 1
+        
+        cols = st.columns(4)
+        severity_order = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
+        icons = {'CRITICAL': '🔴', 'HIGH': '🟠', 'MEDIUM': '🟡', 'LOW': '🟢'}
+        
+        for i, sev in enumerate(severity_order):
+            with cols[i]:
+                count = severity_counts.get(sev, 0)
+                st.metric(f"{icons[sev]} {sev}", count)
+        
+        # 취약점 타입별 통계
+        type_counts = {}
+        for vuln in vulnerabilities:
+            vtype = vuln.get('type', 'Unknown')
+            type_counts[vtype] = type_counts.get(vtype, 0) + 1
+        
+        if type_counts:
+            st.write("**취약점 유형별 분포:**")
+            for vtype, count in sorted(type_counts.items(), key=lambda x: x[1], reverse=True):
+                st.caption(f"• {vtype}: {count}개")
+    
     else:
-        st.success("✅ 취약점이 발견되지 않았습니다!")
+        # 취약점이 없는 경우
+        st.success("🎉 축하합니다! 발견된 보안 취약점이 없습니다.")
+        
+        with st.expander("💡 추가 보안 권장사항"):
+            st.write("""
+            취약점이 발견되지 않았지만, 다음 사항들을 추가로 확인해보세요:
+            
+            1. **의존성 업데이트**: 사용 중인 패키지들이 최신 버전인지 확인
+            2. **환경 변수**: 민감한 정보가 코드에 하드코딩되지 않았는지 확인
+            3. **로깅**: 민감한 정보가 로그에 노출되지 않는지 확인
+            4. **인증/인가**: 적절한 접근 제어가 구현되었는지 확인
+            5. **입력 검증**: 모든 사용자 입력이 검증되는지 확인
+            """)
 
 
 def display_sbom_results(sbom: Dict):
