@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 # UI 모듈 임포트
-from ui.code_analysis_tab import render_code_analysis_tab
+from ui.staged_code_analysis_tab import render_code_analysis_tab
 from ui.qa_tab import render_qa_tab
 
 def main():
