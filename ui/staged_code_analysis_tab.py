@@ -14,6 +14,7 @@ import os
 from ui.memory_file_selector import MemoryFileSelector
 from core.improved_llm_analyzer import ImprovedSecurityAnalyzer
 from core.analyzer import SBOMAnalyzer
+from core.formatter import SBOMFormatter
 from core.project_downloader import ProjectDownloader
 
 
@@ -75,10 +76,11 @@ def render_input_stage():
         handle_direct_input()
 
 
+# ui/staged_code_analysis_tab.py
+# handle_github_input() 함수 수정
+
 def handle_github_input():
-    """GitHub 입력 처리"""
-    # 취약한 예제 프로젝트 임포트
-    from ui.vulnerable_examples import VULNERABLE_EXAMPLES
+    """GitHub 입력 처리 - 개선된 예제 구조"""
     
     col1, col2 = st.columns([3, 1])
     
@@ -93,66 +95,127 @@ def handle_github_input():
         st.write("")
         download_btn = st.button("📥 다운로드", type="primary", use_container_width=True)
     
-    # 예제 탭
-    tab1, tab2, tab3 = st.tabs(["🟢 일반 예제", "🔴 취약한 예제", "🔗 GitHub 예제"])
+    # 통합된 예제 섹션
+    st.divider()
+    st.subheader("📚 보안 테스트용 예제 프로젝트")
     
-    with tab1:
-        st.caption("보안 분석 테스트용 일반 프로젝트")
-        col1, col2 = st.columns(2)
+    # 예제 카테고리
+    example_category = st.selectbox(
+        "카테고리 선택:",
+        ["🔴 의도적 취약 프로젝트 (교육용)", "🟡 취약점 데모", "🟢 일반 프로젝트"]
+    )
+    
+    # GitHub 취약 프로젝트 예제들
+    vulnerable_projects = {
+        "🔴 의도적 취약 프로젝트 (교육용)": {
+            "DVWA-Python": {
+                "url": "https://github.com/anxolerd/dvwa-flask",
+                "description": "Damn Vulnerable Web App - Flask 버전",
+                "vulnerabilities": "SQL Injection, XSS, CSRF, Command Injection 등"
+            },
+            "PyGoat": {
+                "url": "https://github.com/adeyosemanputra/pygoat",
+                "description": "OWASP PyGoat - 의도적으로 취약한 Python Django 앱",
+                "vulnerabilities": "OWASP Top 10 취약점 포함"
+            },
+            "Vulnerable Flask App": {
+                "url": "https://github.com/we45/Vulnerable-Flask-App",
+                "description": "보안 교육용 취약한 Flask 애플리케이션",
+                "vulnerabilities": "다양한 웹 취약점"
+            },
+            "Django Vulnerable": {
+                "url": "https://github.com/nVisium/django.nV",
+                "description": "의도적으로 취약한 Django 애플리케이션",
+                "vulnerabilities": "인증, 인가, 인젝션 취약점"
+            },
+            "Security Shepherd Python": {
+                "url": "https://github.com/OWASP/SecurityShepherd",
+                "description": "OWASP Security Shepherd - 보안 교육 플랫폼",
+                "vulnerabilities": "단계별 보안 취약점"
+            }
+        },
+        "🟡 취약점 데모": {
+            "Python Security Examples": {
+                "url": "https://github.com/craigz28/python-security",
+                "description": "Python 보안 취약점 예제 모음",
+                "vulnerabilities": "일반적인 Python 보안 문제"
+            },
+            "Vulnerable Python": {
+                "url": "https://github.com/anxolerd/vulnerable-python",
+                "description": "Python 취약점 데모 코드",
+                "vulnerabilities": "코드 실행, 역직렬화 등"
+            },
+            "Bad Python": {
+                "url": "https://github.com/mpirnat/lets-be-bad-guys",
+                "description": "Python 웹 앱 보안 워크샵 자료",
+                "vulnerabilities": "웹 보안 취약점 예제"
+            }
+        },
+        "🟢 일반 프로젝트": {
+            "Flask": {
+                "url": "https://github.com/pallets/flask",
+                "description": "Flask 웹 프레임워크",
+                "vulnerabilities": "일반 프로젝트 (취약점 최소)"
+            },
+            "Django": {
+                "url": "https://github.com/django/django",
+                "description": "Django 웹 프레임워크",
+                "vulnerabilities": "일반 프로젝트 (보안 강화됨)"
+            },
+            "FastAPI": {
+                "url": "https://github.com/tiangolo/fastapi",
+                "description": "FastAPI 프레임워크",
+                "vulnerabilities": "일반 프로젝트 (현대적 보안)"
+            },
+            "Requests": {
+                "url": "https://github.com/psf/requests",
+                "description": "Python HTTP 라이브러리",
+                "vulnerabilities": "일반 라이브러리"
+            }
+        }
+    }
+    
+    # 선택된 카테고리의 프로젝트 표시
+    selected_projects = vulnerable_projects.get(example_category, {})
+    
+    if selected_projects:
+        st.info(f"💡 {example_category}의 프로젝트들입니다. 교육 및 테스트 목적으로만 사용하세요.")
         
-        # 로컬 취약한 예제들
+        # 프로젝트 카드 형식으로 표시
+        for name, project in selected_projects.items():
+            with st.expander(f"**{name}**"):
+                st.write(f"📝 **설명:** {project['description']}")
+                st.write(f"⚠️ **취약점:** {project['vulnerabilities']}")
+                st.code(project['url'], language='text')
+                
+                col1, col2 = st.columns([3, 1])
+                with col2:
+                    if st.button(f"분석하기", key=f"analyze_{name}"):
+                        st.session_state.temp_github_url = project['url']
+                        st.rerun()
+    
+    # 로컬 취약 예제 (수정된 버전)
+    with st.expander("💾 로컬 취약 예제 (requirements 포함)"):
+        st.warning("⚠️ 이 예제들은 교육 목적으로 만들어진 취약한 코드입니다.")
+        
+        col1, col2, col3 = st.columns(3)
+        
         with col1:
-            if st.button("Flask 취약 앱", key="vuln_flask"):
-                example = VULNERABLE_EXAMPLES['flask_vulnerable']
-                st.session_state.project_files = example['files']
-                st.session_state.project_name = example['name']
-                st.session_state.analysis_stage = 'files'
-                st.rerun()
-            
-            if st.button("Django 취약 앱", key="vuln_django"):
-                example = VULNERABLE_EXAMPLES['django_vulnerable']
-                st.session_state.project_files = example['files']
-                st.session_state.project_name = example['name']
-                st.session_state.analysis_stage = 'files'
-                st.rerun()
+            if st.button("Flask 취약 앱", key="local_flask"):
+                example = get_enhanced_flask_example()
+                load_local_example(example)
         
         with col2:
-            if st.button("FastAPI 취약 앱", key="vuln_fastapi"):
-                example = VULNERABLE_EXAMPLES['fastapi_vulnerable']
-                st.session_state.project_files = example['files']
-                st.session_state.project_name = example['name']
-                st.session_state.analysis_stage = 'files'
-                st.rerun()
-    
-    with tab2:
-        st.caption("다양한 취약점이 포함된 데모 프로젝트")
-        st.info("""
-        포함된 취약점:
-        - SQL Injection
-        - XSS (Cross-Site Scripting)
-        - 하드코딩된 시크릿
-        - 약한 암호화 (MD5, SHA1)
-        - 명령어 삽입
-        - 경로 조작
-        - 안전하지 않은 역직렬화
-        - CSRF 취약점
-        - 접근 제어 미흡
-        """)
-    
-    with tab3:
-        st.caption("GitHub에서 실제 프로젝트 다운로드")
-        examples = {
-            "Flask": "https://github.com/pallets/flask",
-            "FastAPI": "https://github.com/tiangolo/fastapi",
-            "Requests": "https://github.com/psf/requests",
-            "OWASP Python": "https://github.com/OWASP/Python-Security"
-        }
+            if st.button("Django 취약 앱", key="local_django"):
+                example = get_enhanced_django_example()
+                load_local_example(example)
         
-        for name, url in examples.items():
-            if st.button(name, key=f"ex_{name}"):
-                st.session_state.temp_github_url = url
+        with col3:
+            if st.button("FastAPI 취약 앱", key="local_fastapi"):
+                example = get_enhanced_fastapi_example()
+                load_local_example(example)
     
-    # 예제 선택 처리
+    # URL 처리
     if 'temp_github_url' in st.session_state:
         github_url = st.session_state.temp_github_url
         del st.session_state.temp_github_url
@@ -164,14 +227,52 @@ def handle_github_input():
         
         if success:
             st.success("✅ 다운로드 완료!")
-            
-            # 프로젝트 정보 저장
             st.session_state.project_files = project_files
             st.session_state.project_name = github_url.split('/')[-1].replace('.git', '')
             st.session_state.analysis_stage = 'files'
             st.rerun()
         else:
             st.error("❌ 다운로드 실패")
+
+
+def load_local_example(example: Dict):
+    """로컬 예제 로드 - requirements 처리 포함"""
+    st.session_state.project_files = example['files']
+    st.session_state.project_name = example['name']
+    
+    # requirements.txt 내용 추출 및 세션에 저장
+    req_content = ""
+    for file_info in example['files']:
+        if 'requirements' in file_info['path'].lower():
+            req_content = file_info['content']
+            break
+    
+    if req_content:
+        st.session_state.requirements_content = req_content
+    
+    st.session_state.analysis_stage = 'files'
+    st.rerun()
+
+
+def get_enhanced_flask_example() -> Dict:
+    """개선된 Flask 취약 예제 - requirements 포함"""
+    from ui.vulnerable_examples import get_vulnerable_web_app
+    example = get_vulnerable_web_app()
+    
+    # requirements.txt가 있는지 확인하고 세션에 저장할 수 있도록 수정
+    return example
+
+
+def get_enhanced_django_example() -> Dict:
+    """개선된 Django 취약 예제"""
+    from ui.vulnerable_examples import get_vulnerable_django_app
+    return get_vulnerable_django_app()
+
+
+def get_enhanced_fastapi_example() -> Dict:
+    """개선된 FastAPI 취약 예제"""
+    from ui.vulnerable_examples import get_vulnerable_fastapi_app
+    return get_vulnerable_fastapi_app()
 
 
 def download_github_project(github_url: str) -> tuple[bool, List[Dict]]:
@@ -184,28 +285,22 @@ def download_github_project(github_url: str) -> tuple[bool, List[Dict]]:
         if not success:
             return False, []
         
-        # 모든 Python 파일을 메모리로 읽기
         project_files = []
         project_path = Path(project_path)
         
-        # 제외할 디렉토리
         exclude_dirs = {'venv', '.venv', '__pycache__', '.git', 'node_modules', 
                        'site-packages', 'dist', 'build', '.tox'}
         
         for py_file in project_path.rglob('*.py'):
-            # 제외 디렉토리 체크
             if any(exclude in py_file.parts for exclude in exclude_dirs):
                 continue
             
             try:
-                # 파일 내용 읽기
                 with open(py_file, 'r', encoding='utf-8', errors='ignore') as f:
                     content = f.read()
                 
-                # 상대 경로
                 rel_path = py_file.relative_to(project_path)
                 
-                # 파일 정보 저장
                 project_files.append({
                     'path': str(rel_path),
                     'content': content,
@@ -215,7 +310,6 @@ def download_github_project(github_url: str) -> tuple[bool, List[Dict]]:
             except Exception as e:
                 continue
         
-        # requirements.txt 찾기
         req_content = ""
         for req_file in ['requirements.txt', 'requirements-dev.txt', 'setup.py']:
             req_path = project_path / req_file
@@ -229,7 +323,6 @@ def download_github_project(github_url: str) -> tuple[bool, List[Dict]]:
         if req_content:
             st.session_state.requirements_content = req_content
         
-        # 정리
         downloader.cleanup()
         
         return True, project_files
@@ -248,7 +341,6 @@ def handle_file_upload():
     
     if uploaded_file:
         if uploaded_file.name.endswith('.py'):
-            # 단일 Python 파일
             content = uploaded_file.read().decode('utf-8')
             
             project_files = [{
@@ -264,7 +356,6 @@ def handle_file_upload():
             st.rerun()
         
         else:
-            # 압축 파일
             with st.spinner("압축 해제 중..."):
                 success, project_files = extract_archive(uploaded_file)
             
@@ -286,22 +377,18 @@ def extract_archive(uploaded_file) -> tuple[bool, List[Dict]]:
     project_files = []
     
     with tempfile.TemporaryDirectory() as tmpdir:
-        # 임시 파일로 저장
         tmp_path = Path(tmpdir) / uploaded_file.name
         tmp_path.write_bytes(uploaded_file.getbuffer())
         
         try:
-            # ZIP 파일
             if uploaded_file.name.endswith('.zip'):
                 with zipfile.ZipFile(tmp_path, 'r') as zf:
                     zf.extractall(tmpdir)
             
-            # TAR 파일
             elif uploaded_file.name.endswith(('.tar', '.tar.gz', '.tgz')):
                 with tarfile.open(tmp_path, 'r:*') as tf:
                     tf.extractall(tmpdir)
             
-            # Python 파일 수집
             exclude_dirs = {'venv', '__pycache__', '.git', 'node_modules'}
             
             for py_file in Path(tmpdir).rglob('*.py'):
@@ -356,12 +443,10 @@ def render_file_selection_stage():
     """2단계: 파일 선택"""
     st.subheader("📂 2단계: 분석할 파일 선택")
     
-    # 뒤로가기 버튼
     if st.button("← 이전 단계"):
         st.session_state.analysis_stage = 'input'
         st.rerun()
     
-    # 프로젝트 정보
     project_files = st.session_state.get('project_files', [])
     project_name = st.session_state.get('project_name', 'Unknown')
     
@@ -374,13 +459,11 @@ def render_file_selection_stage():
         st.error("파일이 없습니다.")
         return
     
-    # 파일 선택 UI
     selector = MemoryFileSelector(project_files)
     selected_paths = selector.render()
     
     st.divider()
     
-    # 분석 옵션
     if selected_paths:
         st.subheader("⚙️ 분석 옵션")
         
@@ -389,7 +472,8 @@ def render_file_selection_stage():
         with col1:
             analysis_mode = st.selectbox(
                 "분석 모드:",
-                ["🤖 AI 보안 분석", "⚡ 빠른 분석", "🔥 전체 분석"]
+                ["🔥 전체 분석", "🤖 AI 보안 분석", "⚡ 빠른 분석"],
+                help="• 전체 분석: AI 보안 분석 + SBOM 생성\n• AI 보안 분석: 취약점 탐지\n• 빠른 분석: SBOM만 생성"
             )
             st.session_state.analysis_mode = analysis_mode
         
@@ -398,12 +482,24 @@ def render_file_selection_stage():
             st.session_state.use_claude = use_claude
         
         with col3:
-            include_sbom = st.checkbox("SBOM 생성", value=True)
+            include_sbom = st.checkbox(
+                "SBOM 생성", 
+                value=True,
+                help="Software Bill of Materials를 생성합니다.\nSPDX 2.3 및 CycloneDX 1.4 표준 형식 지원"
+            )
             st.session_state.include_sbom = include_sbom
         
-        # 분석 시작 버튼
+        if analysis_mode == "🔥 전체 분석":
+            st.success("✅ AI 보안 분석과 SBOM이 모두 생성됩니다.")
+        elif analysis_mode == "🤖 AI 보안 분석":
+            if include_sbom:
+                st.info("ℹ️ AI 보안 분석과 SBOM이 생성됩니다.")
+            else:
+                st.warning("⚠️ SBOM이 생성되지 않습니다. SBOM을 원하시면 체크박스를 선택하세요.")
+        elif analysis_mode == "⚡ 빠른 분석":
+            st.info("ℹ️ SBOM만 빠르게 생성됩니다.")
+        
         if st.button("🚀 분석 시작", type="primary", use_container_width=True):
-            # 선택된 파일 코드 가져오기
             code, file_list = selector.get_selected_code()
             
             if code:
@@ -421,7 +517,6 @@ def render_analysis_stage():
     """3단계: 분석 실행"""
     st.subheader("🔍 3단계: 보안 분석 실행")
     
-    # 분석 정보
     file_list = st.session_state.get('analysis_file_list', [])
     code = st.session_state.get('analysis_code', '')
     
@@ -430,7 +525,6 @@ def render_analysis_stage():
     **코드 크기**: {len(code):,}자 ({len(code)/1024:.1f}KB)
     """)
     
-    # 분석 실행
     with st.spinner("분석 중... (최대 30초 소요)"):
         results = run_analysis(
             code=code,
@@ -440,65 +534,15 @@ def render_analysis_stage():
             include_sbom=st.session_state.get('include_sbom', True)
         )
     
-    # 결과 저장 및 다음 단계
     st.session_state.analysis_results = results
     st.session_state.analysis_stage = 'results'
     st.rerun()
-
-
-def run_analysis(code: str, file_list: List[Dict], mode: str, use_claude: bool, include_sbom: bool) -> Dict:
-    """분석 실행"""
-    from core.formatter import SBOMFormatter
-    
-    results = {}
-    start_time = time.time()
-    
-    try:
-        # SBOM 분석
-        if include_sbom and mode in ["⚡ 빠른 분석", "🔥 전체 분석"]:
-            analyzer = SBOMAnalyzer()
-            requirements = st.session_state.get('requirements_content', '')
-            sbom_result = analyzer.analyze(code, requirements, scan_environment=False)
-            
-            if sbom_result.get("success"):
-                results['sbom'] = sbom_result
-                
-                # SBOM 표준 형식 생성
-                formatter = SBOMFormatter()
-                project_name = st.session_state.get('project_name', 'Project')
-                
-                results['sbom_formats'] = {
-                    'spdx': formatter.to_spdx(
-                        sbom_result.get('packages', []),
-                        {'project_name': project_name}
-                    ),
-                    'cyclonedx': formatter.to_cyclonedx(
-                        sbom_result.get('packages', []),
-                        {'project_name': project_name}
-                    )
-                }
-        
-        # AI 보안 분석
-        if mode in ["🤖 AI 보안 분석", "🔥 전체 분석"]:
-            ai_analyzer = ImprovedSecurityAnalyzer(use_claude=use_claude)
-            ai_result = ai_analyzer.analyze_security(code, file_list)
-            results['ai_analysis'] = ai_result
-        
-    except Exception as e:
-        st.error(f"분석 오류: {e}")
-        results['error'] = str(e)
-    
-    results['analysis_time'] = time.time() - start_time
-    results['analyzed_files'] = len(file_list)
-    
-    return results
 
 
 def render_results_stage():
     """4단계: 결과 표시"""
     st.subheader("📊 4단계: 분석 결과")
     
-    # 네비게이션
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -518,17 +562,14 @@ def render_results_stage():
     
     st.divider()
     
-    # 결과 표시
     results = st.session_state.get('analysis_results', {})
     
     if not results:
         st.error("분석 결과가 없습니다.")
         return
     
-    # 분석 시간
     st.success(f"✅ 분석 완료 ({results.get('analysis_time', 0):.1f}초)")
     
-    # 탭으로 결과 구성
     tabs = []
     if 'ai_analysis' in results:
         tabs.append("🤖 보안 분석")
@@ -542,27 +583,81 @@ def render_results_stage():
         tab_objects = st.tabs(tabs)
         tab_idx = 0
         
-        # AI 분석 탭
         if 'ai_analysis' in results:
             with tab_objects[tab_idx]:
                 display_ai_results(results['ai_analysis'])
             tab_idx += 1
         
-        # SBOM 탭
         if 'sbom' in results:
             with tab_objects[tab_idx]:
                 display_sbom_results(results['sbom'])
             tab_idx += 1
         
-        # SBOM 표준 탭
         if results.get('sbom_formats'):
             with tab_objects[tab_idx]:
                 display_sbom_standards(results['sbom_formats'])
             tab_idx += 1
         
-        # 다운로드 탭
         with tab_objects[-1]:
             display_download_options(results)
+
+
+def run_analysis(code: str, file_list: List[Dict], mode: str, use_claude: bool, include_sbom: bool) -> Dict:
+    """분석 실행 - 수정된 버전"""
+    from core.formatter import SBOMFormatter
+    
+    results = {}
+    start_time = time.time()
+    
+    try:
+        # SBOM 분석 - 모든 모드에서 실행 가능
+        if include_sbom:
+            analyzer = SBOMAnalyzer()
+            requirements = st.session_state.get('requirements_content', '')
+            
+            sbom_result = analyzer.analyze(code, requirements, scan_environment=False)
+            
+            # 개선된 결과 처리
+            if sbom_result and 'error' not in sbom_result:
+                if 'packages' in sbom_result or sbom_result.get('success'):
+                    results['sbom'] = sbom_result
+                    
+                    try:
+                        formatter = SBOMFormatter()
+                        project_name = st.session_state.get('project_name', 'Project')
+                        packages = sbom_result.get('packages', [])
+                        
+                        results['sbom_formats'] = {
+                            'spdx': formatter.to_spdx(
+                                packages,
+                                {'project_name': project_name}
+                            ),
+                            'cyclonedx': formatter.to_cyclonedx(
+                                packages,
+                                {'project_name': project_name}
+                            )
+                        }
+                    except Exception as fmt_error:
+                        st.warning(f"⚠️ SBOM 표준 형식 생성 실패: {fmt_error}")
+                else:
+                    st.warning("⚠️ SBOM 생성 실패: 패키지 정보를 추출할 수 없습니다")
+            elif sbom_result and 'error' in sbom_result:
+                st.error(f"❌ SBOM 분석 오류: {sbom_result['error']}")
+        
+        # AI 보안 분석
+        if mode in ["🤖 AI 보안 분석", "🔥 전체 분석"]:
+            ai_analyzer = ImprovedSecurityAnalyzer(use_claude=use_claude)
+            ai_result = ai_analyzer.analyze_security(code, file_list)
+            results['ai_analysis'] = ai_result
+        
+    except Exception as e:
+        st.error(f"분석 오류: {e}")
+        results['error'] = str(e)
+    
+    results['analysis_time'] = time.time() - start_time
+    results['analyzed_files'] = len(file_list)
+    
+    return results
 
 
 def display_ai_results(ai_result: Dict):
@@ -571,7 +666,6 @@ def display_ai_results(ai_result: Dict):
         st.error("분석 실패")
         return
     
-    # 메트릭
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -584,10 +678,8 @@ def display_ai_results(ai_result: Dict):
     with col3:
         st.metric("분석 엔진", ai_result.get('analyzed_by', 'AI'))
     
-    # 요약
     st.info(ai_result.get('summary', ''))
     
-    # 취약점 상세
     vulnerabilities = ai_result.get('vulnerabilities', [])
     
     if vulnerabilities:
@@ -643,11 +735,10 @@ def display_sbom_results(sbom: Dict):
     with col3:
         st.metric("종속성", summary.get('total_dependencies', 0))
     
-    # 패키지 목록
     packages = sbom.get('packages', [])
     if packages:
         df_data = []
-        for pkg in packages[:20]:  # 상위 20개만
+        for pkg in packages[:20]:
             df_data.append({
                 "패키지": pkg.get('name', ''),
                 "버전": pkg.get('version', '미확인'),
@@ -659,11 +750,59 @@ def display_sbom_results(sbom: Dict):
             st.dataframe(df, use_container_width=True, hide_index=True)
 
 
+def display_sbom_standards(sbom_formats: Dict):
+    """SBOM 표준 형식 표시"""
+    st.subheader("📋 SBOM 표준 형식")
+    
+    tab1, tab2 = st.tabs(["SPDX 2.3", "CycloneDX 1.4"])
+    
+    with tab1:
+        if sbom_formats.get('spdx'):
+            st.info("SPDX (Software Package Data Exchange) - 라이선스 중심 표준")
+            
+            spdx = sbom_formats['spdx']
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write("**문서 정보**")
+                st.caption(f"- SPDX 버전: {spdx.get('spdxVersion', 'N/A')}")
+                st.caption(f"- 문서 ID: {spdx.get('SPDXID', 'N/A')}")
+                st.caption(f"- 프로젝트명: {spdx.get('name', 'N/A')}")
+            
+            with col2:
+                st.write("**생성 정보**")
+                creation = spdx.get('creationInfo', {})
+                st.caption(f"- 생성일: {creation.get('created', 'N/A')[:19]}")
+                st.caption(f"- 도구: {creation.get('creators', ['N/A'])[0]}")
+            
+            with st.expander("📄 전체 JSON 보기"):
+                st.json(spdx)
+    
+    with tab2:
+        if sbom_formats.get('cyclonedx'):
+            st.info("CycloneDX - 보안 중심 표준 (OWASP)")
+            
+            cyclone = sbom_formats['cyclonedx']
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write("**BOM 정보**")
+                st.caption(f"- 형식: {cyclone.get('bomFormat', 'N/A')}")
+                st.caption(f"- 스펙 버전: {cyclone.get('specVersion', 'N/A')}")
+            
+            with col2:
+                st.write("**메타데이터**")
+                metadata = cyclone.get('metadata', {})
+                st.caption(f"- 타임스탬프: {metadata.get('timestamp', 'N/A')[:19]}")
+            
+            with st.expander("📄 전체 JSON 보기"):
+                st.json(cyclone)
+
+
 def display_download_options(results: Dict):
     """다운로드 옵션"""
     st.subheader("💾 다운로드")
     
-    # JSON 결과
     json_str = json.dumps(results, indent=2, default=str, ensure_ascii=False)
     
     col1, col2 = st.columns(2)
@@ -676,7 +815,6 @@ def display_download_options(results: Dict):
             mime="application/json"
         )
         
-        # 보안 보고서
         if 'ai_analysis' in results:
             report = generate_security_report(results)
             st.download_button(
@@ -687,7 +825,6 @@ def display_download_options(results: Dict):
             )
     
     with col2:
-        # SBOM 표준 형식 다운로드
         if results.get('sbom_formats'):
             if results['sbom_formats'].get('spdx'):
                 spdx_json = json.dumps(
@@ -714,95 +851,6 @@ def display_download_options(results: Dict):
                     file_name=f"sbom_cyclonedx_{int(time.time())}.json",
                     mime="application/json"
                 )
-
-
-def display_sbom_standards(sbom_formats: Dict):
-    """SBOM 표준 형식 표시"""
-    st.subheader("📋 SBOM 표준 형식")
-    
-    tab1, tab2 = st.tabs(["SPDX 2.3", "CycloneDX 1.4"])
-    
-    with tab1:
-        if sbom_formats.get('spdx'):
-            st.info("SPDX (Software Package Data Exchange) - 라이선스 중심 표준")
-            
-            spdx = sbom_formats['spdx']
-            
-            # 기본 정보
-            col1, col2 = st.columns(2)
-            with col1:
-                st.write("**문서 정보**")
-                st.caption(f"- SPDX 버전: {spdx.get('spdxVersion', 'N/A')}")
-                st.caption(f"- 문서 ID: {spdx.get('SPDXID', 'N/A')}")
-                st.caption(f"- 프로젝트명: {spdx.get('name', 'N/A')}")
-            
-            with col2:
-                st.write("**생성 정보**")
-                creation = spdx.get('creationInfo', {})
-                st.caption(f"- 생성일: {creation.get('created', 'N/A')[:19]}")
-                st.caption(f"- 도구: {creation.get('creators', ['N/A'])[0]}")
-            
-            # 패키지 목록
-            st.write("**패키지 목록**")
-            packages = spdx.get('packages', [])
-            if packages:
-                for pkg in packages[:10]:
-                    with st.expander(f"📦 {pkg.get('name', 'Unknown')}"):
-                        st.caption(f"ID: {pkg.get('SPDXID', 'N/A')}")
-                        st.caption(f"버전: {pkg.get('versionInfo', 'N/A')}")
-                        st.caption(f"홈페이지: {pkg.get('homepage', 'N/A')}")
-                        
-                        # 취약점 정보
-                        refs = pkg.get('externalRefs', [])
-                        vuln_refs = [r for r in refs if r.get('referenceCategory') == 'SECURITY']
-                        if vuln_refs:
-                            st.warning(f"⚠️ {len(vuln_refs)}개 취약점 발견")
-            
-            # JSON 뷰어
-            with st.expander("📄 전체 JSON 보기"):
-                st.json(spdx)
-    
-    with tab2:
-        if sbom_formats.get('cyclonedx'):
-            st.info("CycloneDX - 보안 중심 표준 (OWASP)")
-            
-            cyclone = sbom_formats['cyclonedx']
-            
-            # 기본 정보
-            col1, col2 = st.columns(2)
-            with col1:
-                st.write("**BOM 정보**")
-                st.caption(f"- 형식: {cyclone.get('bomFormat', 'N/A')}")
-                st.caption(f"- 스펙 버전: {cyclone.get('specVersion', 'N/A')}")
-                st.caption(f"- 시리얼: {cyclone.get('serialNumber', 'N/A')[:20]}...")
-            
-            with col2:
-                st.write("**메타데이터**")
-                metadata = cyclone.get('metadata', {})
-                st.caption(f"- 타임스탬프: {metadata.get('timestamp', 'N/A')[:19]}")
-                component = metadata.get('component', {})
-                st.caption(f"- 프로젝트: {component.get('name', 'N/A')}")
-            
-            # 컴포넌트 목록
-            st.write("**컴포넌트 목록**")
-            components = cyclone.get('components', [])
-            if components:
-                for comp in components[:10]:
-                    with st.expander(f"📦 {comp.get('name', 'Unknown')}"):
-                        st.caption(f"타입: {comp.get('type', 'N/A')}")
-                        st.caption(f"버전: {comp.get('version', 'N/A')}")
-                        st.caption(f"PURL: {comp.get('purl', 'N/A')}")
-                        
-                        # 취약점 정보
-                        vulns = comp.get('vulnerabilities', [])
-                        if vulns:
-                            st.warning(f"⚠️ {len(vulns)}개 취약점")
-                            for vuln in vulns[:3]:
-                                st.caption(f"- {vuln.get('id', 'N/A')}: {vuln.get('description', '')[:100]}...")
-            
-            # JSON 뷰어
-            with st.expander("📄 전체 JSON 보기"):
-                st.json(cyclone)
 
 
 def generate_security_report(results: Dict) -> str:

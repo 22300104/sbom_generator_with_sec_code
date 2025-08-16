@@ -82,12 +82,28 @@ class SBOMAnalyzer:
         
         return packages
     
+    # core/analyzer.py
+    # analyze() 함수 수정 - 항상 일관된 형식으로 반환
+
     def analyze(self, code: str, requirements: str = None, scan_environment: bool = True) -> Dict:
         """메인 분석 함수 - 환경 스캔 옵션 추가"""
+        
+        # import 추출
         imports = self.extract_imports(code)
         
+        # 에러 체크 - 일관된 형식으로 변경
         if isinstance(imports, dict) and "error" in imports:
-            return imports
+            return {
+                "success": False,
+                "error": imports["error"],
+                "packages": [],
+                "summary": {
+                    "total_imports": 0,
+                    "external_packages": 0,
+                    "with_version": 0,
+                    "without_version": 0
+                }
+            }
         
         # requirements.txt 파싱
         req_versions = self.parse_requirements(requirements) if requirements else {}
@@ -97,9 +113,13 @@ class SBOMAnalyzer:
         env_comparison = None
         
         if scan_environment:
-            installed_packages = self.env_scanner.scan_installed_packages()
-            if req_versions:
-                env_comparison = self.env_scanner.compare_with_requirements(req_versions)
+            try:
+                installed_packages = self.env_scanner.scan_installed_packages()
+                if req_versions:
+                    env_comparison = self.env_scanner.compare_with_requirements(req_versions)
+            except Exception as e:
+                # 환경 스캔 실패해도 계속 진행
+                print(f"환경 스캔 실패: {e}")
         
         result = []
         all_dependencies = set()  # 모든 종속성 추적
@@ -121,19 +141,22 @@ class SBOMAnalyzer:
             # 종속성 가져오기 (새 기능!)
             dependencies = []
             if scan_environment and package_name_lower in installed_packages:
-                deps = self.env_scanner.get_all_dependencies(package_name)
-                all_dependencies.update(deps)
-                dependencies = list(deps)
+                try:
+                    deps = self.env_scanner.get_all_dependencies(package_name)
+                    all_dependencies.update(deps)
+                    dependencies = list(deps)
+                except:
+                    pass  # 종속성 가져오기 실패해도 계속
             
             package_info = {
                 "name": import_name,
                 "install_name": package_name,
                 "alias": imp["alias"],
-                "required_version": req_versions.get(package_name, None),  # requirements.txt 버전
-                "actual_version": actual_version,  # 실제 설치 버전 (새 기능!)
-                "version": actual_version or req_versions.get(package_name, None),  # 호환성을 위해 유지
-                "dependencies": dependencies,  # 종속성 목록 (새 기능!)
-                "dependencies_count": len(dependencies),  # 종속성 개수 (새 기능!)
+                "required_version": req_versions.get(package_name, None),
+                "actual_version": actual_version,
+                "version": actual_version or req_versions.get(package_name, None),
+                "dependencies": dependencies,
+                "dependencies_count": len(dependencies),
                 "vulnerabilities": []
             }
             
@@ -175,20 +198,21 @@ class SBOMAnalyzer:
         # 환경 정보 추가 (새 기능!)
         env_stats = self.env_scanner.get_stats() if scan_environment else None
         
+        # 항상 success 키 포함하여 반환
         return {
-            "success": True,
+            "success": True,  # 항상 포함
             "packages": result,
-            "indirect_dependencies": indirect_dependencies,  # 새 기능!
-            "environment_comparison": env_comparison,  # 새 기능!
-            "environment_stats": env_stats,  # 새 기능!
+            "indirect_dependencies": indirect_dependencies,
+            "environment_comparison": env_comparison,
+            "environment_stats": env_stats,
             "summary": {
                 "total_imports": len(imports),
                 "external_packages": len(result),
                 "with_version": sum(1 for p in result if p.get("actual_version")),
                 "without_version": sum(1 for p in result if not p.get("actual_version")),
-                "total_dependencies": len(all_dependencies),  # 새 기능!
-                "indirect_dependencies": len(indirect_dependencies),  # 새 기능!
-                "version_mismatches": sum(1 for p in result if "불일치" in p.get("status", ""))  # 새 기능!
+                "total_dependencies": len(all_dependencies),
+                "indirect_dependencies": len(indirect_dependencies),
+                "version_mismatches": sum(1 for p in result if "불일치" in p.get("status", ""))
             }
         }
     

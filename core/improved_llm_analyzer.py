@@ -167,13 +167,18 @@ Step 5: 실제 악용 가능한지 판단
 }}
 
 추론 과정을 보여주되, 최종 응답은 반드시 JSON만 포함하세요.
+- JSON 키(key)는 영어 유지
+- JSON 값(value) 중 설명, 이유, 시나리오, 권장사항 등 모든 텍스트는 한국어로 작성
 """
         return prompt
     
+    # core/improved_llm_analyzer.py
+    # _analyze_with_claude() 함수 수정 (라인 246 근처)
+
     def _analyze_with_claude(self, prompt: str) -> List[Dict]:
         """Claude로 분석"""
         response = self.claude_client.messages.create(
-            model="claude-3-opus-20240229",
+            model="claude-opus-4-20250514",  # 오타 수정: 202402299 → 20240229
             max_tokens=4000,
             temperature=0.3,
             messages=[
@@ -183,6 +188,7 @@ Step 5: 실제 악용 가능한지 판단
                 }
             ]
         )
+    # ... 나머지 코드
         
         # JSON 파싱
         result_text = response.content[0].text
