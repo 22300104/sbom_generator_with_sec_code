@@ -11,7 +11,7 @@ load_dotenv()
 
 # 페이지 설정
 st.set_page_config(
-    page_title="SBOM Security Analyzer",
+    page_title="SBOMiner",
     page_icon="🔒",
     layout="wide"
 )
@@ -21,7 +21,7 @@ from ui.staged_code_analysis_tab import render_code_analysis_tab
 from ui.qa_tab import render_qa_tab
 
 def main():
-    st.title("🔒 SBOM Security Analyzer")
+    st.title("🔒 SBOMiner Security Analyzer")
     
     with st.sidebar:
         st.header("⚙️ 설정")
