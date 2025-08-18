@@ -803,10 +803,26 @@ def display_ai_results(ai_result: Dict):
                     if vuln.get('fixed_code'):
                         st.code(vuln['fixed_code'], language='python')
                         
-                        # 복사 버튼 (Streamlit 자동 제공)
-                        if st.button(f"📋 수정 코드 복사", key=f"copy_{idx}"):
-                            # 클립보드 복사 기능
-                            st.success("수정 코드를 참고하세요!")
+                        # 복사를 위한 텍스트 영역 표시
+                        if st.button(f"📋 수정 코드 복사", key=f"copy_btn_{idx}"):
+                            st.session_state[f'show_copy_{idx}'] = True
+                        
+                        # 복사용 텍스트 영역 표시
+                        if st.session_state.get(f'show_copy_{idx}', False):
+                            st.info("아래 코드를 전체 선택(Ctrl+A) 후 복사(Ctrl+C)하세요.")
+                            st.text_area(
+                                "복사할 코드:",
+                                value=vuln['fixed_code'],
+                                height=200,
+                                key=f"copy_area_{idx}",
+                                help="전체 선택: Ctrl+A, 복사: Ctrl+C"
+                            )
+                            st.success("수정된 코드를 확인해주세요!")
+                            
+                            # 닫기 버튼
+                            if st.button("닫기", key=f"close_copy_{idx}"):
+                                st.session_state[f'show_copy_{idx}'] = False
+                                st.rerun()
                     else:
                         st.warning("수정 코드를 생성할 수 없습니다")
                 
