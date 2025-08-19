@@ -614,276 +614,185 @@ def main():
         render_help_tab()
 
 
+# app.py
+# 수정 후 - render_help_tab() 함수 전체 교체
+
 def render_help_tab():
-    """전문적인 도움말 탭"""
+    """전문적인 도움말 탭 - 순수 사용 가이드"""
     
     # 헤더 섹션
     st.markdown("""
     <div style="text-align: center; padding: 1rem 0 2rem 0;">
         <h2>📖 SBOMiner 사용 가이드</h2>
         <p style="color: var(--gray-600); font-size: 1.1rem;">
-            Enterprise Security Analysis Platform 완전 가이드
+            보안 분석 플랫폼 사용 방법
         </p>
     </div>
     """, unsafe_allow_html=True)
     
     # 퀵 스타트 가이드
-    with st.expander("🚀 퀵 스타트 가이드", expanded=True):
+    with st.expander("🚀 빠른 시작 가이드", expanded=True):
         st.markdown("""
-        ### 3분만에 시작하기
+        ### 3단계로 시작하기
         
-        1. **코드 입력** → GitHub URL, 파일 업로드, 또는 직접 입력
-        2. **분석 실행** → AI 보안 분석 또는 전체 분석 선택
-        3. **결과 확인** → 취약점, SBOM, 권장사항 검토        
-        3. **다운로드** → 분석 결과 다운로드
+        1. **코드 입력** 
+           - GitHub URL 입력 → 다운로드 클릭
+           - 또는 Python 파일 업로드
+           - 또는 코드 직접 입력
         
+        2. **파일 선택**
+           - 스마트 선택 도구 활용 (전체/주요/작은 파일)
+           - 또는 개별 파일 선택
+        
+        3. **분석 실행**
+           - 분석 모드 선택 (전체/AI 보안/빠른 분석)
+           - 분석 시작 버튼 클릭
+           - 결과 확인 및 다운로드
         """)
     
-    # 주요 기능 상세
+    # 주요 기능 설명
+    st.markdown("## 🎯 주요 기능")
+    
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("## 🔍 보안 분석 기능")
+        st.markdown("""
+        ### 📥 입력 방법
         
-        # 입력 방법 카드
-        with st.container():
-            st.markdown("""
-            ### 📥 지원 입력 방법
-            
-            | 방법 | 설명 | 용도 |
-            |------|------|------|
-            | 🔗 **GitHub URL** | 공개 저장소 분석 | 오픈소스 프로젝트 |
-            | 📦 **파일 업로드** | .py, .zip, .tar.gz | 로컬 프로젝트 |
-            | 📝 **직접 입력** | 코드 복사/붙여넣기 | 코드 스니펫 테스트 |
-            """)
+        **1. GitHub URL**
+        - 공개 저장소 URL 입력
+        - 예: `https://github.com/owner/repo`
+        - Private 저장소는 지원하지 않음
         
-        # 분석 모드
-        with st.container():
-            st.markdown("""
-            ### ⚙️ 분석 모드 선택
-            
-            **🔥 전체 분석** (권장)
-            - AI 보안 분석 + SBOM 생성
-            - 소요시간: 20-60초
-            - 완전한 보안 평가
-            
-            **🤖 AI 보안 분석**
-            - 취약점 탐지 전용
-            - 소요시간: 10-30초
-            - 빠른 보안 검사
-            
-            **⚡ 빠른 분석**
-            - SBOM 생성만
-            - 소요시간: 1-5초
-            - 의존성 파악용
-            """)
+        **2. 파일 업로드**
+        - 지원 형식: .py, .zip, .tar, .gz
+        - 여러 파일은 압축해서 업로드
+        
+        **3. 직접 입력**
+        - 텍스트 영역에 코드 붙여넣기
+        - 단일 파일 분석에 적합
+        """)
+        
+        st.markdown("""
+        ### ⚙️ 분석 모드
+        
+        **🔥 전체 분석**
+        - AI 보안 분석 + SBOM 생성
+        - 가장 완전한 분석
+        
+        **🤖 AI 보안 분석**
+        - 취약점 탐지에 집중
+        - 수정 코드 제안
+        
+        **⚡ 빠른 분석**
+        - SBOM만 생성
+        - 의존성 파악용
+        """)
     
     with col2:
-        st.markdown("## 🛡️ 탐지 가능한 취약점")
+        st.markdown("""
+        ### 📂 파일 선택
         
-        # 취약점 카테고리
-        vulnerability_categories = [
-            {
-                "category": "🔴 Critical",
-                "types": [
-                    "SQL Injection",
-                    "Command Injection", 
-                    "Code Execution",
-                    "Path Traversal"
-                ]
-            },
-            {
-                "category": "🟠 High",
-                "types": [
-                    "XSS (Cross-Site Scripting)",
-                    "CSRF",
-                    "Unsafe Deserialization",
-                    "Hardcoded Secrets"
-                ]
-            },
-            {
-                "category": "🟡 Medium",
-                "types": [
-                    "Weak Cryptography",
-                    "Information Disclosure",
-                    "Insecure Random",
-                    "Debug Code"
-                ]
-            },
-            {
-                "category": "🟢 Low",
-                "types": [
-                    "Missing Security Headers",
-                    "Deprecated Functions",
-                    "Code Quality Issues",
-                    "Best Practice Violations"
-                ]
-            }
+        **스마트 선택 도구**
+        - 전체 선택: 모든 파일 분석
+        - 주요 파일: main.py, views.py 등
+        - 작은 파일: 10KB 이하만
+        
+        **고급 필터링**
+        - 크기별 필터 (10KB, 50KB 기준)
+        - 파일명 패턴 검색
+        - 디렉토리별 그룹 선택
+        """)
+        
+        st.markdown("""
+        ### 💾 결과 다운로드
+        
+        **다운로드 형식**
+        - JSON: 전체 분석 결과
+        - Markdown: 보안 보고서
+        - SPDX 2.3: 표준 SBOM
+        - CycloneDX 1.4: 보안 중심 SBOM
+        
+        **결과 탭**
+        - 보안 분석: 취약점 상세
+        - SBOM: 패키지 목록
+        - SBOM 표준: 표준 형식 보기
+        """)
+    
+    st.divider()
+    
+    # 사용 팁
+    st.markdown("## 💡 사용 팁")
+    
+    tips = {
+        "성능 최적화": [
+            "대용량 프로젝트는 주요 파일만 선택",
+            "코드 크기가 클 경우 여러 번 나누어 분석",
+            "불필요한 테스트 파일 제외"
+        ],
+        "분석 정확도": [
+            "requirements.txt 파일 포함 권장",
+            "전체 컨텍스트가 있는 파일 선택",
+            "프레임워크 파일보다 사용자 코드 우선"
+        ],
+        "결과 활용": [
+            "취약점은 심각도순으로 정렬됨",
+            "수정 코드는 복사하여 바로 적용 가능",
+            "SBOM은 컴플라이언스 문서로 활용"
         ]
-        
-        for category in vulnerability_categories:
-            with st.expander(category["category"]):
-                for vuln_type in category["types"]:
-                    st.markdown(f"• {vuln_type}")
+    }
     
-    st.divider()
+    cols = st.columns(3)
+    for i, (title, items) in enumerate(tips.items()):
+        with cols[i]:
+            st.markdown(f"**{title}**")
+            for item in items:
+                st.caption(f"• {item}")
     
-    # SBOM 및 표준 가이드
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("## 📦 SBOM 생성 기능")
+    # 제한사항
+    with st.expander("⚠️ 제한사항 및 주의사항"):
+        st.warning("""
+        **제한사항**
+        - Private GitHub 저장소 미지원
+        - 파일 크기: 최대 100MB
+        - Python 코드만 분석 가능
+        - 실시간 분석이 아닌 정적 분석
         
-        st.markdown("""
-        ### 지원 표준 형식
-        
-        **SPDX 2.3** 
-        - Linux Foundation 표준
-        - 라이선스 중심 접근
-        - 오픈소스 생태계 호환성
-        - ISO/IEC 5962:2021 표준
-        
-        **CycloneDX 1.4**
-        - OWASP 보안 중심 표준  
-        - 취약점 정보 포함
-        - DevSecOps 워크플로우 최적화
-        - 실시간 위협 인텔리전스
-        
-        ### 생성되는 정보
-        - 직접/간접 종속성 목록
-        - 패키지 버전 정보
-        - 라이선스 정보
-        - 알려진 취약점 매핑
+        **주의사항**
+        - AI 분석 결과는 참고용으로만 사용
+        - 모든 취약점을 탐지하지 못할 수 있음
+        - 실제 보안 감사는 전문가 검토 필요
         """)
     
-    with col2:
-        st.markdown("## 💬 Q&A")
-        
+    # 문제 해결
+    with st.expander("🔧 문제 해결"):
         st.markdown("""
-        ### RAG 기반 답변 시스템
+        **Q: 분석이 실패합니다**
+        - 코드 구문 오류 확인
+        - 파일 크기 확인 (너무 큰 경우)
+        - API 키 설정 확인
         
-        **지식 베이스**
-        - KISIA Python 시큐어코딩 가이드
-        - OWASP Top 10 
-        - CWE (Common Weakness Enumeration)
-        - 최신 보안 모범 사례
+        **Q: 결과가 부정확합니다**
+        - 더 많은 컨텍스트 파일 포함
+        - requirements.txt 추가
+        - 다른 AI 모델 시도 (Claude ↔ GPT)
         
-        **질문 예시**
-        - "SQL 인젝션을 방어하는 방법은?"
-        - "패스워드는 어떻게 저장해야 하나요?"
-        - "XSS 공격을 방지하려면?"
-        - "환경변수는 왜 사용해야 하나요?"
-        
-        **답변 품질**
-        - 문서 기반 정확한 답변
-        - 실무 적용 가능한 솔루션
-        - 코드 예제 포함
-        - 출처 및 근거 제시
+        **Q: 다운로드가 안 됩니다**
+        - 브라우저 다운로드 설정 확인
+        - 팝업 차단 해제
+        - 다른 형식으로 시도
         """)
     
+    # 버전 정보
     st.divider()
-    
-    # 고급 사용법
-    st.markdown("## 고급 사용법")
-    
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.markdown("""
-        ### 성능 최적화
-        
-        **대용량 프로젝트 (500KB+)**
-        - 코드 크기 제한 설정 (100-2000KB)
-        - 우선순위 파일 선택 (main.py, app.py 등)
-        - 파일 크기별 필터링 (10KB 이하/이상)
-        
-        **메모리 관리**
-        - 사이드바에서 캐시 클리어
-        - 세션 상태 초기화
-        - 불필요한 파일 제외 (venv, __pycache__ 등)
-        
-        **분석 모드 활용**
-        - 빠른 분석: SBOM만 (1-5초)
-        - AI 보안 분석: 취약점 탐지 (10-30초)  
-        - 전체 분석: 모든 기능 (20-60초)
-        """)
-    
+        st.caption("**버전:** v2.0.0")
     with col2:
-        st.markdown("""
-        ### 실제 기능 활용
-        
-        **환경 스캔 기능**
-        - 실제 설치된 패키지 버전 확인
-        - requirements.txt와 버전 비교
-        - 간접 종속성 추적
-        
-        **SBOM 표준 형식**
-        - SPDX 2.3: 라이선스 중심
-        - CycloneDX 1.4: 보안 중심
-        - JSON 다운로드 지원
-        
-        **파일 선택 최적화**
-        - 스마트 선택 도구 (전체/주요/작은파일)
-        - 크기별 필터링 (10KB, 50KB 단위)
-        - 패턴 필터링 (models, auth, api 등)
-        """)
-    
+        st.caption("**최종 업데이트:** 2024.12")
     with col3:
-        st.markdown("""
-        ### 분석 결과 활용
-        
-        **다운로드 형식**
-        - 전체 결과 (JSON)
-        - 보안 분석 요약 (Markdown)
-        - SPDX 표준 형식 (JSON)
-        - CycloneDX 표준 형식 (JSON)
-        
-        **대용량 코드 처리**
-        - 자동 파일별 분할 분석
-        - 중요 파일 우선 처리 (최대 5개)
-        - 파일당 50KB 제한
-        
-        **AI 엔진 선택**
-        - GPT 모델 (기본)
-        - Claude 모델 (고급 옵션)
-        - 컨텍스트 길이 최적화
-        """)
-    
-    # FAQ
-    with st.expander("자주 묻는 질문 (FAQ)", expanded=False):
-        
-        faqs = [
-            {
-                "q": "파라미터 바인딩이 SQL 인젝션으로 잘못 탐지됩니다",
-                "a": "최신 AI 엔진에서 개선되었습니다. `?`나 `%s` 파라미터 바인딩은 안전하게 분류됩니다. 여전히 문제가 있다면 컨텍스트를 더 자세히 제공해주세요."
-            },
-            {
-                "q": "GitHub private 저장소를 분석할 수 있나요?",
-                "a": "현재는 공개 저장소만 지원합니다. Private 저장소는 파일 다운로드 후 업로드하거나 코드를 직접 입력해주세요."
-            },
-            {
-                "q": "분석 결과를 어떻게 저장하나요?",
-                "a": "분석 완료 후 '다운로드' 탭에서 JSON, SPDX, CycloneDX, Markdown 형식으로 저장할 수 있습니다."
-            },
-            {
-                "q": "개발용 하드코딩도 위험하다고 나오는데요?",
-                "a": "개발 환경이라도 하드코딩된 시크릿은 보안 위험입니다. 환경변수나 설정 파일을 사용하는 것을 강력히 권장합니다."
-            },
-            {
-                "q": "AI 분석 결과를 어떻게 신뢰해야 하나요?",
-                "a": "AI 분석은 보조 도구입니다. 결과를 참고하되, 항상 전문가 검토를 거치고 실제 환경에서 테스트해보세요."
-            },
-            {
-                "q": "대용량 프로젝트 분석이 실패합니다",
-                "a": "파일을 선별하여 분석하거나, 핵심 모듈부터 단계적으로 분석해보세요. 전체 프로젝트보다는 중요한 부분에 집중하는 것이 효과적입니다."
-            }
-        ]
-        
-        for i, faq in enumerate(faqs, 1):
-            st.markdown(f"**Q{i}: {faq['q']}**")
-            st.markdown(f"**A{i}:** {faq['a']}")
-            st.markdown("---")
-    
+        st.caption("**라이선스:** MIT")
 
 
 
