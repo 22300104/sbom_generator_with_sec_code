@@ -469,25 +469,62 @@ def main():
         </div>
         """, unsafe_allow_html=True)
         
+# app.py
+# 수정 후 (라인 397-445 근처)
         # API 키 상태 - 전문적 표시
-        has_api_key = bool(os.getenv("OPENAI_API_KEY"))
+        has_openai_key = bool(os.getenv("OPENAI_API_KEY"))
+        has_claude_key = bool(os.getenv("ANTHROPIC_API_KEY"))
         
         st.markdown("### AI 엔진 상태")
         
-        if has_api_key:
-            model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
-            st.success("AI 엔진 활성화됨")
+        # OpenAI 상태
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**🤖 OpenAI (GPT)**")
+            if has_openai_key:
+                model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+                st.success("활성화")
+                st.caption(f"모델: {model}")
+            else:
+                st.error("비활성화")
+                st.caption("API 키 없음")
+        
+        with col2:
+            st.markdown("**🎭 Anthropic (Claude)**")
+            if has_claude_key:
+                model = os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229")
+                st.success("활성화")
+                st.caption(f"모델: {model}")
+            else:
+                st.warning("비활성화")
+                st.caption("API 키 없음")
+        
+        # API 키가 하나도 없는 경우에만 설정 섹션 표시
+        if not has_openai_key and not has_claude_key:
+            st.error("⚠️ AI 엔진이 모두 비활성화 상태입니다")
+            st.info("AI 보안 분석을 사용하려면 최소 하나의 API 키가 필요합니다")
             
-            # 모델 정보 카드
-            st.markdown(f"""
-            <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 0.5rem; margin: 1rem 0;">
-                <strong>활성 모델:</strong><br>
-                <code>{model}</code>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.error("AI 엔진 비활성화")
-            st.info("AI 보안 분석을 사용하려면 API 키가 필요합니다")
+            with st.expander("API 키 설정"):
+                openai_key = st.text_input(
+                    "OpenAI API Key:", 
+                    type="password", 
+                    key="openai_key_input",
+                    placeholder="sk-..."
+                )
+                claude_key = st.text_input(
+                    "Anthropic API Key:", 
+                    type="password", 
+                    key="claude_key_input",
+                    placeholder="sk-ant-..."
+                )
+                
+                if st.button("API 키 저장"):
+                    if openai_key:
+                        os.environ["OPENAI_API_KEY"] = openai_key
+                    if claude_key:
+                        os.environ["ANTHROPIC_API_KEY"] = claude_key
+                    st.rerun()
             
             with st.expander("API 키 설정"):
                 api_key = st.text_input(
