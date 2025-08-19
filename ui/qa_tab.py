@@ -9,51 +9,175 @@ from rag.simple_rag import SimpleRAG
 from prompts.security_prompts import get_qa_prompt
 
 def render_qa_tab():
-    """Q&A 탭 - RAG 중심 답변"""
-    st.header("💬 시큐어 코딩 Q&A")
+    """전문적인 Q&A 탭 - RAG 기반 전문가 시스템"""
     
-    # RAG 시스템 초기화
+    # 전문적인 헤더
+    st.markdown("""
+    <div style="text-align: center; padding: 1rem 0 2rem 0;">
+        <h2>Q&A</h2>
+        <p style="color: var(--gray-600); font-size: 1.1rem;">
+            KISIA 가이드라인 기반 RAG 시스템
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # RAG 시스템 초기화 및 상태 표시
     if 'rag_system' not in st.session_state:
-        try:
-            st.session_state.rag_system = SimpleRAG()
-            stats = st.session_state.rag_system.get_stats()
-            st.success(f"✅ 가이드라인 로드 완료 ({stats['total_documents']}개 문서)")
-        except Exception as e:
-            st.error(f"❌ RAG 시스템 오류: {e}")
-            return
+        with st.spinner("지식 베이스 로딩 중..."):
+            try:
+                st.session_state.rag_system = SimpleRAG()
+                stats = st.session_state.rag_system.get_stats()
+                st.success(f"지식 베이스 로드 완료: {stats['total_documents']}개 문서")
+            except Exception as e:
+                st.error(f"RAG 시스템 초기화 실패: {e}")
+                st.info("시스템 관리자에게 문의하거나 페이지를 새로고침해보세요.")
+                return
     
     rag = st.session_state.rag_system
     
-    # 채팅 히스토리
+    # 시스템 상태 대시보드
+    stats = rag.get_stats()
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric(
+            "지식 베이스",
+            f"{stats['total_documents']}개 문서",
+            help="로드된 보안 가이드라인 문서 수"
+        )
+    
+    with col2:
+        api_status = "활성" if os.getenv("OPENAI_API_KEY") else "비활성"
+        st.metric(
+            "AI 엔진",
+            api_status,
+            help="OpenAI API 연결 상태"
+        )
+    
+    with col3:
+        st.metric(
+            "응답 모드",
+            "RAG + GPT",
+            help="RAG 검색 + AI 생성 하이브리드 모드"
+        )
+    
+    with col4:
+        session_count = len(st.session_state.get('qa_messages', []))
+        st.metric(
+            "대화 수",
+            f"{session_count//2}개",
+            help="현재 세션의 질문-답변 수"
+        )
+    
+    st.divider()
+    
+    # 채팅 히스토리 초기화
     if 'qa_messages' not in st.session_state:
         st.session_state.qa_messages = []
     
-    # 예제 질문
-    with st.sidebar:
-        st.subheader("💡 예제 질문")
-        example_questions = [
-            "SQL 인젝션을 방어하는 방법은?",
-            "파라미터 바인딩이 왜 안전한가요?",
-            "패스워드는 어떻게 저장해야 하나요?",
-            "XSS 공격을 방지하려면?",
-            "환경변수는 왜 사용해야 하나요?",
-        ]
-        
-        for q in example_questions:
-            if st.button(q, key=f"ex_{q}"):
-                st.session_state.pending_question = q
+    # 질문 카테고리
+    st.markdown("### 질문 카테고리")
     
-    # 이전 대화 표시
-    for msg in st.session_state.qa_messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-            if msg.get("sources"):
-                with st.expander("📚 출처 보기"):
-                    for source in msg["sources"]:
-                        st.caption(source)
+    question_categories = [
+        {
+            "title": "취약점 방어",
+            "questions": [
+                "SQL 인젝션을 방어하는 방법은?",
+                "파라미터 바인딩이 왜 안전한가요?",
+                "패스워드는 어떻게 저장해야 하나요?",
+                "XSS 공격을 방지하려면?"
+            ]
+        },
+        {
+            "title": "개발 모범 사례",
+            "questions": [
+                "환경변수는 왜 사용해야 하나요?",
+                "입력 검증 방법은?",
+                "안전한 암호화 방법은?",
+                "로깅 시 주의사항은?"
+            ]
+        }
+    ]
+    
+    # 카테고리별 질문 표시
+    cols = st.columns(2)
+    for i, category in enumerate(question_categories):
+        with cols[i % 2]:
+            with st.expander(category["title"]):
+                for question in category["questions"]:
+                    if st.button(
+                        question, 
+                        key=f"cat_q_{i}_{question}",
+                        use_container_width=True
+                    ):
+                        st.session_state.pending_question = question
+    
+    st.divider()
+    
+    # 채팅 인터페이스
+    st.markdown("### AI에게 질문하기")
+    
+    # 대화 기록이 있는지 확인
+    if st.session_state.qa_messages:
+        st.markdown("#### 대화 기록")
+        
+        # 대화 기록 표시
+        chat_container = st.container()
+        with chat_container:
+            for i, msg in enumerate(st.session_state.qa_messages):
+                with st.chat_message(msg["role"]):
+                    st.markdown(msg["content"])
+                    
+                    # 출처 정보가 있는 경우
+                    if msg.get("sources"):
+                        with st.expander("참고 문서", expanded=False):
+                            for j, source in enumerate(msg["sources"][:3], 1):  # 상위 3개만 표시
+                                st.markdown(f"**{j}.** {source}")
+                    
+                    # 답변에 대한 피드백 (선택적)
+                    if msg["role"] == "assistant" and i == len(st.session_state.qa_messages) - 1:
+                        col1, col2, col3 = st.columns([1, 1, 8])
+                        with col1:
+                            if st.button("도움됨", key=f"like_{i}", help="도움이 되었어요"):
+                                st.success("피드백 감사합니다!")
+                        with col2:
+                            if st.button("개선필요", key=f"dislike_{i}", help="더 나은 답변이 필요해요"):
+                                st.info("피드백을 반영하여 개선하겠습니다.")
+        
+        # 대화 초기화 버튼
+        if st.button("새 대화 시작", help="현재 대화를 초기화합니다"):
+            st.session_state.qa_messages = []
+            st.rerun()
+    
+    else:
+        # 첫 대화 안내
+        st.info("""
+        **보안 전문가 Q&A에 오신 것을 환영합니다!**
+        
+        위의 카테고리에서 질문을 선택하거나, 아래에 직접 질문을 입력해보세요.
+        KISIA 가이드라인을 기반으로 정확하고 실무적인 답변을 드립니다.
+        """)
     
     # 질문 입력
-    if prompt := st.chat_input("질문을 입력하세요..."):
+    st.markdown("#### 질문 입력")
+    
+    # 질문 입력 도우미
+    with st.expander("효과적인 질문 작성 팁"):
+        st.markdown("""
+        **좋은 질문의 예:**
+        • "Flask에서 SQL 인젝션을 방지하는 구체적인 방법은?"
+        • "Django에서 CSRF 토큰을 어떻게 구현하나요?"
+        • "Python에서 패스워드 해싱 시 salt 사용법은?"
+        
+        **피해야 할 질문:**
+        • "보안이 뭐예요?" (너무 광범위)
+        • "해킹 방법 알려주세요" (부적절한 목적)
+        • "버그 있어요" (구체적 정보 부족)
+        """)
+    
+    # 질문 입력 필드
+    if prompt := st.chat_input("보안 관련 질문을 입력하세요... (예: SQL 인젝션 방어 방법은?)"):
         process_question(prompt, rag)
     
     # 예제 질문 처리
@@ -63,7 +187,7 @@ def render_qa_tab():
 
 
 def process_question(question: str, rag):
-    """질문 처리 - RAG 80% + GPT 20%"""
+    """전문적인 질문 처리 - RAG + AI 하이브리드"""
     
     # 사용자 메시지 추가
     st.session_state.qa_messages.append({"role": "user", "content": question})
@@ -72,18 +196,43 @@ def process_question(question: str, rag):
         st.markdown(question)
     
     with st.chat_message("assistant"):
-        with st.spinner("답변 생성 중..."):
+        # 전문적인 로딩 인디케이터
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        try:
             start_time = time.time()
             
-            # 1단계: RAG에서 관련 문서 검색 (80%)
+            # 1단계: 질문 분석 및 전처리
+            status_text.text("질문 분석 중...")
+            progress_bar.progress(20)
+            time.sleep(0.5)
+            
+            # 2단계: RAG 지식 검색
+            status_text.text("지식 베이스 검색 중...")
+            progress_bar.progress(50)
+            
             search_results = rag.search_similar(question, top_k=5)
             
             if not search_results['documents'][0]:
+                progress_bar.progress(100)
+                status_text.text("관련 문서를 찾을 수 없습니다.")
+                
                 st.warning("관련 가이드라인을 찾을 수 없습니다.")
-                response = "죄송합니다. 관련된 가이드라인을 찾을 수 없습니다."
+                response = """
+                죄송합니다. 해당 질문과 관련된 KISIA 가이드라인을 찾을 수 없습니다.
+                
+                **다음과 같이 시도해보세요:**
+                • 질문을 더 구체적으로 작성해주세요
+                • 다른 키워드를 사용해보세요
+                • 위의 카테고리에서 유사한 질문을 선택해보세요
+                """
                 sources = []
             else:
-                # 관련 문서 추출
+                # 3단계: 문서 처리 및 정제
+                status_text.text("답변 생성 중...")
+                progress_bar.progress(80)
+                
                 documents = search_results['documents'][0]
                 metadatas = search_results['metadatas'][0] if search_results.get('metadatas') else []
                 
@@ -98,34 +247,59 @@ def process_question(question: str, rag):
                         seen.add(doc_preview)
                         unique_docs.append(doc)
                         
-                        # 출처 정보
+                        # 출처 정보 개선
                         if i < len(metadatas):
                             page = metadatas[i].get('page', '?')
-                            sources.append(f"KISIA 가이드라인 p.{page}: {doc[:100]}...")
+                            source_title = f"KISIA Python 시큐어코딩 가이드 p.{page}"
+                            source_preview = doc[:150].replace('\n', ' ').strip() + "..."
+                            sources.append(f"{source_title}: {source_preview}")
                 
-                # 2단계: GPT로 답변 생성 (20% - 문서 기반)
+                # 4단계: AI 답변 생성
                 response = generate_answer_with_sources(question, unique_docs, sources)
             
+            # 완료
+            progress_bar.progress(100)
             elapsed = time.time() - start_time
+            status_text.text(f"답변 완료 ({elapsed:.2f}초)")
             
             # 답변 표시
             st.markdown(response)
             
-            # 소요 시간
-            st.caption(f"⏱️ {elapsed:.2f}초")
+            # 성능 정보
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.caption(f"응답시간: {elapsed:.2f}초")
+            with col2:
+                st.caption(f"참조문서: {len(sources)}개")
+            with col3:
+                st.caption(f"신뢰도: {'높음' if sources else '낮음'}")
             
-            # 출처 표시
+            # 출처 표시 개선
             if sources:
-                with st.expander("📚 참고 문서"):
-                    for source in sources[:3]:  # 상위 3개만
-                        st.caption(source)
+                with st.expander("참고 문서 및 출처", expanded=False):
+                    for i, source in enumerate(sources[:3], 1):  # 상위 3개만
+                        st.markdown(f"**[{i}]** {source}")
+                    
+                    if len(sources) > 3:
+                        st.caption(f"+ {len(sources) - 3}개 추가 문서")
             
             # 대화 기록에 추가
             st.session_state.qa_messages.append({
                 "role": "assistant",
                 "content": response,
-                "sources": sources
+                "sources": sources,
+                "elapsed_time": elapsed
             })
+            
+        except Exception as e:
+            progress_bar.progress(100)
+            status_text.text("오류 발생")
+            st.error(f"답변 생성 중 오류가 발생했습니다: {e}")
+            
+        finally:
+            # UI 정리
+            progress_bar.empty()
+            status_text.empty()
 
 
 def generate_answer_with_sources(question: str, documents: list, sources: list) -> str:

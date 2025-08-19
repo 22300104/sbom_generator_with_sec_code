@@ -25,8 +25,17 @@ except ImportError:
 
 
 def render_code_analysis_tab():
-    """통합 코드 분석 탭"""
-    st.header("🔍 보안 분석")
+    """전문적인 통합 코드 분석 탭"""
+    
+    # 전문적인 헤더
+    st.markdown("""
+    <div style="text-align: center; padding: 1rem 0 2rem 0;">
+        <h2>보안 분석 엔진</h2>
+        <p style="color: var(--gray-600); font-size: 1.1rem;">
+            AI 기반 취약점 탐지 및 SBOM 생성 시스템
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
     
     # 세션 상태 초기화
     if 'input_method' not in st.session_state:
@@ -38,14 +47,47 @@ def render_code_analysis_tab():
     if 'analysis_project_name' not in st.session_state:
         st.session_state.analysis_project_name = "MyProject"
     
-    # 입력 방법 선택
-    input_method = st.radio(
-        "입력 방법 선택:",
-        ["📝 코드 직접 입력", "🔗 GitHub URL", "📦 파일 업로드"],
-        horizontal=True,
-        key="input_method_radio",
-        index=["📝 코드 직접 입력", "🔗 GitHub URL", "📦 파일 업로드"].index(st.session_state.input_method)
-    )
+    # 전문적인 입력 방법 선택
+    st.markdown("### 소스 코드 입력")
+    
+    # 입력 방법 카드 스타일
+    input_methods = [
+        {
+            "key": "코드 직접 입력",
+            "title": "직접 입력",
+            "desc": "코드를 직접 붙여넣기"
+        },
+        {
+            "key": "GitHub URL",
+            "title": "GitHub 저장소",
+            "desc": "공개 저장소 URL 분석"
+        },
+        {
+            "key": "파일 업로드",
+            "title": "파일 업로드",
+            "desc": ".py, .zip, .tar.gz 지원"
+        }
+    ]
+    
+    # 카드 스타일 입력 방법 선택
+    cols = st.columns(3)
+    for i, method in enumerate(input_methods):
+        with cols[i]:
+            is_selected = st.session_state.input_method == method["key"]
+            
+            if st.button(
+                f"**{method['title']}**\n\n{method['desc']}", 
+                key=f"method_{i}",
+                use_container_width=True,
+                type="primary" if is_selected else "secondary"
+            ):
+                st.session_state.input_method = method["key"]
+                st.rerun()
+            
+            if is_selected:
+                st.success("선택됨")
+    
+    input_method = st.session_state.input_method
     
     # 입력 방법이 변경되었는지 확인
     if input_method != st.session_state.input_method:
@@ -56,13 +98,13 @@ def render_code_analysis_tab():
     requirements = ""
     project_name = "MyProject"
     
-    if input_method == "📝 코드 직접 입력":
+    if input_method == "코드 직접 입력":
         code_to_analyze, requirements, project_name = handle_direct_input()
         
-    elif input_method == "🔗 GitHub URL":
+    elif input_method == "GitHub URL":
         code_to_analyze, requirements, project_name = handle_github_input()
         
-    elif input_method == "📦 파일 업로드":
+    elif input_method == "파일 업로드":
         code_to_analyze, requirements, project_name = handle_file_upload()
     
     # 새로운 코드가 있으면 세션에 저장
@@ -82,8 +124,11 @@ def render_code_analysis_tab():
 
 
 def handle_direct_input():
-    """직접 코드 입력 처리"""
-    col1, col2 = st.columns([1, 1])
+    """전문적인 직접 코드 입력 처리"""
+    
+    # 헤더
+    st.markdown("### 코드 직접 입력")
+    st.info("Python 코드를 직접 입력하거나 예제를 선택하여 보안 분석을 시작하세요.")
     
     # 세션 상태에서 이전 값 가져오기
     if 'direct_code' not in st.session_state:
@@ -91,33 +136,66 @@ def handle_direct_input():
     if 'direct_requirements' not in st.session_state:
         st.session_state.direct_requirements = ""
     
+    # 예제 선택 - 전문적인 카드 스타일
+    st.markdown("#### 보안 테스트 예제")
+    
+    example_categories = [
+        {
+            "name": "직접 입력",
+            "desc": "사용자 정의 코드"
+        },
+        {
+            "name": "취약한 코드",
+            "desc": "일반적인 보안 취약점"
+        },
+        {
+            "name": "안전한 코드",
+            "desc": "보안 모범 사례"
+        },
+        {
+            "name": "웹 애플리케이션 취약점",
+            "desc": "Flask/Django 취약점"
+        }
+    ]
+    
+    cols = st.columns(4)
+    for i, cat in enumerate(example_categories):
+        with cols[i]:
+            if st.button(
+                f"**{cat['name']}**\n\n{cat['desc']}", 
+                key=f"example_{i}",
+                use_container_width=True
+            ):
+                if cat['name'] == "취약한 코드":
+                    st.session_state.direct_code = get_vulnerable_example()
+                elif cat['name'] == "안전한 코드":
+                    st.session_state.direct_code = get_safe_example()
+                elif cat['name'] == "웹 애플리케이션 취약점":
+                    st.session_state.direct_code = get_web_vulnerable_example()
+                st.rerun()
+    
+    st.divider()
+    
+    # 코드 입력 영역
+    col1, col2 = st.columns([2, 1])
+    
     with col1:
-        st.subheader("Python 코드")
-        
-        # 예제 선택
-        example = st.selectbox(
-            "예제:",
-            ["직접 입력", "취약한 코드", "안전한 코드", "웹 애플리케이션 취약점"],
-            key="example_selector"
-        )
-        
-        # 예제 선택시 코드 변경
-        if example == "취약한 코드":
-            if st.button("예제 로드", key="load_vulnerable"):
-                st.session_state.direct_code = get_vulnerable_example()
-        elif example == "안전한 코드":
-            if st.button("예제 로드", key="load_safe"):
-                st.session_state.direct_code = get_safe_example()
-        elif example == "웹 애플리케이션 취약점":
-            if st.button("예제 로드", key="load_web_vulns"):
-                st.session_state.direct_code = get_web_vulnerable_example()
+        st.markdown("#### Python 코드")
         
         code = st.text_area(
             "코드 입력:",
-            height=400,
+            height=450,
             value=st.session_state.direct_code,
-            placeholder="Python 코드를 입력하세요...",
-            key="code_input_area"
+            placeholder="""# Python 코드를 입력하세요
+import sqlite3
+
+def get_user(user_id):
+    conn = sqlite3.connect('db.db')
+    cursor = conn.cursor()
+    # 여기에 코드를 입력하세요...
+    """,
+            key="code_input_area",
+            help="분석할 Python 코드를 입력하거나 붙여넣으세요."
         )
         
         # 코드가 변경되면 세션에 저장
@@ -125,18 +203,76 @@ def handle_direct_input():
             st.session_state.direct_code = code
     
     with col2:
-        st.subheader("requirements.txt (선택)")
+        st.markdown("#### Dependencies (선택사항)")
+        
         requirements = st.text_area(
-            "패키지 정보:",
-            height=400,
+            "requirements.txt:",
+            height=450,
             value=st.session_state.direct_requirements,
-            placeholder="pandas==2.0.0\nnumpy>=1.24.0\n...",
-            key="req_input_area"
+            placeholder="""# 패키지 의존성 (선택사항)
+flask>=2.0.0
+requests>=2.25.0
+sqlalchemy>=1.4.0
+cryptography>=3.4.0
+""",
+            key="req_input_area",
+            help="분석에 필요한 패키지 정보를 입력하세요."
         )
         
         # requirements가 변경되면 세션에 저장
         if requirements != st.session_state.direct_requirements:
             st.session_state.direct_requirements = requirements
+        
+        # 코드 통계
+        if code:
+            lines = len(code.splitlines())
+            chars = len(code)
+            
+            st.markdown("#### 코드 통계")
+            col_stat1, col_stat2 = st.columns(2)
+            
+            with col_stat1:
+                st.metric("라인 수", f"{lines:,}")
+            
+            with col_stat2:
+                st.metric("문자 수", f"{chars:,}")
+            
+            # 코드 품질 힌트
+            if lines > 500:
+                st.warning("코드가 큽니다. 분석 시간이 오래 걸릴 수 있습니다.")
+            elif lines < 10:
+                st.info("더 많은 코드를 입력하면 더 정확한 분석이 가능합니다.")
+            else:
+                st.success("적절한 코드 크기입니다.")
+        
+        # 보안 분석 팁
+        with st.expander("분석 팁"):
+            st.markdown("""
+            **효과적인 보안 분석을 위한 팁:**
+            
+            • **완전한 함수**: 함수 전체를 포함하세요
+            • **컨텍스트 제공**: import 문과 관련 코드 포함
+            • **실제 코드**: 실제 프로덕션 코드 사용 권장
+            • **민감정보 제거**: 실제 API 키나 패스워드는 제거하세요
+            """)
+        
+        # 지원 파일 형식
+        with st.expander("지원 형식"):
+            st.markdown("""
+            **지원하는 Python 코드:**
+            
+            • 일반 Python 스크립트 (.py)
+            • 웹 프레임워크 (Flask, Django, FastAPI)
+            • 데이터베이스 코드 (SQLAlchemy, PyMongo)
+            • API 클라이언트 코드
+            • 암호화/인증 코드
+            """)
+    
+    # 코드 미리보기
+    if code:
+        st.markdown("#### 코드 미리보기")
+        with st.expander("코드 확인", expanded=False):
+            st.code(code[:1000] + ("..." if len(code) > 1000 else ""), language="python")
     
     return code, requirements, "DirectInput"
 
@@ -612,69 +748,241 @@ def handle_file_upload():
 
 
 def analyze_code_common(code: str, requirements: str, project_name: str):
-    """공통 분석 로직 - 제한 해제"""
+    """전문적인 공통 분석 로직"""
     
-    # 코드 정보
+    # 코드 정보 대시보드
     lines = len(code.splitlines())
     chars = len(code)
     
-    st.info(f"""
-    📊 **분석 대상**
-    - 프로젝트: {project_name}
-    - 코드 크기: {chars:,}자 ({chars/1024:.1f}KB)
-    - 라인 수: {lines:,}줄
-    """)
+    # 프로젝트 정보 카드
+    st.markdown("### 📊 프로젝트 분석 대상")
     
-    # 분석 옵션
-    st.subheader("⚙️ 분석 옵션")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric(
+            label="프로젝트",
+            value=project_name,
+            help="분석 대상 프로젝트명"
+        )
+    
+    with col2:
+        st.metric(
+            label="코드 크기",
+            value=f"{chars/1024:.1f}KB",
+            delta=f"{chars:,}자",
+            help="전체 코드 크기"
+        )
+    
+    with col3:
+        st.metric(
+            label="라인 수",
+            value=f"{lines:,}줄",
+            help="총 코드 라인 수"
+        )
+    
+    with col4:
+        # 예상 분석 시간
+        estimated_time = min(max(lines // 50, 5), 120)  # 5초~2분
+        st.metric(
+            label="예상 시간",
+            value=f"~{estimated_time}초",
+            help="AI 분석 예상 소요시간"
+        )
+    
+    st.divider()
+    
+    # 전문적인 분석 옵션
+    st.markdown("### ⚙️ 분석 설정")
+    
+    # 분석 모드 선택 - 카드 스타일
+    st.markdown("#### 🎯 분석 모드 선택")
+    
+    analysis_modes = [
+        {
+            "key": "⚡ 빠른 분석",
+            "title": "빠른 분석",
+            "desc": "SBOM 생성만",
+            "time": "1-5초",
+            "icon": "⚡",
+            "color": "var(--accent-amber)",
+            "features": ["패키지 의존성", "SBOM 생성", "라이선스 정보"]
+        },
+        {
+            "key": "🤖 AI 보안 분석",
+            "title": "AI 보안 분석",
+            "desc": "취약점 탐지 전용",
+            "time": "10-30초",
+            "icon": "🤖",
+            "color": "var(--accent-cyan)",
+            "features": ["취약점 탐지", "보안 점수", "수정 권장사항"]
+        },
+        {
+            "key": "🔥 전체 분석",
+            "title": "전체 분석",
+            "desc": "모든 기능 실행",
+            "time": "20-60초",
+            "icon": "🔥",
+            "color": "var(--accent-red)",
+            "features": ["AI 보안 분석", "SBOM 생성", "취약점 스캔", "상세 리포트"]
+        }
+    ]
+    
+    # 분석 모드 카드
+    cols = st.columns(3)
+    selected_mode = None
+    
+    for i, mode in enumerate(analysis_modes):
+        with cols[i]:
+            is_selected = st.button(
+                f"{mode['icon']}\n\n**{mode['title']}**\n\n{mode['desc']}\n\n⏱️ {mode['time']}", 
+                key=f"mode_{i}",
+                use_container_width=True,
+                type="primary" if mode['key'] == "🔥 전체 분석" else "secondary"
+            )
+            
+            if is_selected:
+                selected_mode = mode['key']
+            
+            # 기능 목록
+            with st.expander(f"📋 {mode['title']} 기능"):
+                for feature in mode['features']:
+                    st.markdown(f"• {feature}")
+    
+    # 기본 선택값
+    if not selected_mode:
+        analysis_mode = st.selectbox(
+            "분석 모드 선택:",
+            ["🔥 전체 분석", "🤖 AI 보안 분석", "⚡ 빠른 분석"],
+            index=0,
+            key="analysis_mode_select",
+            help="전체 분석을 권장합니다"
+        )
+    else:
+        analysis_mode = selected_mode
+    
+    st.divider()
+    
+    # 고급 옵션
+    st.markdown("#### 🔧 고급 옵션")
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        analysis_mode = st.selectbox(
-            "분석 모드:",
-            ["⚡ 빠른 분석", "🤖 AI 보안 분석", "🔥 전체 분석"],
-            key="analysis_mode_select"
+        scan_env = st.checkbox(
+            "🔍 환경 스캔", 
+            value=False, 
+            key="scan_env_check",
+            help="실제 설치된 패키지 버전을 스캔합니다"
         )
     
     with col2:
-        scan_env = st.checkbox("🔍 환경 스캔", value=False, key="scan_env_check")
+        use_cache = st.checkbox(
+            "💾 캐시 사용", 
+            value=True, 
+            key="use_cache_check",
+            help="이전 분석 결과를 캐시하여 속도를 향상시킵니다"
+        )
     
     with col3:
-        # 코드 크기 제한 옵션 (기본값을 훨씬 크게)
-        if chars > 500000:  # 500KB 이상일 때만 제한 옵션 표시
-            st.warning(f"⚠️ 코드가 매우 큽니다 ({chars/1024:.1f}KB)")
+        detailed_report = st.checkbox(
+            "📊 상세 리포트", 
+            value=True, 
+            key="detailed_report_check",
+            help="자세한 분석 리포트를 생성합니다"
+        )
+    
+    # 코드 크기 제한 옵션
+    max_code_size = None
+    if chars > 500000:  # 500KB 이상일 때만 제한 옵션 표시
+        st.warning(f"⚠️ 대용량 코드 감지: {chars/1024:.1f}KB")
+        
+        with st.expander("🔧 대용량 코드 옵션"):
             use_limit = st.checkbox("크기 제한 적용", value=False, key="use_code_limit")
             if use_limit:
-                max_code_size = st.number_input(
+                max_code_size = st.slider(
                     "최대 분석 크기 (KB):", 
                     100, 
                     2000, 
                     500,
-                    key="max_code_size_input"
+                    key="max_code_size_input",
+                    help="큰 파일의 경우 분석 시간이 오래 걸릴 수 있습니다"
                 ) * 1024
+                
+                st.info(f"📏 분석 크기가 {max_code_size/1024:.0f}KB로 제한됩니다.")
+    else:
+        st.success("✅ 적절한 코드 크기 - 제한 없음")
+    
+    st.divider()
+    
+    # 분석 실행 섹션
+    st.markdown("### 🚀 분석 실행")
+    
+    # 분석 전 체크리스트
+    checklist_items = [
+        ("코드 입력 완료", bool(code)),
+        ("분석 모드 선택", bool(analysis_mode)),
+        ("API 키 설정", bool(os.getenv("OPENAI_API_KEY")) if analysis_mode != "⚡ 빠른 분석" else True)
+    ]
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.markdown("#### ✅ 분석 준비 상태")
+        all_ready = True
+        for item, status in checklist_items:
+            if status:
+                st.success(f"✅ {item}")
             else:
-                max_code_size = None
-        else:
-            max_code_size = None
-            st.success(f"✅ 크기 제한 없음")
+                st.error(f"❌ {item}")
+                all_ready = False
     
-    # 분석 버튼
-    if st.button("🚀 분석 시작", type="primary", use_container_width=True, key="start_analysis_btn"):
-        # 코드 크기 조정 (선택적)
-        original_size = len(code)
-        if max_code_size and len(code) > max_code_size:
-            st.warning(f"⚠️ 코드가 제한 크기를 초과하여 {max_code_size/1024:.0f}KB만 분석합니다.")
-            code = code[:max_code_size]
+    with col2:
+        st.markdown("#### 📋 분석 요약")
+        st.info(f"""
+        **분석 모드:** {analysis_mode}
+        **코드 크기:** {chars/1024:.1f}KB ({lines:,}줄)
+        **환경 스캔:** {'예' if scan_env else '아니오'}
+        **예상 시간:** ~{min(max(lines // 50, 5), 120)}초
+        """)
+    
+    # 분석 시작 버튼
+    if all_ready:
+        if st.button(
+            "🚀 보안 분석 시작", 
+            type="primary", 
+            use_container_width=True, 
+            key="start_analysis_btn"
+        ):
+            # 코드 크기 조정 (선택적)
+            original_size = len(code)
+            if max_code_size and len(code) > max_code_size:
+                st.warning(f"⚠️ 코드가 제한 크기를 초과하여 {max_code_size/1024:.0f}KB만 분석합니다.")
+                code = code[:max_code_size]
+            
+            # 분석 실행
+            run_analysis(code, requirements, project_name, analysis_mode, scan_env, original_size)
+    else:
+        st.error("❌ 분석 준비가 완료되지 않았습니다. 위의 체크리스트를 확인해주세요.")
         
-        # 분석 실행
-        run_analysis(code, requirements, project_name, analysis_mode, scan_env, original_size)
+        # 도움말 버튼
+        if st.button("❓ 도움이 필요하신가요?", use_container_width=True):
+            st.info("""
+            **문제 해결 가이드:**
+            
+            • **API 키 미설정**: 사이드바에서 OpenAI API 키를 입력하세요
+            • **코드 미입력**: 위에서 Python 코드를 입력하거나 예제를 선택하세요
+            • **분석 모드 미선택**: 전체 분석을 권장합니다
+            """)
     
-    # 이전 분석 결과가 있으면 표시
+    # 이전 분석 결과 표시 (세션에 저장된 경우)
     if 'last_analysis_results' in st.session_state:
         st.divider()
-        st.subheader("📊 이전 분석 결과")
-        display_results(st.session_state.last_analysis_results)
+        st.markdown("### 📊 이전 분석 결과")
+        
+        with st.expander("이전 분석 결과 보기", expanded=False):
+            display_results(st.session_state.last_analysis_results)
+
 
 
 def run_analysis(code: str, requirements: str, project_name: str, mode: str, scan_env: bool, original_size: int):
