@@ -213,8 +213,9 @@ class ImprovedSecurityAnalyzer:
     def _analyze_with_claude(self, prompt: str) -> List[Dict]:
         """Claude로 분석 - JSON 응답 보장"""
         try:
+            model = os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229")
+
             response = self.claude_client.messages.create(
-                model="claude-sonnet-4-0",
                 max_tokens=4000,
                 temperature=0.2,  # 더 일관된 응답
                 messages=[
@@ -251,13 +252,15 @@ class ImprovedSecurityAnalyzer:
         """GPT로 분석 - JSON 응답 보장"""
         try:
             # 모델 선택
+            default_model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
             prompt_length = len(prompt)
             estimated_tokens = prompt_length // 4
             
             if estimated_tokens > 6000:
-                model = "gpt-3.5-turbo-16k"
+                # 긴 컨텍스트용 모델 (환경변수 우선, 없으면 16k 모델)
+                model = os.getenv("OPENAI_MODEL_LONG", "gpt-3.5-turbo-16k")
             else:
-                model = "gpt-3.5-turbo"
+                model = default_model
             
             response = self.openai_client.chat.completions.create(
                 model=model,

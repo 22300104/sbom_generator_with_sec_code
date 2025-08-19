@@ -76,8 +76,9 @@ class SimpleRAG:
         
         # 4. OpenAI API 호출
         try:
+            model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=model,
                 messages=[
                     {
                         "role": "system", 
