@@ -16,6 +16,69 @@ st.set_page_config(
     layout="wide"
 )
 
+# 경량 테마 컬러 적용 (구조 변경 없음)
+st.markdown(
+    """
+<style>
+:root {
+  --primary-navy: #1e3a5f;
+  --light-gray: #f4f6f8;
+  --accent-mint: #00c8a3;
+  --accent-coral: #ff6f61;
+}
+
+/* 버튼 스타일 */
+.stButton > button {
+  background-color: var(--primary-navy) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 0.5rem 1rem !important;
+  transition: background-color .2s ease, box-shadow .2s ease;
+}
+.stButton > button:hover {
+  background-color: #23466f !important; /* navy hover */
+  box-shadow: 0 4px 10px rgba(30, 58, 95, 0.25);
+}
+
+/* 탭 하이라이트 (민트 포인트) */
+.stTabs [data-baseweb="tab-list"] { border-bottom: 1px solid #e5e7eb; }
+.stTabs [data-baseweb="tab"] { color: #4b5563; }
+.stTabs [aria-selected="true"] {
+  color: var(--primary-navy) !important;
+  border-bottom: 3px solid var(--accent-mint) !important;
+}
+
+/* 알림 테두리 포인트 컬러 */
+div[data-baseweb="notification"][kind="success"] { border-left: 4px solid var(--accent-mint); }
+div[data-baseweb="notification"][kind="warning"] { border-left: 4px solid #f59e0b; }
+div[data-baseweb="notification"][kind="error"] { border-left: 4px solid var(--accent-coral); }
+
+/* 메트릭 카드 경량 스타일 */
+div[data-testid="metric-container"] {
+  background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1rem;
+}
+
+/* 텍스트 영역 포커스 */
+.stTextArea textarea { border-radius: 8px; border: 1.5px solid #e5e7eb; }
+.stTextArea textarea:focus { border-color: var(--accent-mint); box-shadow: 0 0 0 3px rgba(0,200,163,.12); }
+
+/* 사이드바 텍스트 가독성 유지 (기본 다크 컬러) */
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3,
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] div,
+section[data-testid="stSidebar"] .stMarkdown {
+  color: #ffffff !important;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
 # UI 모듈 임포트
 from ui.staged_code_analysis_tab import render_code_analysis_tab
 from ui.qa_tab import render_qa_tab

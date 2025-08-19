@@ -181,16 +181,39 @@ def handle_github_input():
     if selected_projects:
         st.info(f"💡 {example_category}의 프로젝트들입니다. 교육 및 테스트 목적으로만 사용하세요.")
         
+        # 경량 스타일 (배지/링크 카드)
+        st.markdown(
+            """
+<style>
+.proj-badges { display:flex; flex-wrap:wrap; gap:.35rem; margin:.25rem 0 .5rem; }
+.proj-badge { background:#f4f6f8; color:#1f2937; border:1px solid #e5e7eb; border-radius:999px; padding:.15rem .55rem; font-size:.85rem; }
+.proj-url { background:#ffffff; border:1px solid #e5e7eb; border-radius:8px; padding:.45rem .6rem; }
+.proj-url a { color:#1e3a5f; text-decoration:none; word-break:break-all; }
+.proj-url a:hover { text-decoration:underline; }
+</style>
+""",
+            unsafe_allow_html=True,
+        )
+        
         # 프로젝트 카드 형식으로 표시
         for name, project in selected_projects.items():
             with st.expander(f"**{name}**"):
-                st.write(f"📝 **설명:** {project['description']}")
-                st.write(f"⚠️ **취약점:** {project['vulnerabilities']}")
-                st.code(project['url'], language='text')
-                
-                col1, col2 = st.columns([3, 1])
-                with col2:
-                    if st.button(f"분석하기", key=f"analyze_{name}"):
+                left, right = st.columns([5, 1])
+                with left:
+                    st.markdown(f"**설명:** {project['description']}")
+                    # 취약점 배지 렌더링
+                    _vtxt = project.get('vulnerabilities', '')
+                    _items = [v.strip() for v in _vtxt.replace('등', '').split(',') if v.strip()]
+                    if _items:
+                        _badges = ' '.join([f"<span class='proj-badge'>{v}</span>" for v in _items])
+                    else:
+                        _badges = f"<span class='proj-badge'>{_vtxt}</span>"
+                    st.markdown(f"<div class='proj-badges'>{_badges}</div>", unsafe_allow_html=True)
+                    # 링크 카드
+                    _url = project['url']
+                    st.markdown(f"<div class='proj-url'><a class='proj-link' href='{_url}' target='_blank'>{_url}</a></div>", unsafe_allow_html=True)
+                with right:
+                    if st.button("분석하기", key=f"analyze_{name}", use_container_width=True):
                         st.session_state.temp_github_url = project['url']
                         st.rerun()
     
