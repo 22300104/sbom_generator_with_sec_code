@@ -50,7 +50,7 @@ class MemoryFileSelector:
         
         # 프로젝트 대시보드
         st.markdown("#### 프로젝트 개요")
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3 = st.columns(3)
         
         with col1:
             st.metric(
@@ -73,14 +73,7 @@ class MemoryFileSelector:
                 help="전체 코드 라인 수"
             )
         
-        with col4:
-            # 예상 분석 시간
-            estimated_time = min(max(total_lines // 100, 2), 60)
-            st.metric(
-                "예상 시간",
-                f"~{estimated_time}분",
-                help="전체 파일 분석 예상 소요시간"
-            )
+
         
         # 선택 상태 표시
         if selected_count > 0:
@@ -88,7 +81,6 @@ class MemoryFileSelector:
             **{selected_count}개 파일 선택됨**
             - 크기: {self._format_size(selected_size)} ({(selected_size/total_size*100):.1f}%)
             - 라인: {selected_lines:,}줄 ({(selected_lines/total_lines*100):.1f}%)
-            - 예상 분석 시간: ~{min(max(selected_lines // 100, 1), 30)}분
             """)
         else:
             st.warning("분석할 파일을 선택해주세요.")
