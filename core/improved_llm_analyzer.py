@@ -543,13 +543,13 @@ class ImprovedSecurityAnalyzer:
             severity = vuln.get('severity', 'MEDIUM')
             confidence = vuln.get('confidence', 'MEDIUM')
             
-            # 심각도별 감점
+            # 심각도별 감점 (완화된 기준)
             severity_penalty = {
-                'CRITICAL': 25,
-                'HIGH': 15,
-                'MEDIUM': 10,
-                'LOW': 5
-            }.get(severity, 10)
+                'CRITICAL': 24,
+                'HIGH': 14,
+                'MEDIUM': 6,
+                'LOW': 2
+            }.get(severity, 6)
             
             # 확신도에 따른 가중치
             confidence_weight = {

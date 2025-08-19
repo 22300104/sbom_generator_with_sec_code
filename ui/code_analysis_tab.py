@@ -819,7 +819,7 @@ def analyze_large_code_with_llm(llm_analyzer, code: str) -> Dict:
     
     # 결과 통합
     if all_vulnerabilities:
-        security_score = max(0, 100 - len(all_vulnerabilities) * 10)
+        security_score = _compute_security_score_from_vulns(all_vulnerabilities)
         summary = f"대용량 프로젝트에서 {len(all_vulnerabilities)}개 취약점 발견"
     else:
         security_score = 100
@@ -879,6 +879,29 @@ def generate_practices_from_vulns(vulns: List[Dict]) -> List[str]:
         practices = {"정기적인 보안 코드 리뷰 실시", "의존성 패키지 정기 업데이트"}
     
     return list(practices)
+
+
+def _compute_security_score_from_vulns(vulns: List[Dict]) -> int:
+    """ImprovedSecurityAnalyzer와 동일한 완화 규칙으로 점수 계산"""
+    if not vulns:
+        return 100
+    score = 100
+    for v in vulns:
+        sev = v.get('severity', 'MEDIUM')
+        conf = v.get('confidence', 'MEDIUM')
+        severity_penalty = {
+            'CRITICAL': 24,
+            'HIGH': 14,
+            'MEDIUM': 6,
+            'LOW': 2
+        }.get(sev, 6)
+        confidence_weight = {
+            'HIGH': 1.0,
+            'MEDIUM': 0.7,
+            'LOW': 0.4
+        }.get(conf, 0.7)
+        score -= int(severity_penalty * confidence_weight)
+    return max(0, score)
 
 
 def display_results(results: Dict):
