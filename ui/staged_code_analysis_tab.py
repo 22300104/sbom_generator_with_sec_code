@@ -304,8 +304,8 @@ def handle_github_mcp_input():
                     file_list.append({
                         'path': f.get('filename', 'unknown.py'),
                         'name': Path(f.get('filename', 'unknown.py')).name,
-                        'size': len(f.get('added_code', f.get('full_content', '')).encode('utf-8')),
-                        'lines': len((f.get('added_code', f.get('full_content', '')) or '').splitlines()),
+                        'size': len((f.get('full_content') or f.get('added_code', '') or '').encode('utf-8')),
+                        'lines': len(((f.get('full_content') or f.get('added_code', '') or '')).splitlines()),
                     })
 
                 st.session_state.analysis_code = code_to_analyze
