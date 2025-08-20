@@ -52,74 +52,88 @@ class SimpleRAG:
             return {'documents': [[]], 'metadatas': [[]]}
 
 
+# rag/simple_rag.py
+# ask() 함수 전체 교체
+
     def ask(self, question: str) -> str:
-        """질문에 대한 답변 생성 - Claude 우선"""
+        """질문에 대한 답변 생성 - AI 메인, RAG 보조"""
         
         from prompts.all_prompts import RAG_PROMPTS, SYSTEM_PROMPTS
+        import time
         
-        # RAG 모드 (ChromaDB 있을 때)
+        # 1. RAG 검색 시도 (빠르게, 실패해도 OK)
+        rag_context = ""
+        rag_section = ""
+        source_note = ""
+        
         if self.chroma_available:
-            search_results = self.search_similar(question, top_k=5)
-            
-            if search_results['documents'][0]:
-                # RAG 컨텍스트 있음
-                documents = search_results['documents'][0]
-                context = "\n\n---\n\n".join(documents[:3])
+            try:
+                # 빠른 RAG 검색
+                start_time = time.time()
+                search_results = self.search_similar(question, top_k=3)
                 
-                # 중앙 관리 프롬프트 사용
-                prompt = RAG_PROMPTS["qa_with_rag_context"].format(
-                    context=context,
-                    question=question
-                )
-            else:
-                # RAG 컨텍스트 없음 - 일반 모드로 전환
-                prompt = RAG_PROMPTS["qa_without_rag"].format(question=question)
+                if time.time() - start_time < 1.0 and search_results['documents'][0]:
+                    # RAG 문서 발견
+                    documents = search_results['documents'][0]
+                    rag_context = "\n\n".join(documents[:2])  # 상위 2개만
+                    
+                    # RAG 섹션 구성
+                    rag_section = f"\n[참고 자료]\n{rag_context}\n"
+                    source_note = "- KISIA 가이드라인을 참고하여 답변"
+                    print(f"✅ RAG 문서 {len(documents)}개 발견")
+                else:
+                    print("⚠️ RAG 문서 없음 또는 시간 초과")
+                    source_note = "- 일반 보안 지식 기반 답변"
+            except Exception as e:
+                print(f"⚠️ RAG 검색 실패 (계속 진행): {e}")
+                source_note = "- 일반 보안 지식 기반 답변"
         else:
-            # 일반 Q&A 모드 (ChromaDB 없을 때)
-            prompt = RAG_PROMPTS["qa_without_rag"].format(question=question)
+            source_note = "- 일반 보안 지식 기반 답변"
         
-        # 1. Claude 우선 시도 (메인 엔진)
+        # 2. 통합 프롬프트 사용
+        prompt = RAG_PROMPTS["qa_unified"].format(
+            rag_section=rag_section,
+            question=question,
+            source_note=source_note
+        )
+        
+        # 3. AI 답변 생성 (Claude 우선, GPT 폴백)
+        answer = None
+        
+        # Claude 시도
         if os.getenv("ANTHROPIC_API_KEY"):
             try:
                 from anthropic import Anthropic
                 claude_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-                model = os.getenv("ANTHROPIC_MODEL", "claude-3-opus-20240229")
+                model = os.getenv("ANTHROPIC_MODEL")
+                if not model:
+                    model = "claude-3-opus-20240229"
+                    print(f"⚠️ ANTHROPIC_MODEL 미설정, 기본값: {model}")
                 
-                # Claude는 system 프롬프트를 user 메시지에 포함
-                full_prompt = f"""{SYSTEM_PROMPTS.get('qa_expert', 'Python 보안 전문가입니다.')}
-
-        {prompt}"""
+                # Claude는 system을 user에 포함
+                system_prompt = SYSTEM_PROMPTS.get("qa_expert", "")
+                full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
                 
                 response = claude_client.messages.create(
                     model=model,
                     max_tokens=1500,
                     temperature=0.3,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": full_prompt
-                        }
-                    ]
+                    messages=[{"role": "user", "content": full_prompt}]
                 )
                 
-                # Claude 응답 형식에 맞게 추출
-                if hasattr(response, 'content') and response.content:
-                    return response.content[0].text
-                else:
-                    print(f"⚠️ Claude 응답 형식 오류: {response}")
-                    raise ValueError("Claude 응답 형식 오류")
-                    
+                answer = response.content[0].text
+                print("✅ Claude 답변 생성 완료")
+                
             except Exception as e:
                 print(f"⚠️ Claude 실패, GPT로 폴백: {e}")
         
-        # 2. GPT 폴백 (Claude 실패 또는 미설정 시)
-        if os.getenv("OPENAI_API_KEY"):
+        # GPT 폴백
+        if not answer and os.getenv("OPENAI_API_KEY"):
             try:
                 model = os.getenv("OPENAI_MODEL")
-                
                 if not model:
                     model = "gpt-4-turbo-preview"
-                    print(f"⚠️ OPENAI_MODEL 미설정, 기본값 사용: {model}")
+                    print(f"⚠️ OPENAI_MODEL 미설정, 기본값: {model}")
                 
                 response = self.client.chat.completions.create(
                     model=model,
@@ -134,21 +148,24 @@ class SimpleRAG:
                     max_tokens=1500
                 )
                 
-                return response.choices[0].message.content
+                answer = response.choices[0].message.content
+                print("✅ GPT 답변 생성 완료")
                 
             except Exception as e:
                 print(f"❌ GPT도 실패: {e}")
-                return f"오류 발생: {str(e)}"
+                answer = f"오류 발생: {str(e)}"
         
-        # 3. 모든 API 실패 시
-        return """죄송합니다. AI 서비스를 사용할 수 없습니다.
-
-    다음을 확인해주세요:
-    1. API 키가 올바르게 설정되었는지 (.env 파일)
-    2. 인터넷 연결이 정상인지
-    3. API 크레딧이 남아있는지
-
-    문제가 지속되면 시스템 관리자에게 문의하세요."""
+        # 4. 최종 답변 구성
+        if answer:
+            # 출처 표시 추가
+            if rag_context:
+                footer = "\n\n---\n*📚 KISIA Python 시큐어코딩 가이드를 참고한 답변입니다.*"
+            else:
+                footer = "\n\n---\n*💡 일반 보안 지식을 기반으로 한 답변입니다.*"
+            
+            return answer + footer
+        else:
+            return "죄송합니다. AI 서비스를 사용할 수 없습니다.\n\nAPI 키 설정을 확인해주세요."
     
     def get_stats(self) -> Dict:
         """시스템 상태 정보"""

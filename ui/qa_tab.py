@@ -190,8 +190,11 @@ def render_qa_tab():
         del st.session_state.pending_question
 
 
+# ui/qa_tab.py
+# process_question() 함수의 RAG 검색 부분 제거/수정 (라인 250-300 근처)
+
 def process_question(question: str, rag):
-    """전문적인 질문 처리 - RAG + AI 하이브리드"""
+    """전문적인 질문 처리 - AI 중심, RAG 보조"""
     
     # 사용자 메시지 추가
     st.session_state.qa_messages.append({"role": "user", "content": question})
@@ -207,59 +210,17 @@ def process_question(question: str, rag):
         try:
             start_time = time.time()
             
-            # 1단계: 질문 분석 및 전처리
+            # 1단계: 질문 분석 중
             status_text.text("질문 분석 중...")
-            progress_bar.progress(20)
-            time.sleep(0.5)
+            progress_bar.progress(30)
+            time.sleep(0.3)
             
-            # 2단계: RAG 지식 검색
-            status_text.text("지식 베이스 검색 중...")
-            progress_bar.progress(50)
+            # 2단계: 답변 생성 (RAG는 ask() 내부에서 처리)
+            status_text.text("답변 생성 중...")
+            progress_bar.progress(70)
             
-            search_results = rag.search_similar(question, top_k=5)
-            
-            if not search_results['documents'][0]:
-                progress_bar.progress(100)
-                status_text.text("관련 문서를 찾을 수 없습니다.")
-                
-                st.warning("관련 가이드라인을 찾을 수 없습니다.")
-                response = """
-                죄송합니다. 해당 질문과 관련된 KISIA 가이드라인을 찾을 수 없습니다.
-                
-                **다음과 같이 시도해보세요:**
-                • 질문을 더 구체적으로 작성해주세요
-                • 다른 키워드를 사용해보세요
-                • 위의 카테고리에서 유사한 질문을 선택해보세요
-                """
-                sources = []
-            else:
-                # 3단계: 문서 처리 및 정제
-                status_text.text("답변 생성 중...")
-                progress_bar.progress(80)
-                
-                documents = search_results['documents'][0]
-                metadatas = search_results['metadatas'][0] if search_results.get('metadatas') else []
-                
-                # 중복 제거 및 정리
-                unique_docs = []
-                seen = set()
-                sources = []
-                
-                for i, doc in enumerate(documents):
-                    doc_preview = doc[:200]
-                    if doc_preview not in seen:
-                        seen.add(doc_preview)
-                        unique_docs.append(doc)
-                        
-                        # 출처 정보 개선
-                        if i < len(metadatas):
-                            page = metadatas[i].get('page', '?')
-                            source_title = f"KISIA Python 시큐어코딩 가이드 p.{page}"
-                            source_preview = doc[:150].replace('\n', ' ').strip() + "..."
-                            sources.append(f"{source_title}: {source_preview}")
-                
-                # 4단계: AI 답변 생성
-                response = generate_answer_with_sources(question, unique_docs, sources)
+            # ask() 함수가 RAG 검색과 AI 답변을 모두 처리
+            response = rag.ask(question)
             
             # 완료
             progress_bar.progress(100)
@@ -272,26 +233,20 @@ def process_question(question: str, rag):
             # 성능 정보
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.caption(f"응답시간: {elapsed:.2f}초")
+                st.caption(f"⏱️ 응답시간: {elapsed:.2f}초")
             with col2:
-                st.caption(f"참조문서: {len(sources)}개")
+                # 답변 유형 판단
+                if "KISIA" in response or "가이드" in response:
+                    st.caption(f"📚 가이드라인 참조")
+                else:
+                    st.caption(f"💡 일반 지식 기반")
             with col3:
-                st.caption(f"신뢰도: {'높음' if sources else '낮음'}")
-            
-            # 출처 표시 개선
-            if sources:
-                with st.expander("참고 문서 및 출처", expanded=False):
-                    for i, source in enumerate(sources[:3], 1):  # 상위 3개만
-                        st.markdown(f"**[{i}]** {source}")
-                    
-                    if len(sources) > 3:
-                        st.caption(f"+ {len(sources) - 3}개 추가 문서")
+                st.caption(f"✅ 답변 완료")
             
             # 대화 기록에 추가
             st.session_state.qa_messages.append({
                 "role": "assistant",
                 "content": response,
-                "sources": sources,
                 "elapsed_time": elapsed
             })
             
@@ -302,9 +257,9 @@ def process_question(question: str, rag):
             
         finally:
             # UI 정리
+            time.sleep(0.5)
             progress_bar.empty()
             status_text.empty()
-
 
 # ui/qa_tab.py
 # generate_answer_with_sources() 함수 수정 (라인 380-420 근처)
