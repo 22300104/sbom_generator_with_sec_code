@@ -64,11 +64,26 @@ st.markdown(
   
   /* 글꼴 */
   --font-mono: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', monospace;
+  /* 사이드바 호버 슬라이드 변수 */
+  --sidebar-expanded-width: 320px;
+  --sidebar-collapsed-handle: 18px;
+  --sidebar-transition: 0.25s;
 }
 
 /* =================================
    전역 레이아웃 개선
    ================================= */
+html, body {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.stApp header[data-testid="stHeader"] {
+  height: 0 !important;
+  min-height: 0 !important;
+  background: transparent !important;
+}
+
 .main > div {
   padding-top: 2rem;
   padding-bottom: 2rem;
@@ -268,7 +283,7 @@ section[data-testid="stSidebar"] {
 }
 
 section[data-testid="stSidebar"] .css-1d391kg {
-  padding: 2rem 1rem !important;
+  padding: 0.75rem 0.75rem 1rem 0.75rem !important;
 }
 
 section[data-testid="stSidebar"] h1,
@@ -276,6 +291,7 @@ section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3 {
   color: white !important;
   font-weight: 600 !important;
+  margin-top: 0 !important;
 }
 
 section[data-testid="stSidebar"] p,
@@ -333,6 +349,73 @@ section[data-testid="stSidebar"] div[data-baseweb="notification"] {
   padding: 0.5rem 0.75rem !important;
   white-space: nowrap !important;
   min-height: 32px !important; /* 줄처럼 보이는 현상 방지 */
+}
+
+/* 사이드바 호버 시 슬라이드 인/아웃 동작 */
+section[data-testid="stSidebar"] {
+  width: var(--sidebar-expanded-width) !important;
+  position: fixed !important;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+  transform: translateX(calc(-100% + var(--sidebar-collapsed-handle)));
+  transition: transform var(--sidebar-transition) ease, box-shadow var(--sidebar-transition) ease;
+  z-index: 1100;
+}
+
+section[data-testid="stSidebar"]:hover {
+  transform: translateX(0);
+  box-shadow: var(--shadow-lg);
+}
+
+/* 비호버 상태에서도 보이는 세로 핸들 표시 */
+section[data-testid="stSidebar"]::after {
+  content: "System";
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--sidebar-collapsed-handle);
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #e2e8f0; /* gray-200 */
+  background: linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.06) 100%),
+              linear-gradient(180deg, var(--primary-blue), var(--primary-blue-light));
+  backdrop-filter: blur(6px);
+  border-radius: 0 8px 8px 0;
+  box-shadow: var(--shadow-md);
+  border-left: 1px solid rgba(255,255,255,0.18);
+  cursor: pointer;
+  transition: opacity var(--sidebar-transition) ease, transform var(--sidebar-transition) ease, background-color 0.2s ease;
+}
+
+/* 사이드바가 펼쳐지는 동안 핸들은 사라짐 */
+section[data-testid="stSidebar"]:hover::after {
+  opacity: 0;
+  transform: translateY(-50%) translateX(8px);
+  pointer-events: none;
+}
+
+/* 메인 영역은 핸들(좁은 호버 영역) 만큼만 좌측 여백 확보 */
+div[data-testid="stAppViewContainer"] {
+  margin-left: 0 !important;
+  padding-left: var(--sidebar-collapsed-handle);
+  transition: padding-left var(--sidebar-transition) ease;
+}
+
+@media (max-width: 768px) {
+  section[data-testid="stSidebar"] {
+    width: calc(var(--sidebar-expanded-width) - 40px) !important;
+  }
 }
 
 /* =================================
@@ -565,7 +648,7 @@ def main():
             {
                 "title": "Q&A",
                 "items": [
-                    "KISIA 가이드라인 기반",
+                    "KISA 가이드라인 기반",
                     "RAG 기반 답변",
                     "컨텍스트 인식",
                     "실시간 질의응답"
