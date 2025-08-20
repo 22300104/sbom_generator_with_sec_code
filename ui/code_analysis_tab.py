@@ -30,8 +30,8 @@ def render_code_analysis_tab():
     # 전문적인 헤더
     st.markdown("""
     <div style="text-align: center; padding: 1rem 0 2rem 0;">
-        <h2>보안 분석 엔진</h2>
-        <p style="color: var(--gray-600); font-size: 1.1rem;">
+        <h2><span class=\"material-icons mi\">security</span> 보안 분석 엔진</h2>
+        <p style=\"color: var(--gray-600); font-size: 1.1rem;\">
             AI 기반 취약점 탐지 및 SBOM 생성 시스템
         </p>
     </div>
@@ -39,7 +39,7 @@ def render_code_analysis_tab():
     
     # 세션 상태 초기화
     if 'input_method' not in st.session_state:
-        st.session_state.input_method = "📝 코드 직접 입력"
+        st.session_state.input_method = "코드 직접 입력"
     if 'analysis_code' not in st.session_state:
         st.session_state.analysis_code = None
     if 'analysis_requirements' not in st.session_state:
@@ -304,11 +304,11 @@ def handle_github_input():
     with col2:
         st.write("")  # 여백
         st.write("")  # 여백
-        download_btn = st.button("📥 다운로드", type="primary", key="github_download_btn")
+        download_btn = st.button("다운로드", type="primary", key="github_download_btn")
     
     # 예제 URL - 취약점이 많은 프로젝트 추가
-    with st.expander("📌 예제 저장소"):
-        st.write("**🟢 일반 프로젝트:**")
+    with st.expander("예제 저장소"):
+        st.write("**일반 프로젝트:**")
         col1, col2 = st.columns(2)
         with col1:
             if st.button("Flask 예제", key="flask_example"):
@@ -325,7 +325,7 @@ def handle_github_input():
                 st.session_state.github_url_input = "https://github.com/streamlit/streamlit"
                 st.rerun()
         
-        st.write("**🔴 취약점 데모 프로젝트:**")
+        st.write("**취약점 데모 프로젝트:**")
         col3, col4 = st.columns(2)
         with col3:
             if st.button("OWASP WebGoat Python", key="webgoat_example"):
@@ -342,7 +342,7 @@ def handle_github_input():
                 st.session_state.github_url_input = "https://github.com/OWASP/Python-Security"
                 st.rerun()
         
-        st.write("**⚡ 소규모 취약점 데모:**")
+        st.write("**소규모 취약점 데모:**")
         col5, col6 = st.columns(2)
         with col5:
             if st.button("SQL Injection 데모", key="sqli_demo"):
@@ -363,18 +363,18 @@ def handle_github_input():
     if download_btn and st.session_state.github_url_input:
         downloader = ProjectDownloader()
         
-        with st.spinner("🔄 GitHub 저장소 다운로드 중..."):
+        with st.spinner("GitHub 저장소 다운로드 중..."):
             success, message, project_path = downloader.download_github(st.session_state.github_url_input)
         
         if success:
-            st.success(f"✅ {message}")
+            st.success(f"{message}")
             
             # 프로젝트 파일 분석 - 스마트 필터링 적용
-            with st.spinner("📂 프로젝트 파일 분석 중..."):
+            with st.spinner("프로젝트 파일 분석 중..."):
                 project_data = smart_analyze_project_files(downloader, Path(project_path))
             
             # 정보 표시
-            with st.expander("📊 프로젝트 정보", expanded=True):
+            with st.expander("프로젝트 정보", expanded=True):
                 display_project_stats(project_data)
             
             # 정리
@@ -392,7 +392,7 @@ def handle_github_input():
             
             return project_data['combined_code'], project_data['combined_requirements'], project_name
         else:
-            st.error(f"❌ {message}")
+            st.error(f"{message}")
     
     # 이전 결과가 있으면 반환
     if st.session_state.github_result:
@@ -643,13 +643,13 @@ def display_project_stats(project_data: Dict):
             categories[cat]['lines'] += file_info['lines']
         
         category_names = {
-            'entry_point': '🚀 진입점',
-            'core_logic': '🧠 핵심 로직',
-            'security': '🔒 보안',
-            'api': '🌐 API',
-            'utility': '🔧 유틸리티',
-            'test': '🧪 테스트',
-            'other': '📄 기타'
+            'entry_point': '진입점',
+            'core_logic': '핵심 로직',
+            'security': '보안',
+            'api': 'API',
+            'utility': '유틸리티',
+            'test': '테스트',
+            'other': '기타'
         }
         
         for cat, stats in categories.items():
@@ -689,7 +689,7 @@ def handle_file_upload():
                 all_code.append(f"# ===== File: {file.name} =====\n{content}\n")
             
             combined_code = '\n'.join(all_code)
-            st.success(f"✅ {len(uploaded_files)}개 파일 로드 완료")
+            st.success(f"{len(uploaded_files)}개 파일 로드 완료")
             
             # 결과 저장
             st.session_state.file_result = (combined_code, requirements, "UploadedFiles")
@@ -710,7 +710,7 @@ def handle_file_upload():
             
             downloader = ProjectDownloader()
             
-            with st.spinner("📦 압축 파일 추출 중..."):
+            with st.spinner("압축 파일 추출 중..."):
                 success, message, project_path = downloader.extract_archive(tmp_path)
             
             # 임시 파일 삭제
@@ -720,14 +720,14 @@ def handle_file_upload():
                 pass
             
             if success:
-                st.success(f"✅ {message}")
+                st.success(f"{message}")
                 
                 # 스마트 프로젝트 분석
-                with st.spinner("📂 파일 분석 중..."):
+                with st.spinner("파일 분석 중..."):
                     project_data = smart_analyze_project_files(downloader, Path(project_path))
                 
                 # 정보 표시
-                with st.expander("📊 프로젝트 정보", expanded=True):
+                with st.expander("프로젝트 정보", expanded=True):
                     display_project_stats(project_data)
                 
                 # 정리
@@ -738,7 +738,7 @@ def handle_file_upload():
                 st.session_state.file_result = result
                 return result
             else:
-                st.error(f"❌ {message}")
+                st.error(f"{message}")
     
     # 이전 결과가 있으면 반환
     if st.session_state.file_result:
@@ -755,7 +755,7 @@ def analyze_code_common(code: str, requirements: str, project_name: str):
     chars = len(code)
     
     # 프로젝트 정보 카드
-    st.markdown("### 📊 프로젝트 분석 대상")
+    st.markdown("<h3><span class=\"material-icons mi\">analytics</span> 프로젝트 분석 대상</h3>", unsafe_allow_html=True)
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -793,36 +793,36 @@ def analyze_code_common(code: str, requirements: str, project_name: str):
     st.divider()
     
     # 전문적인 분석 옵션
-    st.markdown("### ⚙️ 분석 설정")
+    st.markdown("<h3><span class=\"material-icons mi\">settings</span> 분석 설정</h3>", unsafe_allow_html=True)
     
     # 분석 모드 선택 - 카드 스타일
-    st.markdown("#### 🎯 분석 모드 선택")
+    st.markdown("#### 분석 모드 선택")
     
     analysis_modes = [
         {
-            "key": "⚡ 빠른 분석",
+            "key": "빠른 분석",
             "title": "빠른 분석",
             "desc": "SBOM 생성만",
             "time": "1-5초",
-            "icon": "⚡",
+            "icon": "",
             "color": "var(--accent-amber)",
             "features": ["패키지 의존성", "SBOM 생성", "라이선스 정보"]
         },
         {
-            "key": "🤖 AI 보안 분석",
+            "key": "AI 보안 분석",
             "title": "AI 보안 분석",
             "desc": "취약점 탐지 전용",
             "time": "10-30초",
-            "icon": "🤖",
+            "icon": "",
             "color": "var(--accent-cyan)",
             "features": ["취약점 탐지", "보안 점수", "수정 권장사항"]
         },
         {
-            "key": "🔥 전체 분석",
+            "key": "전체 분석",
             "title": "전체 분석",
             "desc": "모든 기능 실행",
             "time": "20-60초",
-            "icon": "🔥",
+            "icon": "",
             "color": "var(--accent-red)",
             "features": ["AI 보안 분석", "SBOM 생성", "취약점 스캔", "상세 리포트"]
         }
@@ -835,17 +835,17 @@ def analyze_code_common(code: str, requirements: str, project_name: str):
     for i, mode in enumerate(analysis_modes):
         with cols[i]:
             is_selected = st.button(
-                f"{mode['icon']}\n\n**{mode['title']}**\n\n{mode['desc']}\n\n⏱️ {mode['time']}", 
+                f"**{mode['title']}**\n\n{mode['desc']}\n\n시간: {mode['time']}", 
                 key=f"mode_{i}",
                 use_container_width=True,
-                type="primary" if mode['key'] == "🔥 전체 분석" else "secondary"
+                type="primary" if mode['key'] == "전체 분석" else "secondary"
             )
             
             if is_selected:
                 selected_mode = mode['key']
             
             # 기능 목록
-            with st.expander(f"📋 {mode['title']} 기능"):
+            with st.expander(f"{mode['title']} 기능"):
                 for feature in mode['features']:
                     st.markdown(f"• {feature}")
     
@@ -853,7 +853,7 @@ def analyze_code_common(code: str, requirements: str, project_name: str):
     if not selected_mode:
         analysis_mode = st.selectbox(
             "분석 모드 선택:",
-            ["🔥 전체 분석", "🤖 AI 보안 분석", "⚡ 빠른 분석"],
+            ["전체 분석", "AI 보안 분석", "빠른 분석"],
             index=0,
             key="analysis_mode_select",
             help="전체 분석을 권장합니다"
@@ -864,13 +864,13 @@ def analyze_code_common(code: str, requirements: str, project_name: str):
     st.divider()
     
     # 고급 옵션
-    st.markdown("#### 🔧 고급 옵션")
+    st.markdown("#### 고급 옵션")
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
         scan_env = st.checkbox(
-            "🔍 환경 스캔", 
+            "환경 스캔", 
             value=False, 
             key="scan_env_check",
             help="실제 설치된 패키지 버전을 스캔합니다"
@@ -878,7 +878,7 @@ def analyze_code_common(code: str, requirements: str, project_name: str):
     
     with col2:
         use_cache = st.checkbox(
-            "💾 캐시 사용", 
+            "캐시 사용", 
             value=True, 
             key="use_cache_check",
             help="이전 분석 결과를 캐시하여 속도를 향상시킵니다"
@@ -886,7 +886,7 @@ def analyze_code_common(code: str, requirements: str, project_name: str):
     
     with col3:
         detailed_report = st.checkbox(
-            "📊 상세 리포트", 
+            "상세 리포트", 
             value=True, 
             key="detailed_report_check",
             help="자세한 분석 리포트를 생성합니다"
@@ -895,9 +895,9 @@ def analyze_code_common(code: str, requirements: str, project_name: str):
     # 코드 크기 제한 옵션
     max_code_size = None
     if chars > 500000:  # 500KB 이상일 때만 제한 옵션 표시
-        st.warning(f"⚠️ 대용량 코드 감지: {chars/1024:.1f}KB")
+        st.warning(f"대용량 코드 감지: {chars/1024:.1f}KB")
         
-        with st.expander("🔧 대용량 코드 옵션"):
+        with st.expander("대용량 코드 옵션"):
             use_limit = st.checkbox("크기 제한 적용", value=False, key="use_code_limit")
             if use_limit:
                 max_code_size = st.slider(
@@ -909,36 +909,36 @@ def analyze_code_common(code: str, requirements: str, project_name: str):
                     help="큰 파일의 경우 분석 시간이 오래 걸릴 수 있습니다"
                 ) * 1024
                 
-                st.info(f"📏 분석 크기가 {max_code_size/1024:.0f}KB로 제한됩니다.")
+                st.info(f"분석 크기가 {max_code_size/1024:.0f}KB로 제한됩니다.")
     else:
-        st.success("✅ 적절한 코드 크기 - 제한 없음")
+        st.success("적절한 코드 크기 - 제한 없음")
     
     st.divider()
     
     # 분석 실행 섹션
-    st.markdown("### 🚀 분석 실행")
+    st.markdown("### 분석 실행")
     
     # 분석 전 체크리스트
     checklist_items = [
         ("코드 입력 완료", bool(code)),
         ("분석 모드 선택", bool(analysis_mode)),
-        ("API 키 설정", bool(os.getenv("OPENAI_API_KEY")) if analysis_mode != "⚡ 빠른 분석" else True)
+        ("API 키 설정", bool(os.getenv("OPENAI_API_KEY")) if analysis_mode != "빠른 분석" else True)
     ]
     
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        st.markdown("#### ✅ 분석 준비 상태")
+        st.markdown("#### 분석 준비 상태")
         all_ready = True
         for item, status in checklist_items:
             if status:
-                st.success(f"✅ {item}")
+                st.success(f"{item}")
             else:
-                st.error(f"❌ {item}")
+                st.error(f"{item}")
                 all_ready = False
     
     with col2:
-        st.markdown("#### 📋 분석 요약")
+        st.markdown("#### 분석 요약")
         st.info(f"""
         **분석 모드:** {analysis_mode}
         **코드 크기:** {chars/1024:.1f}KB ({lines:,}줄)
@@ -949,7 +949,7 @@ def analyze_code_common(code: str, requirements: str, project_name: str):
     # 분석 시작 버튼
     if all_ready:
         if st.button(
-            "🚀 보안 분석 시작", 
+            "보안 분석 시작", 
             type="primary", 
             use_container_width=True, 
             key="start_analysis_btn"
@@ -957,16 +957,16 @@ def analyze_code_common(code: str, requirements: str, project_name: str):
             # 코드 크기 조정 (선택적)
             original_size = len(code)
             if max_code_size and len(code) > max_code_size:
-                st.warning(f"⚠️ 코드가 제한 크기를 초과하여 {max_code_size/1024:.0f}KB만 분석합니다.")
+                st.warning(f"코드가 제한 크기를 초과하여 {max_code_size/1024:.0f}KB만 분석합니다.")
                 code = code[:max_code_size]
             
             # 분석 실행
             run_analysis(code, requirements, project_name, analysis_mode, scan_env, original_size)
     else:
-        st.error("❌ 분석 준비가 완료되지 않았습니다. 위의 체크리스트를 확인해주세요.")
+        st.error("분석 준비가 완료되지 않았습니다. 위의 체크리스트를 확인해주세요.")
         
         # 도움말 버튼
-        if st.button("❓ 도움이 필요하신가요?", use_container_width=True):
+        if st.button("도움이 필요하신가요?", use_container_width=True):
             st.info("""
             **문제 해결 가이드:**
             
@@ -978,7 +978,7 @@ def analyze_code_common(code: str, requirements: str, project_name: str):
     # 이전 분석 결과 표시 (세션에 저장된 경우)
     if 'last_analysis_results' in st.session_state:
         st.divider()
-        st.markdown("### 📊 이전 분석 결과")
+        st.markdown("### 이전 분석 결과")
         
         with st.expander("이전 분석 결과 보기", expanded=False):
             display_results(st.session_state.last_analysis_results)
@@ -994,12 +994,12 @@ def run_analysis(code: str, requirements: str, project_name: str, mode: str, sca
     llm_analyzer = None
     
     # LLM 분석기 초기화
-    if mode in ["🤖 AI 보안 분석", "🔥 전체 분석"]:
+    if mode in ["AI 보안 분석", "전체 분석"]:
         if os.getenv("OPENAI_API_KEY") and LLM_AVAILABLE:
             try:
                 llm_analyzer = LLMSecurityAnalyzer()
             except Exception as e:
-                st.warning(f"⚠️ AI 분석기 초기화 실패: {e}")
+                st.warning(f"AI 분석기 초기화 실패: {e}")
     
     results = {}
     start_time = time.time()
@@ -1010,8 +1010,8 @@ def run_analysis(code: str, requirements: str, project_name: str, mode: str, sca
     
     try:
         # 1. SBOM 분석
-        if mode in ["⚡ 빠른 분석", "🔥 전체 분석"]:
-            status.text("📦 SBOM 분석 중...")
+        if mode in ["빠른 분석", "전체 분석"]:
+            status.text("SBOM 분석 중...")
             progress.progress(30)
             
             sbom_result = analyzer.analyze(code, requirements, scan_environment=scan_env)
@@ -1029,8 +1029,8 @@ def run_analysis(code: str, requirements: str, project_name: str, mode: str, sca
             progress.progress(50)
         
         # 2. 취약점 검사
-        if mode == "🔥 전체 분석" and results.get('sbom'):
-            status.text("🛡️ 취약점 검사 중...")
+        if mode == "전체 분석" and results.get('sbom'):
+            status.text("취약점 검사 중...")
             progress.progress(70)
             
             packages = results['sbom'].get('packages', [])
@@ -1043,13 +1043,13 @@ def run_analysis(code: str, requirements: str, project_name: str, mode: str, sca
             progress.progress(85)
         
         # 3. AI 보안 분석
-        if mode in ["🤖 AI 보안 분석", "🔥 전체 분석"] and llm_analyzer:
-            status.text("🤖 AI 보안 분석 중...")
+        if mode in ["AI 보안 분석", "전체 분석"] and llm_analyzer:
+            status.text("AI 보안 분석 중...")
             progress.progress(95)
             
             # 대용량 코드 처리
             if len(code) > 100000:  # 100KB 이상
-                status.text("🤖 대용량 코드 분할 분석 중...")
+                status.text("대용량 코드 분할 분석 중...")
                 ai_result = analyze_large_code_with_llm(llm_analyzer, code)
             else:
                 ai_result = llm_analyzer.analyze_code_security(code)
@@ -1057,10 +1057,10 @@ def run_analysis(code: str, requirements: str, project_name: str, mode: str, sca
             results['ai_analysis'] = ai_result
         
         progress.progress(100)
-        status.text("✅ 분석 완료!")
+        status.text("분석 완료!")
         
     except Exception as e:
-        st.error(f"❌ 분석 오류: {e}")
+        st.error(f"분석 오류: {e}")
     
     finally:
         progress.empty()
@@ -1122,7 +1122,7 @@ def analyze_large_code_with_llm(llm_analyzer, code: str) -> Dict:
                     all_vulnerabilities.append(vuln)
                     
         except Exception as e:
-            st.warning(f"⚠️ {file_info['path']} 분석 실패: {e}")
+            st.warning(f"{file_info['path']} 분석 실패: {e}")
             continue
     
     # 결과 통합
@@ -1159,11 +1159,11 @@ def generate_actions_from_vulns(vulns: List[Dict]) -> List[str]:
     
     for vuln in critical_vulns[:3]:
         file_info = f" ({vuln.get('source_file', '')})" if vuln.get('source_file') else ""
-        actions.append(f"🔴 {vuln['type']} 즉시 수정 필요{file_info}")
+        actions.append(f"{vuln['type']} 즉시 수정 필요{file_info}")
     
     for vuln in high_vulns[:2]:
         file_info = f" ({vuln.get('source_file', '')})" if vuln.get('source_file') else ""
-        actions.append(f"🟠 {vuln['type']} 우선 수정{file_info}")
+        actions.append(f"{vuln['type']} 우선 수정{file_info}")
     
     return actions
 
@@ -1233,7 +1233,7 @@ def display_results(results: Dict):
     else:
         size_info = f"({analyzed_size/1024:.1f}KB 분석)"
     
-    st.success(f"✅ 분석 완료 ({analysis_time:.1f}초) {size_info}")
+    st.success(f"분석 완료 ({analysis_time:.1f}초) {size_info}")
     
     # 메트릭
     col1, col2, col3, col4 = st.columns(4)
@@ -1256,12 +1256,12 @@ def display_results(results: Dict):
     # 상세 결과 탭
     tabs = []
     if 'sbom' in results:
-        tabs.append("📦 SBOM")
+        tabs.append("SBOM")
     if 'ai_analysis' in results:
-        tabs.append("🤖 보안 분석")
+        tabs.append("보안 분석")
     if 'vulnerability_scan' in results:
-        tabs.append("🛡️ 취약점")
-    tabs.append("💾 다운로드")
+        tabs.append("취약점")
+    tabs.append("다운로드")
     
     # 탭에 고유 키 추가
     tab_objects = st.tabs(tabs)
@@ -1301,7 +1301,7 @@ def display_ai_tab_improved(ai_result):
     
     # 분석 타입 표시
     if ai_result.get('metadata', {}).get('analysis_type') == 'large_code_chunked':
-        st.info("📊 대용량 코드 분할 분석 완료")
+        st.info("대용량 코드 분할 분석 완료")
         analyzed_files = analysis.get('analyzed_files', [])
         if analyzed_files:
             with st.expander("분석된 주요 파일"):
@@ -1309,10 +1309,10 @@ def display_ai_tab_improved(ai_result):
                     st.write(f"• {file_path}")
     
     if not vulns:
-        st.success("✅ 취약점이 발견되지 않았습니다!")
+        st.success("취약점이 발견되지 않았습니다!")
         return
     
-    st.subheader(f"🤖 {len(vulns)}개 취약점 발견")
+    st.subheader(f"{len(vulns)}개 취약점 발견")
     
     # 심각도별 통계
     severity_counts = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}
@@ -1323,23 +1323,18 @@ def display_ai_tab_improved(ai_result):
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("🔴 CRITICAL", severity_counts['CRITICAL'])
+        st.metric("CRITICAL", severity_counts['CRITICAL'])
     with col2:
-        st.metric("🟠 HIGH", severity_counts['HIGH'])
+        st.metric("HIGH", severity_counts['HIGH'])
     with col3:
-        st.metric("🟡 MEDIUM", severity_counts['MEDIUM'])
+        st.metric("MEDIUM", severity_counts['MEDIUM'])
     with col4:
-        st.metric("🟢 LOW", severity_counts['LOW'])
+        st.metric("LOW", severity_counts['LOW'])
     
     # 취약점 상세 표시
     for vuln in vulns:
-        severity_icon = {
-            'CRITICAL': '🔴', 'HIGH': '🟠',
-            'MEDIUM': '🟡', 'LOW': '🟢'
-        }.get(vuln.get('severity', 'MEDIUM'), '⚪')
-        
         # 제목에 파일 정보 포함
-        title = f"{severity_icon} {vuln['type']}"
+        title = f"{vuln['type']}"
         if vuln.get('line_numbers'):
             title += f" (라인 {vuln['line_numbers'][0]})"
         if vuln.get('source_file'):
@@ -1359,15 +1354,12 @@ def display_ai_tab_improved(ai_result):
                 st.warning(f"**공격 시나리오:** {vuln['attack_scenario']}")
             
             if vuln.get('confidence'):
-                confidence_color = {
-                    'HIGH': '🟢', 'MEDIUM': '🟡', 'LOW': '🔴'
-                }.get(vuln['confidence'], '⚪')
-                st.caption(f"신뢰도: {confidence_color} {vuln['confidence']}")
+                st.caption(f"신뢰도: {vuln['confidence']}")
 
 
 def display_sbom_tab(sbom):
     """SBOM 결과 표시"""
-    st.subheader("📦 Software Bill of Materials")
+    st.markdown("<h4><span class=\"material-icons mi\">inventory_2</span> Software Bill of Materials</h4>", unsafe_allow_html=True)
     
     if sbom.get('packages'):
         df_data = []
@@ -1377,7 +1369,7 @@ def display_sbom_tab(sbom):
                 "설치명": pkg.get('install_name', pkg['name']),
                 "요구 버전": pkg.get('required_version', '-'),
                 "실제 버전": pkg.get('actual_version', '미확인'),
-                "상태": "✅" if pkg.get('actual_version') else "❌",
+                "상태": "설치됨" if pkg.get('actual_version') else "미확인",
                 "종속성": pkg.get('dependencies_count', 0)
             })
         
@@ -1386,7 +1378,7 @@ def display_sbom_tab(sbom):
         
         # 간접 종속성 표시
         if sbom.get('indirect_dependencies'):
-            with st.expander(f"📎 간접 종속성 ({len(sbom['indirect_dependencies'])}개)"):
+            with st.expander(f"간접 종속성 ({len(sbom['indirect_dependencies'])}개)"):
                 for dep in sbom['indirect_dependencies'][:20]:  # 상위 20개만
                     st.write(f"• {dep['name']} ({dep.get('version', 'unknown')})")
 
@@ -1395,7 +1387,7 @@ def display_vuln_tab(vuln_scan):
     """취약점 검사 결과 표시"""
     stats = vuln_scan.get('statistics', {})
     
-    st.subheader("🛡️ 알려진 취약점")
+    st.markdown("<h4><span class=\"material-icons mi\">gpp_maybe</span> 알려진 취약점</h4>", unsafe_allow_html=True)
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -1411,12 +1403,9 @@ def display_vuln_tab(vuln_scan):
     if vuln_scan.get('direct_vulnerabilities'):
         st.write("**취약한 직접 패키지:**")
         for pkg_name, data in vuln_scan['direct_vulnerabilities'].items():
-            with st.expander(f"📦 {pkg_name} v{data['version']} ({len(data['vulnerabilities'])}개 취약점)"):
+            with st.expander(f"{pkg_name} v{data['version']} ({len(data['vulnerabilities'])}개 취약점)"):
                 for vuln in data['vulnerabilities']:
-                    severity_color = {'CRITICAL': '🔴', 'HIGH': '🟠', 'MEDIUM': '🟡', 'LOW': '🟢'}
-                    color = severity_color.get(vuln['severity'], '⚪')
-                    
-                    st.write(f"{color} **{vuln['id']}** - {vuln['severity']}")
+                    st.write(f"**{vuln['id']}** - {vuln['severity']}")
                     st.caption(vuln['summary'])
                     if vuln.get('fixed_version'):
                         st.success(f"수정 버전: {vuln['fixed_version']}")
@@ -1424,7 +1413,7 @@ def display_vuln_tab(vuln_scan):
 
 def display_download_tab_with_id(results, unique_id):
     """다운로드 옵션 (고유 ID 사용)"""
-    st.subheader("💾 다운로드")
+    st.markdown("<h4><span class=\"material-icons mi\">download</span> 다운로드</h4>", unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
@@ -1432,7 +1421,7 @@ def display_download_tab_with_id(results, unique_id):
         # JSON 결과
         json_str = json.dumps(results, indent=2, default=str, ensure_ascii=False)
         st.download_button(
-            "📥 전체 결과 (JSON)",
+            "전체 결과 (JSON)",
             data=json_str,
             file_name=f"{results['project_name']}_analysis.json",
             mime="application/json",
@@ -1443,7 +1432,7 @@ def display_download_tab_with_id(results, unique_id):
         if 'ai_analysis' in results:
             summary_report = generate_security_summary(results)
             st.download_button(
-                "📄 보안 분석 요약",
+                "보안 분석 요약",
                 data=summary_report,
                 file_name=f"{results['project_name']}_security_summary.md",
                 mime="text/markdown",
@@ -1456,7 +1445,7 @@ def display_download_tab_with_id(results, unique_id):
             if results['sbom_formats'].get('spdx'):
                 spdx_json = json.dumps(results['sbom_formats']['spdx'], indent=2, ensure_ascii=False)
                 st.download_button(
-                    "📥 SPDX 2.3",
+                    "SPDX 2.3",
                     data=spdx_json,
                     file_name=f"{results['project_name']}_sbom_spdx.json",
                     mime="application/json",
@@ -1466,7 +1455,7 @@ def display_download_tab_with_id(results, unique_id):
             if results['sbom_formats'].get('cyclonedx'):
                 cyclone_json = json.dumps(results['sbom_formats']['cyclonedx'], indent=2, ensure_ascii=False)
                 st.download_button(
-                    "📥 CycloneDX 1.4",
+                    "CycloneDX 1.4",
                     data=cyclone_json,
                     file_name=f"{results['project_name']}_sbom_cyclonedx.json",
                     mime="application/json",
@@ -1484,7 +1473,7 @@ def generate_security_summary(results: Dict) -> str:
         analysis = results['ai_analysis']['analysis']
         vulns = analysis.get('code_vulnerabilities', [])
         
-        report.append(f"## 📊 요약\n")
+        report.append(f"## 요약\n")
         report.append(f"- 보안 점수: {analysis.get('security_score', 100)}/100\n")
         report.append(f"- 발견된 취약점: {len(vulns)}개\n\n")
         
@@ -1496,14 +1485,14 @@ def generate_security_summary(results: Dict) -> str:
                 if sev in severity_counts:
                     severity_counts[sev] += 1
             
-            report.append("### 🚨 심각도별 취약점\n")
+            report.append("### 심각도별 취약점\n")
             for sev, count in severity_counts.items():
                 if count > 0:
                     report.append(f"- {sev}: {count}개\n")
             report.append("\n")
             
             # 상위 취약점
-            report.append("### 🔍 주요 취약점\n")
+            report.append("### 주요 취약점\n")
             for vuln in vulns[:10]:  # 상위 10개
                 report.append(f"#### {vuln['type']} ({vuln.get('severity', 'MEDIUM')})\n")
                 if vuln.get('source_file'):
@@ -1517,13 +1506,13 @@ def generate_security_summary(results: Dict) -> str:
         
         # 권장사항
         if analysis.get('immediate_actions'):
-            report.append("### ⚡ 즉시 조치사항\n")
+            report.append("### 즉시 조치사항\n")
             for action in analysis['immediate_actions']:
                 report.append(f"- {action}\n")
             report.append("\n")
         
         if analysis.get('best_practices'):
-            report.append("### 💡 권장 보안 사례\n")
+            report.append("### 권장 보안 사례\n")
             for practice in analysis['best_practices']:
                 report.append(f"- {practice}\n")
     

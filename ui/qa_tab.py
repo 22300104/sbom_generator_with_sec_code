@@ -14,8 +14,8 @@ def render_qa_tab():
     # 전문적인 헤더
     st.markdown("""
     <div style="text-align: center; padding: 1rem 0 2rem 0;">
-        <h2>Q&A</h2>
-        <p style="color: var(--gray-600); font-size: 1.1rem;">
+        <h2><span class=\"material-icons mi\">forum</span> Q&A</h2>
+        <p style=\"color: var(--gray-600); font-size: 1.1rem;\">
             Python 보안 전문가 시스템
         </p>
     </div>
@@ -30,9 +30,9 @@ def render_qa_tab():
                 
                 # 모드에 따른 다른 메시지
                 if stats['mode'] == "RAG 모드":
-                    st.success(f"✅ RAG 모드 활성화: {stats['total_documents']}개 문서 로드")
+                    st.success(f"RAG 모드 활성화: {stats['total_documents']}개 문서 로드")
                 else:
-                    st.info("ℹ️ 일반 Q&A 모드로 작동 중")
+                    st.info("일반 Q&A 모드로 작동 중")
                     st.caption("AI 기반 전문가 답변을 제공합니다.")
             except Exception as e:
                 st.error(f"Q&A 시스템 초기화 실패: {e}")
@@ -239,7 +239,7 @@ def process_question(question: str, rag):
             
             # 출처 정보 파싱 (있으면)
             source_docs = []
-            if "📚 참고 문서:" in response:
+            if "참고 문서:" in response:
                 # 응답에서 출처 정보 추출
                 lines = response.split('\n')
                 for i, line in enumerate(lines):
@@ -261,7 +261,7 @@ def process_question(question: str, rag):
             
             # 출처가 있으면 별도 박스로 표시
             if source_docs:
-                with st.expander("📖 가이드라인 출처 상세", expanded=False):
+                with st.expander("가이드라인 출처 상세", expanded=False):
                     st.info("**Python_시큐어코딩_가이드(2023년_개정본).pdf**")
                     for doc in source_docs:
                         st.caption(f"• {doc}")
@@ -269,15 +269,15 @@ def process_question(question: str, rag):
             # 성능 정보
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.caption(f"⏱️ 응답시간: {elapsed:.2f}초")
+                st.caption(f"응답시간: {elapsed:.2f}초")
             with col2:
                 # 답변 유형 판단
                 if "KISIA" in response or "가이드" in response:
-                    st.caption(f"📚 가이드라인 참조")
+                    st.caption(f"가이드라인 참조")
                 else:
-                    st.caption(f"💡 일반 지식 기반")
+                    st.caption(f"일반 지식 기반")
             with col3:
-                st.caption(f"✅ 답변 완료")
+                st.caption(f"답변 완료")
             
             # 대화 기록에 추가
             st.session_state.qa_messages.append({
@@ -335,7 +335,7 @@ def generate_answer_with_sources(question: str, documents: list, sources: list) 
         answer = response.choices[0].message.content
         
         # 답변에 근거 표시 추가
-        answer += "\n\n---\n*📌 이 답변은 KISIA Python 시큐어코딩 가이드라인을 기반으로 작성되었습니다.*"
+        answer += "\n\n---\n*이 답변은 KISIA Python 시큐어코딩 가이드라인을 기반으로 작성되었습니다.*"
         
         return answer
         
@@ -352,7 +352,7 @@ def generate_answer_with_sources(question: str, documents: list, sources: list) 
 
 def render_code_context_qa():
     """코드 컨텍스트 기반 Q&A"""
-    st.subheader("📝 코드 분석 Q&A")
+    st.subheader("코드 분석 Q&A")
     
     user_code = st.text_area(
         "분석할 코드:",
@@ -361,7 +361,7 @@ def render_code_context_qa():
     )
     
     if user_code:
-        st.info(f"📝 {len(user_code)}자의 코드가 입력되었습니다.")
+        st.info(f"{len(user_code)}자의 코드가 입력되었습니다.")
         
         # 코드 관련 질문 예제
         code_questions = [
@@ -397,18 +397,18 @@ def analyze_code_with_question(code: str, question: str):
                 
                 # 취약점
                 if vulns:
-                    st.warning(f"⚠️ {len(vulns)}개 취약점 발견")
+                    st.warning(f"{len(vulns)}개 취약점 발견")
                     for vuln in vulns:
                         with st.expander(f"{vuln['type']} - {vuln['severity']}"):
                             st.write(f"**이유:** {vuln.get('reasoning', '')}")
                             st.write(f"**공격 시나리오:** {vuln.get('attack_scenario', '')}")
                             st.write(f"**권장사항:** {vuln.get('recommendation', '')}")
                 else:
-                    st.success("✅ 취약점이 발견되지 않았습니다.")
+                    st.success("취약점이 발견되지 않았습니다.")
                 
                 # 안전한 practice
                 if safe_practices:
-                    st.success(f"👍 {len(safe_practices)}개의 안전한 코딩 practice 발견")
+                    st.success(f"{len(safe_practices)}개의 안전한 코딩 practice 발견")
                     for practice in safe_practices:
                         st.write(f"• {practice['practice']}: {practice['description']}")
         

@@ -4,15 +4,34 @@ SBOM Security Analyzer - Professional Security Analysis Platform
 """
 import streamlit as st
 import os
+import base64
 from dotenv import load_dotenv
+from PIL import Image
 
 # 환경 변수 로드
 load_dotenv()
 
-# 페이지 설정 - 전문적 메타데이터
+# 페이지 아이콘(파비콘)용 로고 자동 탐색
+def _find_logo_path() -> str | None:
+    candidates = [
+        "ui/assets/logo.png", "ui/assets/logo.jpg", "ui/assets/logo.webp",
+        "static/logo.png", "static/logo.jpg",
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return None
+
+_LOGO_PATH = _find_logo_path()
+try:
+    _PAGE_ICON = Image.open(_LOGO_PATH) if _LOGO_PATH else "🛡️"
+except Exception:
+    _PAGE_ICON = "🛡️"
+
+# 페이지 설정 - 전문적 메타데이터 (로고 사용)
 st.set_page_config(
     page_title="SBOMiner | 보안 분석 플랫폼",
-    page_icon="🛡️",
+    page_icon=_PAGE_ICON,
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
@@ -20,6 +39,12 @@ st.set_page_config(
         'Report a bug': None,
         'About': "SBOMiner - Enterprise Security Analysis Platform"
     }
+)
+
+# Material Icons 로드
+st.markdown(
+    '<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">',
+    unsafe_allow_html=True,
 )
 
 # 전문적인 글로벌 스타일 시스템
@@ -68,6 +93,15 @@ st.markdown(
   --sidebar-expanded-width: 320px;
   --sidebar-collapsed-handle: 18px;
   --sidebar-transition: 0.25s;
+}
+
+/* Material Icons 기본 스타일 */
+.material-icons.mi {
+  font-size: 24px;
+  line-height: 1;
+  vertical-align: middle;
+  color: #1f1f1f;
+  margin-right: .35rem;
 }
 
 /* =================================
@@ -528,24 +562,52 @@ from ui.qa_tab import render_qa_tab
 
 def main():
     # 헤로 섹션
-    st.markdown("""
-    <div style="text-align: center; padding: 2rem 0; margin-bottom: 2rem;">
-        <h1 style="font-size: 3rem; margin-bottom: 0.5rem;">SBOMiner</h1>
-        <p style="font-size: 1.25rem; color: var(--gray-600); margin-bottom: 1rem;">
-            Enterprise Security Analysis Platform
-        </p>
-        <p style="color: var(--gray-500); font-size: 1rem;">
-            AI 기반 보안 취약점 탐지 및 SBOM 생성 플랫폼
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    # 타이틀 영역: 로고 + 제목
+    if _LOGO_PATH:
+        try:
+            with open(_LOGO_PATH, "rb") as _lf:
+                _logo_b64 = base64.b64encode(_lf.read()).decode("utf-8")
+            st.markdown(f"""
+            <div style="display:flex; align-items:center; gap:12px; padding: 0.25rem 0 1.25rem 0;">
+                <img alt="logo" src="data:image/png;base64,{_logo_b64}" style="width:124px; height:auto;"/>
+                <div>
+                    <h1 style="font-size: 3.4rem; margin: 0 0 0.4rem 0;">SBOMiner</h1>
+                    <p style="font-size: 1.3rem; color: var(--gray-600); margin: 0 0 0.2rem 0;">Enterprise Security Analysis Platform</p>
+                    <p style="color: var(--gray-500); font-size: 1rem; margin: 0;">AI 기반 보안 취약점 탐지 및 SBOM 생성 플랫폼</p>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        except Exception:
+            c1, c2 = st.columns([1, 6])
+            with c1:
+                st.image(_LOGO_PATH, width=120)
+            with c2:
+                st.markdown("""
+                <div style="padding: 0.25rem 0 1.25rem 0; margin-left:-8px;">
+                    <h1 style="font-size: 3.4rem; margin: 0 0 0.4rem 0;">SBOMiner</h1>
+                    <p style="font-size: 1.3rem; color: var(--gray-600); margin: 0 0 0.2rem 0;">Enterprise Security Analysis Platform</p>
+                    <p style="color: var(--gray-500); font-size: 1rem; margin: 0;">AI 기반 보안 취약점 탐지 및 SBOM 생성 플랫폼</p>
+                </div>
+                """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style="text-align: center; padding: 2rem 0; margin-bottom: 2rem;">
+            <h1 style="font-size: 3rem; margin-bottom: 0.5rem;">SBOMiner</h1>
+            <p style="font-size: 1.25rem; color: var(--gray-600); margin-bottom: 1rem;">
+                Enterprise Security Analysis Platform
+            </p>
+            <p style="color: var(--gray-500); font-size: 1rem;">
+                AI 기반 보안 취약점 탐지 및 SBOM 생성 플랫폼
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
     
     # 전문적인 사이드바
     with st.sidebar:
         # 브랜드 헤더
         st.markdown("""
         <div style="text-align: center; padding: 1rem 0 2rem 0;">
-            <h2 style="color: white; margin: 0; font-size: 1.5rem;">SBOMiner 시스템</h2>
+            <h2 style="color: white; margin: 0; font-size: 1.5rem;"><span class=\"material-icons mi\">tune</span> SBOMiner 시스템</h2>
             <p style="color: var(--gray-200); font-size: 0.9rem; margin: 0.5rem 0 0 0;">
                 Security Configuration
             </p>
@@ -564,7 +626,7 @@ def main():
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("**🤖 OpenAI (GPT)**")
+            st.markdown("**OpenAI (GPT)**")
             if has_openai_key:
                 model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
                 st.success("활성화")
@@ -574,7 +636,7 @@ def main():
                 st.caption("API 키 없음")
         
         with col2:
-            st.markdown("**🎭 Anthropic (Claude)**")
+            st.markdown("**Anthropic (Claude)**")
             if has_claude_key:
                 model = os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229")
                 st.success("활성화")
@@ -706,7 +768,7 @@ def render_help_tab():
     # 헤더 섹션
     st.markdown("""
     <div style="text-align: center; padding: 1rem 0 2rem 0;">
-        <h2>📖 SBOMiner 사용 가이드</h2>
+        <h2><span class=\"material-icons mi\">menu_book</span> SBOMiner 사용 가이드</h2>
         <p style="color: var(--gray-600); font-size: 1.1rem;">
             보안 분석 플랫폼 사용 방법
         </p>
@@ -714,7 +776,7 @@ def render_help_tab():
     """, unsafe_allow_html=True)
     
     # 퀵 스타트 가이드
-    with st.expander("🚀 빠른 시작 가이드", expanded=True):
+    with st.expander("빠른 시작 가이드", expanded=True):
         st.markdown("""
         ### 3단계로 시작하기
         
@@ -740,7 +802,7 @@ def render_help_tab():
     
     with col1:
         st.markdown("""
-        ### 📥 입력 방법
+        ### 입력 방법
         
         **1. GitHub URL**
         - 공개 저장소 URL 입력
@@ -757,13 +819,13 @@ def render_help_tab():
         """)
         
         st.markdown("""
-        ### ⚙️ 분석 모드
+        ### 분석 모드
         
-        **🔥 전체 분석**
+        **전체 분석**
         - AI 보안 분석 + SBOM 생성
         - 가장 완전한 분석
         
-        **🤖 AI 보안 분석**
+        **AI 보안 분석**
         - 취약점 탐지에 집중
         - 수정 코드 제안
         
@@ -774,7 +836,7 @@ def render_help_tab():
     
     with col2:
         st.markdown("""
-        ### 📂 파일 선택
+        ### 파일 선택
         
         **스마트 선택 도구**
         - 전체 선택: 모든 파일 분석
@@ -788,7 +850,7 @@ def render_help_tab():
         """)
         
         st.markdown("""
-        ### 💾 결과 다운로드
+        ### 결과 다운로드
         
         **다운로드 형식**
         - JSON: 전체 분석 결과
@@ -805,7 +867,7 @@ def render_help_tab():
     st.divider()
     
     # 사용 팁
-    st.markdown("## 💡 사용 팁")
+    st.markdown("## 사용 팁")
     
     tips = {
         "성능 최적화": [
@@ -833,7 +895,7 @@ def render_help_tab():
                 st.caption(f"• {item}")
     
     # 제한사항
-    with st.expander("⚠️ 제한사항 및 주의사항"):
+    with st.expander("제한사항 및 주의사항"):
         st.warning("""
         **제한사항**
         - Private GitHub 저장소 미지원
@@ -848,7 +910,7 @@ def render_help_tab():
         """)
     
     # 문제 해결
-    with st.expander("🔧 문제 해결"):
+    with st.expander("문제 해결"):
         st.markdown("""
         **Q: 분석이 실패합니다**
         - 코드 구문 오류 확인
