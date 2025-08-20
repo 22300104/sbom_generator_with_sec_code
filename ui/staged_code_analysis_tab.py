@@ -12,6 +12,7 @@ from typing import Dict, List, Optional
 import tempfile
 import os
 import textwrap
+import re
 
 from ui.memory_file_selector import MemoryFileSelector
 from core.improved_llm_analyzer import ImprovedSecurityAnalyzer
@@ -951,35 +952,7 @@ def render_results_stage():
         pr_title = st.text_input('PR 제목', value=default_title, key='mcp_pr_title')
         pr_body = st.text_area('PR 본문 (선택사항)', value='', key='mcp_pr_body')
         draft = st.checkbox('Draft PR로 생성 (자동 머지 방지 권장)', value=True, key='mcp_pr_draft')
-        colp1, colp2 = st.columns(2)
-        with colp1:
-            send_diff = st.button('브랜치 비교로 PR 보내기', type='primary', use_container_width=True)
-        with colp2:
-            send_snapshot = st.button('현재 분석 코드로 PR 보내기(스냅샷)', type='secondary', use_container_width=True)
-
-        if send_diff:
-            client = MCPGithubClient()
-            owner = mcp_ctx.get('owner')
-            repo = mcp_ctx.get('repo')
-            base = mcp_ctx.get('base_branch')
-            head = mcp_ctx.get('compare_branch')
-            analyzer = GitHubBranchAnalyzer()
-            with st.spinner('변경사항 확인 중...'):
-                diff_meta = analyzer.get_branch_diff(mcp_ctx.get('repo_url'), base, head)
-            if not diff_meta.get('success'):
-                st.error(diff_meta.get('error', '브랜치 비교 실패'))
-            elif diff_meta.get('ahead_by', 0) <= 0 and diff_meta.get('total_files', 0) <= 0:
-                st.warning('변경사항이 없습니다. PR을 생성할 수 없습니다.')
-            else:
-                final_title = pr_title if not draft else (f"[DRAFT] {pr_title}")
-                with st.spinner('PR 생성 중...'):
-                    resp = client.create_pull_request(owner, repo, base, head, final_title, pr_body, draft)
-                if resp.get('success'):
-                    st.success(f"PR 생성됨: {resp.get('url')}")
-                else:
-                    st.error(resp.get('error', 'PR 생성 실패'))
-
-        if send_snapshot:
+        if st.button('현재 분석 코드로 PR 보내기(스냅샷)', type='primary', use_container_width=True):
             client = MCPGithubClient()
             owner = mcp_ctx.get('owner')
             repo = mcp_ctx.get('repo')
@@ -987,15 +960,14 @@ def render_results_stage():
             code_blob = st.session_state.get('analysis_code', '')
             files_map = {}
             if code_blob:
-                parts = code_blob.split('\n# ===== File: ')
-                for part in parts:
-                    if not part.strip():
-                        continue
-                    lines = part.split('\n')
-                    header = lines[0].strip().replace('=====', '').strip()
-                    content = '\n'.join(lines[1:])
-                    path = header if header else f"analysis/{len(files_map)+1}.py"
-                    files_map[path] = content
+                for m in re.finditer(r"# ===== File: (.*?) =====", code_blob):
+                    start = m.end()
+                    end_m = re.search(r"\n# ===== File: .*? =====", code_blob[start:])
+                    end = start + end_m.start() if end_m else len(code_blob)
+                    path = m.group(1).strip()
+                    content = code_blob[start:end].lstrip('\n')
+                    if path:
+                        files_map[path] = content
             if not files_map:
                 st.warning('현재 분석 코드가 없어 스냅샷 PR을 생성할 수 없습니다.')
             else:
