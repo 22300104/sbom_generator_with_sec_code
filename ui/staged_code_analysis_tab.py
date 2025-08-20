@@ -163,19 +163,13 @@ def render_input_stage():
         st.markdown('<div class="sa-card sa-fade-up">', unsafe_allow_html=True)
         input_method = st.radio(
             "입력 방법 선택:",
-            ["Agent Mode", "GitHub URL", "파일 업로드", "직접 입력"],
+            ["Agent Mode"],
             horizontal=True
         )
         st.markdown('</div>', unsafe_allow_html=True)
     
     if input_method == "Agent Mode":
         handle_github_mcp_agent()
-    elif input_method == "GitHub URL":
-        handle_github_input()
-    elif input_method == "파일 업로드":
-        handle_file_upload()
-    elif input_method == "직접 입력":
-        handle_direct_input()
 
 
 def handle_github_mcp_agent():
