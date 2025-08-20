@@ -952,25 +952,72 @@ def render_results_stage():
         pr_title = st.text_input('PR 제목', value=default_title, key='mcp_pr_title')
         pr_body = st.text_area('PR 본문 (선택사항)', value='', key='mcp_pr_body')
         draft = st.checkbox('Draft PR로 생성 (자동 머지 방지 권장)', value=True, key='mcp_pr_draft')
-        if st.button('현재 분석 코드로 PR 보내기(스냅샷)', type='primary', use_container_width=True):
+        if st.button('수정 코드로 PR 보내기(스냅샷)', type='primary', use_container_width=True):
             client = MCPGithubClient()
             owner = mcp_ctx.get('owner')
             repo = mcp_ctx.get('repo')
             base = mcp_ctx.get('base_branch')
+            # 1) 원본 파일 맵 구성
             code_blob = st.session_state.get('analysis_code', '')
-            files_map = {}
+            original_map = {}
             if code_blob:
-                for m in re.finditer(r"# ===== File: (.*?) =====", code_blob):
-                    start = m.end()
-                    end_m = re.search(r"\n# ===== File: .*? =====", code_blob[start:])
-                    end = start + end_m.start() if end_m else len(code_blob)
-                    path = m.group(1).strip()
-                    content = code_blob[start:end].lstrip('\n')
-                    if path:
-                        files_map[path] = content
-            if not files_map:
+                # 파일 경계 파싱
+                pattern = r"# ===== File: (.*?) =====\n"
+                parts = re.split(pattern, code_blob)
+                # parts: ['', path1, content1, path2, content2, ...]
+                if len(parts) >= 3:
+                    it = iter(parts[1:])
+                    for path, content in zip(it, it):
+                        p = path.strip()
+                        if p:
+                            original_map[p] = content
+            if not original_map:
                 st.warning('현재 분석 코드가 없어 스냅샷 PR을 생성할 수 없습니다.')
             else:
+                # 2) AI 분석 결과 기반으로 패치 적용
+                ai = st.session_state.get('analysis_results', {}).get('ai_analysis', {})
+                vulns = ai.get('vulnerabilities', []) if isinstance(ai, dict) else []
+
+                patched_map = dict(original_map)
+
+                def _apply_patch_to_content(content: str, old: str, new: str) -> tuple[str, bool]:
+                    if not old or not new:
+                        return content, False
+                    if old in content:
+                        return content.replace(old, new, 1), True
+                    return content, False
+
+                for v in vulns:
+                    fixed = v.get('fixed_code')
+                    if not fixed:
+                        continue
+                    loc = v.get('location', {}) or {}
+                    target_file = loc.get('file')
+                    old_snippet = v.get('vulnerable_code') or loc.get('code_snippet')
+
+                    candidate_files = []
+                    if target_file and target_file in patched_map:
+                        candidate_files = [target_file]
+                    else:
+                        # 파일 정보가 모호하면 포함 관계로 추정
+                        for p in patched_map.keys():
+                            if target_file and target_file in p:
+                                candidate_files.append(p)
+                        if not candidate_files and old_snippet:
+                            for p, c in patched_map.items():
+                                if old_snippet in c:
+                                    candidate_files.append(p)
+
+                    applied = False
+                    for p in candidate_files:
+                        new_content, ok = _apply_patch_to_content(patched_map[p], old_snippet or '', fixed)
+                        if ok:
+                            patched_map[p] = new_content
+                            applied = True
+                            break
+                    # 적용 실패시 무시(다음 취약점 진행)
+
+                # 3) PR 생성(스냅샷 브랜치로 업로드)
                 final_title = pr_title if not draft else (f"[DRAFT] {pr_title}")
                 with st.spinner('스냅샷 브랜치 생성 및 파일 업로드 중...'):
                     resp = client.create_snapshot_branch_and_pr(
@@ -979,7 +1026,7 @@ def render_results_stage():
                         base_branch=base,
                         title=final_title,
                         body=pr_body,
-                        files=files_map,
+                        files=patched_map,
                         draft=draft,
                     )
                 if resp.get('success'):
