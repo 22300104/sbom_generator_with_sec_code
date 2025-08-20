@@ -32,38 +32,63 @@ def _inject_analysis_css():
 /* Container alignment to Streamlit block */
 .sa-wrap{margin: 4px 0 10px;}
 
-/* Hero (contained, no overflow) */
-.sa-hero{position:relative;border-radius:12px;padding:16px 18px;background:linear-gradient(135deg,#0f172a,#1f2937); box-shadow: var(--shadow-sm)}
-.sa-hero .sa-hero-title{display:flex; align-items:center; gap:.5rem; color:#e5e7eb; font-size:1.4rem; font-weight:700}
-.sa-hero .material-symbols-outlined{font-size:1.7rem; color:#93c5fd; margin-right:.1rem}
-.sa-hero .sa-hero-sub{color:#cbd5e1; font-size:.9rem; margin-top:.15rem}
+/* Hero (contained, no overflow) - 어두운 글래스 스타일 */
+.sa-hero{position:relative;border-radius:16px;padding:20px 24px;background:linear-gradient(135deg,rgba(15,23,42,0.9),rgba(30,41,59,0.9)); backdrop-filter:blur(12px); border:1px solid rgba(148,163,184,0.2); box-shadow:0 8px 32px rgba(0,0,0,0.2)}
+.sa-hero .sa-hero-title{display:flex; align-items:center; gap:.5rem; color:#e2e8f0; font-size:1.5rem; font-weight:700}
+.sa-hero .material-symbols-outlined{font-size:1.8rem; color:#60a5fa; margin-right:.1rem}
+.sa-hero .sa-hero-sub{color:#cbd5e1; font-size:.95rem; margin-top:.2rem}
 
-/* Stepper (rail + animated fill + nodes) */
-.sa-stepper{position:relative; margin:10px 0 16px; padding:16px 10px 8px}
-.sa-rail{position:absolute; left:18px; right:18px; top:28px; height:3px; background:var(--gray-200); border-radius:999px; overflow:hidden}
-.sa-rail-fill{position:absolute; left:0; top:0; height:100%; width:100%; background:linear-gradient(90deg,#2563eb,#22d3ee); background-size:200% 100%; animation:saFlow 4s linear infinite; transform-origin:left; transform:scaleX(var(--sa-scale,0)); transition:transform .6s ease}
+/* Stepper (rail + animated fill + nodes) - 어두운 테마 */
+.sa-stepper{position:relative; margin:16px 0 20px; padding:20px 12px 12px}
+.sa-rail{position:absolute; left:18px; right:18px; top:32px; height:4px; background:rgba(148,163,184,0.3); border-radius:999px; overflow:hidden; backdrop-filter:blur(8px)}
+.sa-rail-fill{position:absolute; left:0; top:0; height:100%; width:100%; background:linear-gradient(90deg,#3b82f6,#06b6d4); background-size:200% 100%; animation:saFlow 4s linear infinite; transform-origin:left; transform:scaleX(var(--sa-scale,0)); transition:transform .6s ease}
 .sa-nodes{position:relative; z-index:1; display:flex; justify-content:space-between; gap:8px}
 .sa-node{display:flex; flex-direction:column; align-items:center; min-width:0}
-.sa-node-circle{width:28px; height:28px; border-radius:999px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#1f2937; background:#e5e7eb; border:2px solid #e5e7eb}
-.sa-node-label{font-size:.8rem; color:#475569; margin-top:4px; text-align:center}
-.sa-node.completed .sa-node-circle{background:#3b82f6; border-color:#3b82f6; color:#fff}
-.sa-node.current .sa-node-circle{background:linear-gradient(135deg,#2563eb,#22d3ee); border-color:#22d3ee; color:#fff; box-shadow:0 0 0 4px rgba(34,211,238,.18); animation:saBlink 1.8s ease-in-out infinite}
+.sa-node-circle{width:32px; height:32px; border-radius:999px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#1e293b; background:linear-gradient(135deg,#e2e8f0,#cbd5e1); border:2px solid rgba(148,163,184,0.3); backdrop-filter:blur(8px)}
+.sa-node-label{font-size:.85rem; color:#64748b; margin-top:6px; text-align:center; font-weight:500}
+.sa-node.completed .sa-node-circle{background:linear-gradient(135deg,#3b82f6,#1d4ed8); border-color:#3b82f6; color:#fff; box-shadow:0 0 0 4px rgba(59,130,246,0.2)}
+.sa-node.current .sa-node-circle{background:linear-gradient(135deg,#3b82f6,#06b6d4); border-color:#06b6d4; color:#fff; box-shadow:0 0 0 6px rgba(6,182,212,0.25); animation:saBlink 1.8s ease-in-out infinite}
 
-/* Cards */
-.sa-card{background:#fff; border:1px solid var(--gray-200); border-radius:12px; padding:14px 16px; box-shadow:var(--shadow-sm)}
+/* Cards - 어두운 글래스 */
+.sa-card{background:rgba(255,255,255,0.05); border:1px solid rgba(148,163,184,0.2); border-radius:16px; padding:18px 20px; backdrop-filter:blur(12px); box-shadow:0 4px 20px rgba(0,0,0,0.1)}
 
 /* Motion */
-.sa-fade-up{animation:saFadeUp .35s ease-out both}
-@keyframes saFadeUp{from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:translateY(0)}}
+.sa-fade-up{animation:saFadeUp .4s cubic-bezier(0.4, 0, 0.2, 1) both}
+@keyframes saFadeUp{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:translateY(0)}}
 
 /* Flowing gradient and blinking current node */
 @keyframes saFlow{0%{background-position:0% 50%}100%{background-position:100% 50%}}
-@keyframes saBlink{0%,100%{filter:brightness(1); box-shadow:0 0 0 2px rgba(34,211,238,.12)}50%{filter:brightness(1.08); box-shadow:0 0 0 8px rgba(34,211,238,.22)}}
+@keyframes saBlink{0%,100%{filter:brightness(1); box-shadow:0 0 0 4px rgba(6,182,212,0.2)}50%{filter:brightness(1.1); box-shadow:0 0 0 8px rgba(6,182,212,0.3)}}
+
+/* 1단계 버튼 크기 조정 */
+.sa-stage-1-button {
+  height: 42px !important;
+  min-height: 42px !important;
+  max-height: 42px !important;
+  padding: 0.75rem 1.5rem !important;
+  font-size: 0.875rem !important;
+  white-space: nowrap !important;
+  width: 120px !important;
+  min-width: 120px !important;
+  max-width: 120px !important;
+  margin-top: -20px !important;
+}
 
 @media (max-width: 768px){
-  .sa-hero{padding:12px 14px}
-  .sa-hero .sa-hero-title{font-size:1.2rem}
+  .sa-hero{padding:16px 18px}
+  .sa-hero .sa-hero-title{font-size:1.3rem}
   .sa-stepper{grid-template-columns: repeat(4, 1fr); gap:6px}
+  
+  .sa-stage-1-button {
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+    padding: 0.8rem 1.4rem !important;
+    font-size: 0.8rem !important;
+    width: 110px !important;
+    min-width: 110px !important;
+    max-width: 110px !important;
+  }
 }
 </style>
 """,
@@ -167,7 +192,7 @@ def render_repo_stage():
     if 'selected_pr_number' not in st.session_state:
         st.session_state.selected_pr_number = None
 
-    col1, col2 = st.columns([3, 1])
+    col1, col2 = st.columns([4, 1])
     with col1:
         repo_url = st.text_input(
             "GitHub 저장소 URL (owner/repo 또는 URL)",
@@ -176,9 +201,10 @@ def render_repo_stage():
             key="pr_repo_input_repo"
         )
     with col2:
-        st.write("")
-        st.write("")
-        load_btn = st.button("PR 불러오기", type="primary", use_container_width=True, key="btn_load_prs")
+        st.markdown('<div class="sa-stage-1-button">', unsafe_allow_html=True)
+        load_btn = st.button("PR 불러오기", type="primary", use_container_width=False, key="btn_load_prs")
+        st.markdown('</div>', unsafe_allow_html=True)
+
 
     if load_btn and repo_url:
         if repo_url and '/' in repo_url and not repo_url.startswith('http'):
@@ -1056,7 +1082,7 @@ def render_results_stage():
         # 리포트 다운로드 버튼
         report_filename = f"deep_analysis_report_{time.strftime('%Y%m%d_%H%M%S')}.md"
         st.download_button(
-            label="📥 심층 분석 리포트 다운로드",
+            label=" 심층 분석 리포트 다운로드",
             data=deep_report,
             file_name=report_filename,
             mime="text/markdown",

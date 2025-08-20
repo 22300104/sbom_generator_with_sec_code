@@ -27,7 +27,9 @@ st.set_page_config(
 st.markdown(
     """
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0');
+
 .material-symbols-outlined {
   font-family: 'Material Symbols Outlined';
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -36,19 +38,25 @@ st.markdown(
   font-size: 1.25em;
   margin-right: 0.35rem;
 }
+
 /* =================================
    글로벌 변수 및 기본 설정
    ================================= */
 :root {
-  /* 브랜드 컬러 - 전문적 팔레트 */
-  --primary-blue: #1e293b;
-  --primary-blue-light: #334155;
-  --accent-blue: #3b82f6;
-  --accent-slate: #64748b;
-  --accent-green: #059669;
-  --accent-red: #dc2626;
+  /* 브랜드 컬러 - 엔터프라이즈급 신뢰감 */
+  --primary-dark: #0f172a;
+  --primary-navy: #1e293b;
+  --primary-slate: #334155;
+  --accent-blue: #2563eb;
+  --accent-slate: #475569;
   
-  /* 뉴트럴 컬러 */
+  /* 상태 컬러 - 절제된 톤 */
+  --success: #059669;
+  --warning: #d97706;
+  --error: #dc2626;
+  --info: #2563eb;
+  
+  /* 뉴트럴 컬러 - 비즈니스급 */
   --gray-50: #f8fafc;
   --gray-100: #f1f5f9;
   --gray-200: #e2e8f0;
@@ -60,32 +68,31 @@ st.markdown(
   --gray-800: #1e293b;
   --gray-900: #0f172a;
   
-  /* 시맨틱 컬러 - 절제된 톤 */
-  --success: #059669;
-  --warning: #d97706;
-  --error: #dc2626;
-  --info: #3b82f6;
-  
-  /* 그림자 */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  /* 그림자 - 미묘하고 전문적 */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   
   /* 글꼴 */
+  --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', monospace;
-  /* 사이드바 호버 슬라이드 변수 */
+  
+  /* 사이드바 */
   --sidebar-expanded-width: 320px;
   --sidebar-collapsed-handle: 18px;
-  --sidebar-transition: 0.25s;
+  --sidebar-transition: 0.2s;
 }
 
 /* =================================
-   전역 레이아웃 개선
+   전역 레이아웃
    ================================= */
 html, body {
   margin: 0 !important;
   padding: 0 !important;
+  font-family: var(--font-primary) !important;
+  background-color: #ffffff !important;
+  color: var(--gray-900) !important;
 }
 
 .stApp header[data-testid="stHeader"] {
@@ -96,114 +103,166 @@ html, body {
 
 .main > div {
   padding-top: 0rem;
-  padding-bottom: 1.5rem;
+  padding-bottom: 2rem;
 }
-/* 상단 컨테이너 기본 여백 추가 축소 */
+
 .stApp .main .block-container {
   padding-top: 0rem !important;
   margin-top: 0rem !important;
 }
 
-/* 헤더 스타일링 */
+/* =================================
+   헤더 스타일링 - 전문적이고 신뢰감
+   ================================= */
 .main h1 {
-  font-size: 2.5rem !important;
-  font-weight: 700 !important;
-  color: var(--gray-900) !important;
-  margin-bottom: 0.5rem !important;
-  background: linear-gradient(135deg, var(--primary-blue) 0%, var(--accent-cyan) 100%);
-  -webkit-background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-  background-clip: text !important;
+  font-size: 2.25rem !important;
+  font-weight: 600 !important;
+  color: var(--primary-dark) !important;
+  margin-bottom: 1rem !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.2 !important;
 }
 
 .main h2 {
-  font-size: 1.875rem !important;
+  font-size: 1.75rem !important;
   font-weight: 600 !important;
-  color: var(--gray-800) !important;
-  margin: 1.5rem 0 1rem 0 !important;
-  border-bottom: 2px solid var(--gray-200);
-  padding-bottom: 0.5rem;
+  color: var(--primary-navy) !important;
+  margin: 2rem 0 1rem 0 !important;
+  padding-bottom: 0.5rem !important;
+  border-bottom: 1px solid var(--gray-200) !important;
 }
 
 .main h3 {
-  font-size: 1.5rem !important;
+  font-size: 1.375rem !important;
   font-weight: 600 !important;
-  color: var(--gray-700) !important;
-  margin: 1.25rem 0 0.75rem 0 !important;
+  color: var(--primary-slate) !important;
+  margin: 1.5rem 0 0.75rem 0 !important;
 }
 
 /* =================================
-   버튼 시스템 - 전문적 스타일
+   버튼 시스템 - 엔터프라이즈급
    ================================= */
 .stButton > button {
-  background: var(--gray-700) !important;
+  background: var(--primary-navy) !important;
   color: white !important;
-  border: 1px solid var(--gray-600) !important;
-  border-radius: 0.5rem !important;
-  padding: 0.6rem 1.2rem !important;
+  border: 1px solid var(--primary-navy) !important;
+  border-radius: 6px !important;
+  padding: 0.625rem 1.25rem !important;
   font-weight: 500 !important;
   font-size: 0.875rem !important;
   transition: all 0.15s ease !important;
-  box-shadow: none !important;
-  letter-spacing: 0.01em !important;
+  box-shadow: var(--shadow-xs) !important;
+  letter-spacing: 0.025em !important;
+  line-height: 1.5 !important;
 }
 
 .stButton > button:hover {
-  background: var(--gray-600) !important;
-  border-color: var(--gray-500) !important;
-  transform: none !important;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1) !important;
+  background: var(--primary-slate) !important;
+  border-color: var(--primary-slate) !important;
+  box-shadow: var(--shadow-sm) !important;
 }
 
 .stButton > button:active {
   background: var(--gray-800) !important;
-  transform: none !important;
-  box-shadow: inset 0 1px 2px 0 rgb(0 0 0 / 0.1) !important;
+  transform: translateY(0) !important;
 }
 
 /* Primary 버튼 */
 div[data-testid="stButton"] button[kind="primary"] {
   background: var(--accent-blue) !important;
   border-color: var(--accent-blue) !important;
-  box-shadow: none !important;
+  color: white !important;
 }
 
 div[data-testid="stButton"] button[kind="primary"]:hover {
-  background: #2563eb !important;
-  border-color: #2563eb !important;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1) !important;
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+}
+
+/* Secondary 버튼 */
+div[data-testid="stButton"] button[kind="secondary"] {
+  background: white !important;
+  border-color: var(--gray-300) !important;
+  color: var(--gray-700) !important;
+}
+
+div[data-testid="stButton"] button[kind="secondary"]:hover {
+  background: var(--gray-50) !important;
+  border-color: var(--gray-400) !important;
+}
+
+/* 사이드바 버튼 */
+section[data-testid="stSidebar"] .stButton > button {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: white !important;
+  font-size: 0.8rem !important;
+  padding: 0.5rem 0.75rem !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+section[data-testid="stSidebar"] .stButton > button:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* 다운로드 버튼 */
+.stDownloadButton > button {
+  background: var(--success) !important;
+  border-color: var(--success) !important;
+  color: white !important;
+}
+
+.stDownloadButton > button:hover {
+  background: #047857 !important;
+  border-color: #047857 !important;
+}
+
+/* 링크 버튼 */
+.stLinkButton > button {
+  background: transparent !important;
+  border: 1px solid var(--gray-300) !important;
+  color: var(--gray-700) !important;
+  box-shadow: none !important;
+}
+
+.stLinkButton > button:hover {
+  background: var(--gray-50) !important;
+  border-color: var(--accent-blue) !important;
+  color: var(--accent-blue) !important;
 }
 
 /* =================================
-   탭 시스템
+   탭 시스템 - 깔끔하고 전문적
    ================================= */
 .stTabs [data-baseweb="tab-list"] {
-  background: var(--gray-50);
-  border-radius: 1rem;
-  padding: 0.25rem;
-  border: 1px solid var(--gray-200);
-  margin-bottom: 1.5rem;
+  background: white !important;
+  border-radius: 8px !important;
+  padding: 4px !important;
+  border: 1px solid var(--gray-200) !important;
+  margin-bottom: 1.5rem !important;
+  box-shadow: var(--shadow-xs) !important;
 }
 
 .stTabs [data-baseweb="tab"] {
   color: var(--gray-600) !important;
   font-weight: 500 !important;
-  padding: 0.75rem 1.5rem !important;
-  border-radius: 0.75rem !important;
-  transition: all 0.2s ease !important;
+  padding: 0.75rem 1.25rem !important;
+  border-radius: 6px !important;
+  transition: all 0.15s ease !important;
   border: none !important;
+  font-size: 0.875rem !important;
 }
 
 .stTabs [aria-selected="true"] {
-  background: white !important;
-  color: var(--primary-blue) !important;
+  background: var(--primary-navy) !important;
+  color: white !important;
   font-weight: 600 !important;
   box-shadow: var(--shadow-sm) !important;
-  border: 1px solid var(--gray-200) !important;
 }
 
 .stTabs [data-baseweb="tab"]:hover:not([aria-selected="true"]) {
-  background: white !important;
+  background: var(--gray-100) !important;
   color: var(--gray-700) !important;
 }
 
@@ -213,62 +272,64 @@ div[data-testid="stButton"] button[kind="primary"]:hover {
 div[data-testid="metric-container"] {
   background: white !important;
   border: 1px solid var(--gray-200) !important;
-  border-radius: 1rem !important;
+  border-radius: 8px !important;
   padding: 1.5rem !important;
-  box-shadow: var(--shadow-sm) !important;
-  transition: all 0.2s ease !important;
+  box-shadow: var(--shadow-xs) !important;
+  transition: all 0.15s ease !important;
 }
 
 div[data-testid="metric-container"]:hover {
-  box-shadow: var(--shadow-md) !important;
-  border-color: var(--accent-cyan) !important;
+  box-shadow: var(--shadow-sm) !important;
+  border-color: var(--gray-300) !important;
 }
 
-/* 메트릭 값 스타일링 */
 div[data-testid="metric-container"] [data-testid="metric-value"] {
-  font-size: 2rem !important;
-  font-weight: 700 !important;
-  color: var(--primary-blue) !important;
+  font-size: 1.875rem !important;
+  font-weight: 600 !important;
+  color: var(--primary-navy) !important;
+  line-height: 1.2 !important;
 }
 
 div[data-testid="metric-container"] [data-testid="metric-label"] {
   font-size: 0.875rem !important;
   font-weight: 500 !important;
   color: var(--gray-600) !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.05em !important;
+  text-transform: none !important;
+  letter-spacing: 0.025em !important;
 }
 
 /* =================================
    알림 및 상태 메시지
    ================================= */
 div[data-baseweb="notification"] {
-  border-radius: 0.75rem !important;
+  border-radius: 6px !important;
   border: none !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-xs) !important;
+  font-size: 0.875rem !important;
+  line-height: 1.5 !important;
 }
 
 div[data-baseweb="notification"][kind="success"] {
-  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%) !important;
-  border-left: 4px solid var(--success) !important;
-  color: #065f46 !important;
+  background: #f0fdf4 !important;
+  border-left: 3px solid var(--success) !important;
+  color: #166534 !important;
 }
 
 div[data-baseweb="notification"][kind="warning"] {
-  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
-  border-left: 4px solid var(--warning) !important;
+  background: #fffbeb !important;
+  border-left: 3px solid var(--warning) !important;
   color: #92400e !important;
 }
 
 div[data-baseweb="notification"][kind="error"] {
-  background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%) !important;
-  border-left: 4px solid var(--error) !important;
+  background: #fef2f2 !important;
+  border-left: 3px solid var(--error) !important;
   color: #991b1b !important;
 }
 
 div[data-baseweb="notification"][kind="info"] {
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%) !important;
-  border-left: 4px solid var(--info) !important;
+  background: #f0f9ff !important;
+  border-left: 3px solid var(--info) !important;
   color: #0c4a6e !important;
 }
 
@@ -276,29 +337,31 @@ div[data-baseweb="notification"][kind="info"] {
    폼 요소
    ================================= */
 .stTextInput input, .stTextArea textarea, .stSelectbox select {
-  border: 1.5px solid var(--gray-300) !important;
-  border-radius: 0.75rem !important;
-  padding: 0.75rem 1rem !important;
-  transition: all 0.2s ease !important;
+  border: 1px solid var(--gray-300) !important;
+  border-radius: 6px !important;
+  padding: 0.75rem 0.875rem !important;
+  transition: all 0.15s ease !important;
   font-size: 0.875rem !important;
+  background: white !important;
+  line-height: 1.5 !important;
 }
 
 .stTextInput input:focus, .stTextArea textarea:focus, .stSelectbox select:focus {
-  border-color: var(--accent-cyan) !important;
-  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1) !important;
+  border-color: var(--accent-blue) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1) !important;
   outline: none !important;
 }
 
 /* =================================
-   사이드바 전문화
+   사이드바
    ================================= */
 section[data-testid="stSidebar"] {
-  background: linear-gradient(180deg, var(--primary-blue) 0%, var(--primary-blue-light) 100%) !important;
+  background: var(--primary-dark) !important;
   border-right: 1px solid var(--gray-200) !important;
 }
 
 section[data-testid="stSidebar"] .css-1d391kg {
-  padding: 0.75rem 0.75rem 1rem 0.75rem !important;
+  padding: 1rem 1rem 1.5rem 1rem !important;
 }
 
 section[data-testid="stSidebar"] h1,
@@ -314,36 +377,19 @@ section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] span,
 section[data-testid="stSidebar"] div,
 section[data-testid="stSidebar"] .stMarkdown {
-  color: var(--gray-200) !important;
+  color: var(--gray-300) !important;
 }
 
-section[data-testid="stSidebar"] .stButton > button {
-  background: rgba(255, 255, 255, 0.1) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  color: white !important;
-  backdrop-filter: blur(10px) !important;
-  /* 사이드바 버튼 텍스트 한 줄 유지 및 축소 */
-  font-size: 0.8rem !important;
-  padding: 0.45rem 0.7rem !important;
-  line-height: 1.1 !important;
-  white-space: nowrap !important;
-}
-
-section[data-testid="stSidebar"] .stButton > button:hover {
-  background: rgba(255, 255, 255, 0.2) !important;
-  border-color: var(--accent-cyan) !important;
-}
-
-/* 사이드바 알림 중앙정렬 및 좌측 보더 제거 */
+/* 사이드바 알림 */
 section[data-testid="stSidebar"] div[data-baseweb="notification"] {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   text-align: center !important;
-  padding: 0.45rem 0.7rem !important;
+  padding: 0.5rem 0.75rem !important;
+  margin-bottom: 0.5rem !important;
 }
 
-/* 좌측 보더 제거 및 균형 보더 적용 */
 section[data-testid="stSidebar"] div[data-baseweb="notification"][kind="success"],
 section[data-testid="stSidebar"] div[data-baseweb="notification"][kind="warning"],
 section[data-testid="stSidebar"] div[data-baseweb="notification"][kind="error"],
@@ -352,21 +398,18 @@ section[data-testid="stSidebar"] div[data-baseweb="notification"][kind="info"] {
   border: 1px solid rgba(255, 255, 255, 0.2) !important;
 }
 
-/* 알림 아이콘/리딩 여백 제거 */
-/* 알림 아이콘만 숨김 (텍스트 컨테이너는 유지) */
 section[data-testid="stSidebar"] div[data-baseweb="notification"] svg {
   display: none !important;
 }
 
-/* 사이드바 알림(성공/경고 등)도 한 줄 유지하도록 조정 */
 section[data-testid="stSidebar"] div[data-baseweb="notification"] {
   font-size: 0.8rem !important;
   padding: 0.5rem 0.75rem !important;
   white-space: nowrap !important;
-  min-height: 32px !important; /* 줄처럼 보이는 현상 방지 */
+  min-height: 32px !important;
 }
 
-/* 사이드바 호버 시 슬라이드 인/아웃 동작 */
+/* 사이드바 호버 슬라이드 */
 section[data-testid="stSidebar"] {
   width: var(--sidebar-expanded-width) !important;
   position: fixed !important;
@@ -385,7 +428,7 @@ section[data-testid="stSidebar"]:hover {
   box-shadow: var(--shadow-lg);
 }
 
-/* 비호버 상태에서도 보이는 세로 핸들 표시 */
+/* 사이드바 핸들 */
 section[data-testid="stSidebar"]::after {
   content: "Guide";
   position: absolute;
@@ -400,27 +443,23 @@ section[data-testid="stSidebar"]::after {
   writing-mode: vertical-rl;
   text-orientation: mixed;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.08em;
-  color: #e2e8f0; /* gray-200 */
-  background: linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.06) 100%),
-              linear-gradient(180deg, var(--primary-blue), var(--primary-blue-light));
-  backdrop-filter: blur(6px);
-  border-radius: 0 8px 8px 0;
-  box-shadow: var(--shadow-md);
-  border-left: 1px solid rgba(255,255,255,0.18);
+  color: var(--gray-300);
+  background: var(--primary-navy);
+  border-radius: 0 6px 6px 0;
+  box-shadow: var(--shadow-sm);
+  border-left: 1px solid var(--gray-200);
   cursor: pointer;
-  transition: opacity var(--sidebar-transition) ease, transform var(--sidebar-transition) ease, background-color 0.2s ease;
+  transition: opacity var(--sidebar-transition) ease, transform var(--sidebar-transition) ease;
 }
 
-/* 사이드바가 펼쳐지는 동안 핸들은 사라짐 */
 section[data-testid="stSidebar"]:hover::after {
   opacity: 0;
   transform: translateY(-50%) translateX(8px);
   pointer-events: none;
 }
 
-/* 메인 영역은 핸들(좁은 호버 영역) 만큼만 좌측 여백 확보 */
 div[data-testid="stAppViewContainer"] {
   margin-left: 0 !important;
   padding-left: var(--sidebar-collapsed-handle);
@@ -437,53 +476,54 @@ div[data-testid="stAppViewContainer"] {
    코드 블록
    ================================= */
 .stCodeBlock {
-  border-radius: 0.75rem !important;
+  border-radius: 6px !important;
   border: 1px solid var(--gray-200) !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-xs) !important;
+  background: #f8fafc !important;
 }
 
 /* =================================
-   Expander 스타일링
+   Expander
    ================================= */
 .streamlit-expanderHeader {
-  background: var(--gray-50) !important;
+  background: white !important;
   border: 1px solid var(--gray-200) !important;
-  border-radius: 0.75rem !important;
-  padding: 1rem 1.5rem !important;
+  border-radius: 6px !important;
+  padding: 1rem 1.25rem !important;
   font-weight: 600 !important;
-  color: var(--gray-800) !important;
-  transition: all 0.2s ease !important;
+  color: var(--primary-slate) !important;
+  transition: all 0.15s ease !important;
 }
 
 .streamlit-expanderHeader:hover {
-  background: var(--gray-100) !important;
-  border-color: var(--accent-cyan) !important;
+  background: var(--gray-50) !important;
+  border-color: var(--gray-300) !important;
 }
 
 .streamlit-expanderContent {
   border: 1px solid var(--gray-200) !important;
   border-top: none !important;
-  border-radius: 0 0 0.75rem 0.75rem !important;
-  padding: 1.5rem !important;
+  border-radius: 0 0 6px 6px !important;
+  padding: 1.25rem !important;
   background: white !important;
 }
 
 /* =================================
-   데이터프레임 스타일링
+   데이터프레임
    ================================= */
 .dataframe {
-  border-radius: 0.75rem !important;
+  border-radius: 6px !important;
   overflow: hidden !important;
   border: 1px solid var(--gray-200) !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: var(--shadow-xs) !important;
 }
 
 /* =================================
-   반응형 디자인
+   반응형
    ================================= */
 @media (max-width: 768px) {
   .main h1 {
-    font-size: 2rem !important;
+    font-size: 1.875rem !important;
   }
   
   .main h2 {
@@ -491,7 +531,7 @@ div[data-testid="stAppViewContainer"] {
   }
   
   div[data-testid="metric-container"] {
-    padding: 1rem !important;
+    padding: 1.25rem !important;
   }
   
   .stButton > button {
@@ -501,36 +541,119 @@ div[data-testid="stAppViewContainer"] {
 }
 
 /* =================================
-   애니메이션 효과
+   애니메이션
    ================================= */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 .main > div > div {
-  animation: fadeIn 0.5s ease-out;
+  animation: fadeIn 0.3s ease-out;
 }
 
 /* =================================
-   스크롤바 커스터마이징
+   스크롤바
    ================================= */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 ::-webkit-scrollbar-track {
   background: var(--gray-100);
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--gray-400);
-  border-radius: 4px;
+  background: var(--gray-300);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--gray-500);
+  background: var(--gray-400);
+}
+
+/* =================================
+   보안 전문가용 스타일
+   ================================= */
+/* 보안 상태 */
+.security-status {
+  padding: 0.5rem 0.875rem !important;
+  border-radius: 6px !important;
+  font-weight: 500 !important;
+  font-size: 0.875rem !important;
+  text-align: center !important;
+  border: 1px solid !important;
+}
+
+.security-status.safe {
+  background: #f0fdf4 !important;
+  color: #166534 !important;
+  border-color: #bbf7d0 !important;
+}
+
+.security-status.warning {
+  background: #fffbeb !important;
+  color: #92400e !important;
+  border-color: #fcd34d !important;
+}
+
+.security-status.critical {
+  background: #fef2f2 !important;
+  color: #991b1b !important;
+  border-color: #fca5a5 !important;
+}
+
+/* 보안 점수 */
+.security-score {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+  padding: 1rem 1.25rem !important;
+  background: white !important;
+  border: 1px solid var(--gray-200) !important;
+  border-radius: 8px !important;
+  box-shadow: var(--shadow-xs) !important;
+}
+
+.security-score .score-value {
+  font-size: 1.5rem !important;
+  font-weight: 600 !important;
+  color: var(--primary-navy) !important;
+}
+
+.security-score .score-label {
+  font-size: 0.875rem !important;
+  color: var(--gray-600) !important;
+  font-weight: 500 !important;
+}
+
+/* 취약점 카드 */
+.vulnerability-card {
+  background: white !important;
+  border: 1px solid var(--gray-200) !important;
+  border-radius: 8px !important;
+  padding: 1.25rem !important;
+  margin-bottom: 1rem !important;
+  box-shadow: var(--shadow-xs) !important;
+  transition: all 0.15s ease !important;
+}
+
+.vulnerability-card:hover {
+  box-shadow: var(--shadow-sm) !important;
+  border-color: var(--gray-300) !important;
+}
+
+.vulnerability-card .severity-high {
+  border-left: 3px solid var(--error) !important;
+}
+
+.vulnerability-card .severity-medium {
+  border-left: 3px solid var(--warning) !important;
+}
+
+.vulnerability-card .severity-low {
+  border-left: 3px solid var(--success) !important;
 }
 </style>
 """,
@@ -578,162 +701,104 @@ def main():
     
     # 전문적인 사이드바
     with st.sidebar:
-        # 브랜드 헤더
+        # 브랜드 헤더 - 간소화
         st.markdown("""
-        <div style="text-align: center; padding: 1rem 0 1.2rem 0;">
-            <h2 style="color: white; margin: 0; font-size: 1.4rem;">SBOMiner 가이드</h2>
-            <p style="color: var(--gray-200); font-size: 0.86rem; margin: 0.4rem 0 0 0;">
-                네비게이션 · 시스템
+        <div style="text-align: center; padding: 1.5rem 0 2rem 0;">
+            <h2 style="color: white; margin: 0; font-size: 1.5rem; font-weight: 600;">SBOMiner</h2>
+            <p style="color: rgba(255,255,255,0.7); font-size: 0.9rem; margin: 0.5rem 0 0 0;">
+                AI 보안 분석 플랫폼
             </p>
         </div>
         """, unsafe_allow_html=True)
 
-        # 간단한 사용 가이드 (네비게이션)
-        st.markdown("### 사용 가이드")
-        with st.expander("빠른 시작 (3단계)", expanded=False):
-            st.caption("1) 1단계 입력: GitHub URL 선택 또는 입력")
-            st.caption("2) 2단계 선택: 분석할 파일 선택")
-            st.caption("3) 3단계 실행: 분석 시작 → 결과 확인")
-
-        with st.expander("팁"):
-            st.caption("- PyGoat, Vulnerable Flask, Django Vulnerable 예제로 시작 가능")
-            st.caption("- 대형 프로젝트는 핵심 파일만 선택하여 속도 향상")
+        # 핵심 네비게이션
+        st.markdown("### 빠른 시작")
         
-# app.py
-# 수정 후 (라인 397-445 근처)
-        # API 키 상태 - 전문적 표시
+        # 간단한 3단계 가이드
+        st.markdown("""
+        <div style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; padding: 1rem; margin: 0.5rem 0;">
+            <div style="color: white; font-size: 0.9rem; line-height: 1.6;">
+                <div style="margin-bottom: 0.5rem;"><strong>1단계</strong>: GitHub URL 입력</div>
+                <div style="margin-bottom: 0.5rem;"><strong>2단계</strong>: 분석할 파일 선택</div>
+                <div><strong>3단계</strong>: AI 분석 실행</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.divider()
+        
+        # AI 엔진 상태 - 간소화
+        st.markdown("### AI 엔진")
+        
         has_openai_key = bool(os.getenv("OPENAI_API_KEY"))
         has_claude_key = bool(os.getenv("ANTHROPIC_API_KEY"))
         
-        st.markdown("### AI 엔진 상태")
-        
-        # OpenAI 상태
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("**OpenAI (GPT)**")
+        if has_openai_key or has_claude_key:
             if has_openai_key:
-                model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
-                st.success("활성화")
-                st.caption(f"모델: {model}")
-            else:
-                st.error("비활성화")
-                st.caption("API 키 없음")
-        
-        with col2:
-            st.markdown("**Anthropic (Claude)**")
+                st.success("OpenAI 활성화")
             if has_claude_key:
-                model = os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229")
-                st.success("활성화")
-                st.caption(f"모델: {model}")
-            else:
-                st.warning("비활성화")
-                st.caption("API 키 없음")
-        
-        # API 키가 하나도 없는 경우에만 설정 섹션 표시
-        if not has_openai_key and not has_claude_key:
-            st.error("AI 엔진이 모두 비활성화 상태입니다")
-            st.info("AI 보안 분석을 사용하려면 최소 하나의 API 키가 필요합니다")
+                st.success("Claude 활성화")
+        else:
+            st.error("API 키 필요")
             
-            with st.expander("API 키 설정"):
+            with st.expander("API 키 설정", expanded=False):
                 openai_key = st.text_input(
-                    "OpenAI API Key:", 
+                    "OpenAI API Key", 
                     type="password", 
                     key="openai_key_input",
                     placeholder="sk-..."
                 )
                 claude_key = st.text_input(
-                    "Anthropic API Key:", 
+                    "Claude API Key", 
                     type="password", 
                     key="claude_key_input",
                     placeholder="sk-ant-..."
                 )
                 
-                if st.button("API 키 저장"):
+                if st.button("저장", use_container_width=True):
                     if openai_key:
                         os.environ["OPENAI_API_KEY"] = openai_key
                     if claude_key:
                         os.environ["ANTHROPIC_API_KEY"] = claude_key
                     st.rerun()
-            
-            with st.expander("API 키 설정"):
-                api_key = st.text_input(
-                    "OpenAI API Key:", 
-                    type="password", 
-                    key="api_key_input",
-                    placeholder="sk-..."
-                )
-            if api_key:
-                os.environ["OPENAI_API_KEY"] = api_key
-                st.rerun()
         
         st.divider()
         
-        # 기능 개요 - 전문적 레이아웃
-        st.markdown("### 플랫폼 기능")
+        # 핵심 기능 요약
+        st.markdown("### 주요 기능")
         
-        # 기능 카드들
         features = [
-            {
-                "title": "보안 분석",
-                "items": [
-                    "AI 기반 취약점 탐지",
-                    "정적 코드 분석",
-                    "다중 소스 코드 지원",
-                    "실시간 분석 결과"
-                ]
-            },
-            {
-                "title": "SBOM 생성",
-                "items": [
-                    "SPDX 2.3 표준",
-                    "CycloneDX 1.4 표준",
-                    "의존성 분석",
-                    "라이선스 추적"
-                ]
-            },
-            {
-                "title": "Q&A (분석 후)",
-                "items": [
-                    "KISA 가이드라인 기반",
-                    "RAG 기반 답변",
-                    "컨텍스트 인식",
-                    "분석 완료 후 버튼으로 진입"
-                ]
-            }
+            "AI 보안 취약점 탐지",
+            "SBOM 자동 생성", 
+            "실시간 분석 결과",
+            "RAG 기반 Q&A"
         ]
         
         for feature in features:
-            with st.expander(feature['title']):
-                for item in feature['items']:
-                    st.markdown(f"• {item}")
-
-        st.divider()
-
-        # 사이드바에서 사용 가이드 바로가기
-        if st.button("사용 가이드 열기", use_container_width=True):
-            st.session_state.show_qa = False
-            st.session_state.show_help = True
-            st.rerun()
+            st.markdown(f"• {feature}")
         
         st.divider()
         
-        # 시스템 관리
-        st.markdown("### 시스템 관리")
+        # 시스템 관리 - 최소화
+        st.markdown("### 시스템")
         
-        # 단일 관리 동작만 제공 (캐시 초기화)
-        if st.button("캐시 초기화", use_container_width=True):
-            st.cache_data.clear()
-            for key in list(st.session_state.keys()):
-                if key != 'api_key_input':
-                    del st.session_state[key]
-            st.rerun()
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("캐시 정리", use_container_width=True):
+                st.cache_data.clear()
+                for key in list(st.session_state.keys()):
+                    if key not in ['api_key_input', 'openai_key_input', 'claude_key_input']:
+                        del st.session_state[key]
+                st.rerun()
         
-        # 시스템 정보
-        st.markdown("### 시스템 정보")
-        st.caption("버전: v2.0.0")
-        st.caption("엔진: GPT-4 / Claude-3")
-        st.caption("표준: SPDX 2.3, CycloneDX 1.4")
+        with col2:
+            if st.button("가이드", use_container_width=True):
+                st.session_state.show_qa = False
+                st.session_state.show_help = True
+                st.rerun()
+        
+        # 버전 정보 - 간소화
+        st.caption("v2.1.0 | MIT License")
     
     # 메인 뷰: 분석 우선, Q&A/가이드는 버튼 네비게이션
     if st.session_state.get('show_qa'):
