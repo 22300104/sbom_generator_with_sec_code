@@ -1038,8 +1038,9 @@ def render_results_stage():
             st.session_state.analysis_stage = 'analyze'
             st.rerun()
 
-    # PR 생성 버튼 (MCP 브랜치 컨텍스트가 있을 때만 표시)
+    # PR 생성/리뷰 코멘트 영역
     mcp_ctx = st.session_state.get('mcp_branch_ctx')
+    pr_ctx = st.session_state.get('selected_pr_context')
     if mcp_ctx:
         st.divider()
         st.markdown('#### GitHub PR 생성')
@@ -1149,7 +1150,60 @@ def render_results_stage():
                 st.success(f"스냅샷 PR 생성됨: {resp.get('url')}")
             else:
                 st.error(resp.get('error', '스냅샷 PR 생성 실패'))
-    
+    # PR 리뷰 코멘트: PR을 선택해 분석했을 때 표시
+    if pr_ctx and st.session_state.get('analysis_results'):
+        st.divider()
+        st.markdown('#### 선택한 PR에 리뷰 코멘트 남기기')
+        owner_repo = pr_ctx.get('repo_url', '').rstrip('/').split('/')[-2:]
+        if len(owner_repo) == 2:
+            owner, repo = owner_repo
+        else:
+            owner, repo = None, None
+
+        # 기본 코멘트 본문 자동 생성
+        ai = st.session_state['analysis_results'].get('ai_analysis', {})
+        vulns = ai.get('vulnerabilities', []) if isinstance(ai, dict) else []
+        pr_number = pr_ctx.get('pr_number')
+        default_body_lines = []
+        default_body_lines.append(f"PR #{pr_number} 자동 보안 리뷰 요약 (분석 대상 파일 {pr_ctx.get('files', 0)}개)")
+        if vulns:
+            # 통계
+            sev_counts = {}
+            for v in vulns:
+                sev = v.get('severity', 'MEDIUM')
+                sev_counts[sev] = sev_counts.get(sev, 0) + 1
+            stats_str = ", ".join([f"{k}:{v}" for k, v in sorted(sev_counts.items(), key=lambda x: x[0], reverse=True)])
+            default_body_lines.append(f"요약 통계 → {stats_str}")
+            default_body_lines.append("")
+            default_body_lines.append("핵심 이슈(최대 5개):")
+            for v in vulns[:5]:
+                f = (v.get('location') or {}).get('file', 'unknown.py')
+                line = (v.get('location') or {}).get('line', '?')
+                default_body_lines.append(f"- [{v.get('severity','MED')}] {v.get('type','Unknown')} — {f}:{line}")
+        else:
+            default_body_lines.append("특이 보안 이슈 없음")
+        default_body = "\n".join(default_body_lines)
+
+        review_body = st.text_area('리뷰 코멘트 본문', value=default_body, key='pr_review_body')
+        colr1, colr2 = st.columns([1,1])
+        with colr1:
+            send_review = st.button('PR 리뷰로 남기기', type='primary', use_container_width=True)
+        with colr2:
+            send_comment = st.button('PR 일반 코멘트로 남기기', use_container_width=True)
+
+        if (send_review or send_comment) and owner and repo and pr_number:
+            client = MCPGithubClient()
+            if send_review:
+                with st.spinner('PR 리뷰 작성 중...'):
+                    resp = client.create_pull_request_review(owner, repo, int(pr_number), review_body, event="COMMENT")
+            else:
+                with st.spinner('PR 코멘트 작성 중...'):
+                    resp = client.post_issue_comment(owner, repo, int(pr_number), review_body)
+            if resp.get('success'):
+                st.success(f"작성됨: {resp.get('url') or '성공'}")
+            else:
+                st.error(resp.get('error', '작성 실패'))
+
     st.divider()
     
     results = st.session_state.get('analysis_results', {})

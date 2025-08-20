@@ -185,3 +185,62 @@ class MCPGithubClient:
         return self.create_pull_request(owner, repo, base_branch, new_branch, title, body, draft)
 
 
+
+    def create_pull_request_review(self, owner: str, repo: str, pull_number: int, body: str, event: str = "COMMENT") -> Dict:
+        """PR 리뷰 생성(요약 코멘트). 라인별 코멘트가 아니라 전체 리뷰 코멘트만 남긴다.
+
+        Returns:
+            { success, url?, id?, error? }
+        """
+        if not self.github_token:
+            return {"success": False, "error": "GITHUB_TOKEN이 필요합니다"}
+
+        try:
+            url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pull_number}/reviews"
+            payload = {"body": body or "", "event": event or "COMMENT"}
+            resp = requests.post(url, json=payload, headers=self._headers, timeout=15)
+            if resp.status_code in (200, 201):
+                data = resp.json() if resp.text else {}
+                return {
+                    "success": True,
+                    "url": data.get("html_url"),
+                    "id": data.get("id"),
+                }
+            else:
+                try:
+                    err = resp.json()
+                except Exception:
+                    err = {"message": resp.text}
+                return {"success": False, "error": f"{resp.status_code}: {err.get('message', 'PR 리뷰 생성 실패')}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
+    def post_issue_comment(self, owner: str, repo: str, issue_number: int, body: str) -> Dict:
+        """PR(이슈) 일반 코멘트 작성. 리뷰 실패 시 폴백 용도로 사용 가능.
+
+        Returns:
+            { success, url?, id?, error? }
+        """
+        if not self.github_token:
+            return {"success": False, "error": "GITHUB_TOKEN이 필요합니다"}
+
+        try:
+            url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/comments"
+            payload = {"body": body or ""}
+            resp = requests.post(url, json=payload, headers=self._headers, timeout=15)
+            if resp.status_code in (200, 201):
+                data = resp.json() if resp.text else {}
+                return {
+                    "success": True,
+                    "url": data.get("html_url"),
+                    "id": data.get("id"),
+                }
+            else:
+                try:
+                    err = resp.json()
+                except Exception:
+                    err = {"message": resp.text}
+                return {"success": False, "error": f"{resp.status_code}: {err.get('message', '이슈 코멘트 작성 실패')}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
