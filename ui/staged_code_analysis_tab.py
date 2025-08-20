@@ -705,12 +705,12 @@ def render_results_stage():
     
     tabs = []
     if 'ai_analysis' in results:
-        tabs.append("🤖 보안 분석")
+        tabs.append("보안 분석")
     if 'sbom' in results:
-        tabs.append("📦 SBOM")
+        tabs.append("SBOM")
     if results.get('sbom_formats'):
-        tabs.append("📋 SBOM 표준")
-    tabs.append("💾 다운로드")
+        tabs.append("SBOM 표준")
+    tabs.append("다운로드")
     
     if tabs:
         tab_objects = st.tabs(tabs)
@@ -971,7 +971,7 @@ def display_ai_results(ai_result: Dict):
                     st.info(vuln['fix_explanation'])
                 
                 # 추가 정보들을 탭으로 구성
-                tabs = st.tabs(["🔍 상세 정보", "⚠️ 공격 시나리오", "📚 권장사항"])
+                tabs = st.tabs(["상세 정보", "공격 시나리오", "권장사항"])
                 
                 with tabs[0]:
                     # 위치 정보
@@ -1112,7 +1112,7 @@ def display_sbom_results(sbom: Dict):
 
 def display_sbom_standards(sbom_formats: Dict):
     """SBOM 표준 형식 표시"""
-    st.subheader("📋 SBOM 표준 형식")
+    st.subheader("SBOM 표준 형식")
     
     tab1, tab2 = st.tabs(["SPDX 2.3", "CycloneDX 1.4"])
     

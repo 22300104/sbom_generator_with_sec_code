@@ -4,6 +4,7 @@ SBOM Security Analyzer - Professional Security Analysis Platform
 """
 import streamlit as st
 import os
+import base64
 from dotenv import load_dotenv
 
 # 환경 변수 로드
@@ -12,7 +13,7 @@ load_dotenv()
 # 페이지 설정 - 전문적 메타데이터
 st.set_page_config(
     page_title="SBOMiner | 보안 분석 플랫폼",
-    page_icon="🛡️",
+    page_icon="ui/assets/logo.png",
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
@@ -85,8 +86,13 @@ html, body {
 }
 
 .main > div {
-  padding-top: 2rem;
-  padding-bottom: 2rem;
+  padding-top: 0rem;
+  padding-bottom: 1.5rem;
+}
+/* 상단 컨테이너 기본 여백 추가 축소 */
+.stApp .main .block-container {
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
 }
 
 /* 헤더 스타일링 */
@@ -527,18 +533,39 @@ from ui.staged_code_analysis_tab import render_code_analysis_tab
 from ui.qa_tab import render_qa_tab
 
 def main():
-    # 헤로 섹션
-    st.markdown("""
-    <div style="text-align: center; padding: 2rem 0; margin-bottom: 2rem;">
-        <h1 style="font-size: 3rem; margin-bottom: 0.5rem;">SBOMiner</h1>
-        <p style="font-size: 1.25rem; color: var(--gray-600); margin-bottom: 1rem;">
-            Enterprise Security Analysis Platform
-        </p>
-        <p style="color: var(--gray-500); font-size: 1rem;">
-            AI 기반 보안 취약점 탐지 및 SBOM 생성 플랫폼
-        </p>
+    logo_b64 = ""
+    try:
+        with open("ui/assets/logo.png", "rb") as f:
+            logo_b64 = base64.b64encode(f.read()).decode("utf-8")
+    except Exception:
+        logo_b64 = ""
+
+    st.markdown(f"""
+    <div style="padding: 0 0 1rem 0; margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: flex-start; gap: 0rem;">
+        <img src="data:image/png;base64,{logo_b64}" style="height: 150px; width: auto; border-radius: 12px;"/>
+        <div style="display: flex; flex-direction: column; justify-content: center;">
+            <h1 class="brand-title" style="font-size: 3rem; margin: 0 0 0.4rem 0;">SBOMiner</h1>
+            <p style="font-size: 1.25rem; color: var(--gray-600); margin: 0 0 0.25rem 0;">Enterprise Security Analysis Platform</p>
+            <p style="color: var(--gray-500); font-size: 1rem; margin: 0;">AI 기반 보안 취약점 탐지 및 SBOM 생성 플랫폼</p>
+        </div>
     </div>
+    <style>
+    .brand-title {{
+      color: #062758 !important;
+      -webkit-text-fill-color: #062758 !important;
+      background: none !important;
+      -webkit-background-clip: initial !important;
+      background-clip: initial !important;
+    }}
+    @media (max-width: 768px) {{
+      .stApp .main .block-container > div:first-child img[src^="data:image/png;base64,"] {{
+        height: 96px !important;
+      }}
+    }}
+    </style>
     """, unsafe_allow_html=True)
+
+    # 탭 아이콘에 로고를 일괄 주입하는 CSS는 비활성화
     
     # 전문적인 사이드바
     with st.sidebar:
