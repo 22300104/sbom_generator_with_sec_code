@@ -46,8 +46,8 @@ class ImprovedSecurityAnalyzer:
         # RAG 시스템 초기화 (선택적)
         self.rag = None
         try:
-            from rag.simple_rag import SimpleRAG
-            self.rag = SimpleRAG()
+            from rag.improved_rag_search import ImprovedRAGSearch
+            self.rag = ImprovedRAGSearch()
             print("✅ RAG 시스템 로드 성공")
         except Exception as e:
             print(f"⚠️ RAG 시스템 로드 실패: {e}")
@@ -586,119 +586,54 @@ class ImprovedSecurityAnalyzer:
     # core/improved_llm_analyzer.py
 # _add_rag_evidence 메서드 수정 - 코드 부분 제거
 
+    # core/improved_llm_analyzer.py
+
     def _add_rag_evidence(self, vulnerabilities: List[Dict]) -> List[Dict]:
-        """각 취약점에 RAG 근거 추가 - 코드 제외 버전"""
+        """각 취약점에 RAG 근거 추가 - 개선된 버전"""
         if not self.rag:
             return vulnerabilities
         
         print("📚 RAG로 공식 가이드라인 근거 찾는 중...")
         
-        # VulnerabilityTypeMapper 초기화
-        try:
-            from rag.vulnerability_type_mapper import VulnerabilityTypeMapper
-            mapper = VulnerabilityTypeMapper()
-        except:
-            mapper = None
-            print("⚠️ VulnerabilityTypeMapper 로드 실패")
-        
-        try:
-            for vuln in vulnerabilities:
-                vuln_type = vuln.get('type', '')
-                
-                # 1. 취약점 타입 표준화
-                if mapper:
-                    original_type = vuln_type
-                    standard_type = mapper.normalize_vuln_type(vuln_type)
-                    search_query = mapper.get_search_query(standard_type, original_type)
-                    print(f"  - {original_type} → {standard_type} (쿼리: {search_query})")
-                else:
-                    # 폴백: 기본 쿼리
-                    search_query = f"{vuln_type} 취약점 방어 보안 가이드라인"
-                
-                # 2. 더 구체적인 검색어 추가
-                if vuln.get('description'):
-                    # 설명에서 키워드 추출
-                    keywords = self._extract_keywords_from_description(vuln['description'])
-                    if keywords:
-                        search_query += f" {' '.join(keywords[:2])}"
-                
-                # 3. RAG 검색 실행
-                results = self.rag.search_similar(search_query, top_k=5)  # top_k 증가
-                
-                if results['documents'] and results['documents'][0]:
-                    # 4. 가장 관련성 높은 문서 선택
-                    best_doc_idx = self._find_most_relevant_document(
-                        results['documents'][0], 
-                        results.get('metadatas', [[]])[0],
-                        vuln_type,
-                        standard_type if mapper else vuln_type
-                    )
-                    
-                    if best_doc_idx is not None and best_doc_idx < len(results['documents'][0]):
-                        # RAG 문서 내용
-                        evidence_text = results['documents'][0][best_doc_idx]
-                        
-                        # 코드 부분 제거 - 설명 부분만 추출
-                        cleaned_content = self._extract_description_only(evidence_text)
-                        
-                        # 메타데이터가 있으면 상세 정보 추가
-                        if results.get('metadatas') and results['metadatas'][0]:
-                            if best_doc_idx < len(results['metadatas'][0]):
-                                metadata = results['metadatas'][0][best_doc_idx]
-                                
-                                # 페이지 정보 추출
-                                page_start = metadata.get('page_start')
-                                page_end = metadata.get('page_end')
-                                
-                                # 페이지 범위 결정
-                                if page_start and page_end:
-                                    if page_start != page_end:
-                                        page_info = f"{page_start}-{page_end}"
-                                    else:
-                                        page_info = str(page_start)
-                                else:
-                                    page_info = metadata.get('page', '알 수 없음')
-                                
-                                # 메타데이터에서 문서 정보 동적 추출
-                                source_doc = metadata.get('source_document', 'Python_시큐어코딩_가이드(2023년_개정본).pdf')
-                                doc_type = metadata.get('document_type', 'KISIA')
-                                
-                                vuln['evidence'] = {
-                                    'source': f'{doc_type} 가이드라인' if doc_type else '보안 가이드라인',
-                                    'document': source_doc,
-                                    'page': page_info,
-                                    'page_start': page_start,
-                                    'page_end': page_end,
-                                    'section_title': metadata.get('title', ''),
-                                    # 코드가 제거된 깨끗한 내용만
-                                    'content': cleaned_content[:300] + "..." if len(cleaned_content) > 300 else cleaned_content,
-                                    'collection': results.get('collection_name', 'unknown'),
-                                    'relevance_score': self._calculate_relevance_score(
-                                        evidence_text, vuln_type, vuln.get('description', '')
-                                    )
-                                }
-                                
-                                # 관련성이 낮으면 경고
-                                if vuln['evidence']['relevance_score'] < 0.3:
-                                    print(f"    ⚠️ 관련성 낮음 ({vuln['evidence']['relevance_score']:.2f})")
-                                    vuln['evidence']['low_relevance_warning'] = True
-                            else:
-                                # 메타데이터 없으면 기본 정보만
-                                vuln['evidence'] = {
-                                    'source': 'KISIA 가이드라인',
-                                    'content': cleaned_content[:300] + "..." if len(cleaned_content) > 300 else cleaned_content,
-                                    'page': '알 수 없음'
-                                }
-                
-                # 5. 적절한 근거를 찾지 못한 경우 로깅
-                if 'evidence' not in vuln:
-                    print(f"    ❌ {vuln_type}에 대한 적절한 가이드라인 없음")
+        for vuln in vulnerabilities:
+            vuln_type = vuln.get('type', '')
+            if not vuln_type:
+                continue
+
+            # 1. 개선된 RAG 검색 실행
+            # search_vulnerability_evidence가 매핑과 메타데이터 필터링을 모두 처리
+            results = self.rag.search_vulnerability_evidence(vuln_type)
             
-            return vulnerabilities
-            
-        except Exception as e:
-            print(f"⚠️ RAG 처리 실패: {e}")
-            return vulnerabilities
+            # 2. 검색 결과가 있는지 확인
+            if results and results.get('vulnerability'):
+                vuln_data = results['vulnerability']
+                metadata = vuln_data.get('metadata', {})
+                
+                # 페이지 정보 추출 및 포맷팅
+                page_info = "알 수 없음"
+                start_page = metadata.get('start_page')
+                end_page = metadata.get('end_page')
+
+                if start_page and end_page:
+                    if start_page != end_page:
+                        page_info = f"{start_page}-{end_page}"
+                    else:
+                        page_info = str(start_page)
+                
+                # evidence 객체 생성
+                vuln['evidence'] = {
+                    'source': 'KISIA 가이드라인',
+                    'document': 'Python_시큐어코딩_가이드(2023년_개정본).pdf',
+                    'page': page_info,
+                    'section_title': metadata.get('korean_name', ''),
+                    'content': vuln_data.get('content', '')[:500] + "...", # 내용은 필요한 만큼 조절
+                    'full_content': vuln_data.get('content', '')
+                }
+                print(f"  ✓ '{vuln_type}' → '{metadata.get('korean_name')}' 근거 찾음 (페이지: {page_info})")
+            else:
+                print(f"  ❌ '{vuln_type}'에 대한 가이드라인을 찾을 수 없음")
+
+        return vulnerabilities
 
     def _extract_description_only(self, text: str) -> str:
         """텍스트에서 코드 부분을 제거하고 설명만 추출"""
