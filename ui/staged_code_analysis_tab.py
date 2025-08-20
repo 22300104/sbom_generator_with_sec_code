@@ -1261,33 +1261,22 @@ def run_analysis(code: str, file_list: List[Dict], mode: str, use_claude: bool, 
     results = {}
     start_time = time.time()
     
-    try:
-        # SBOM 분석 - 모든 모드에서 실행 가능
-        if include_sbom:
+    # SBOM 분석 (분리된 예외 처리)
+    if include_sbom:
+        try:
             analyzer = SBOMAnalyzer()
             requirements = st.session_state.get('requirements_content', '')
-            
             sbom_result = analyzer.analyze(code, requirements, scan_environment=False)
-            
-            # 개선된 결과 처리
             if sbom_result and 'error' not in sbom_result:
                 if 'packages' in sbom_result or sbom_result.get('success'):
                     results['sbom'] = sbom_result
-                    
                     try:
                         formatter = SBOMFormatter()
                         project_name = st.session_state.get('project_name', 'Project')
                         packages = sbom_result.get('packages', [])
-                        
                         results['sbom_formats'] = {
-                            'spdx': formatter.to_spdx(
-                                packages,
-                                {'project_name': project_name}
-                            ),
-                            'cyclonedx': formatter.to_cyclonedx(
-                                packages,
-                                {'project_name': project_name}
-                            )
+                            'spdx': formatter.to_spdx(packages, {'project_name': project_name}),
+                            'cyclonedx': formatter.to_cyclonedx(packages, {'project_name': project_name})
                         }
                     except Exception as fmt_error:
                         st.warning(f"⚠️ SBOM 표준 형식 생성 실패: {fmt_error}")
@@ -1295,22 +1284,29 @@ def run_analysis(code: str, file_list: List[Dict], mode: str, use_claude: bool, 
                     st.warning("⚠️ SBOM 생성 실패: 패키지 정보를 추출할 수 없습니다")
             elif sbom_result and 'error' in sbom_result:
                 st.error(f"❌ SBOM 분석 오류: {sbom_result['error']}")
-        
-        # AI 보안 분석
-        if mode in ["AI 보안 분석", "전체 분석"]:
-            # use_claude 파라미터 명시적 전달
+        except Exception as e:
+            st.error(f"SBOM 처리 중 오류: {e}")
+            results['sbom_error'] = str(e)
+
+    # AI 보안 분석 (분리된 예외 처리, 실패 시에도 ai_analysis 키 유지)
+    if mode in ["AI 보안 분석", "전체 분석"]:
+        try:
             print(f"🔍 AI 분석 시작 (use_claude={use_claude})")
             ai_analyzer = ImprovedSecurityAnalyzer(use_claude=use_claude)
             ai_result = ai_analyzer.analyze_security(code, file_list)
-            results['ai_analysis'] = ai_result
-            
-            # 디버그: 발견된 취약점 수 출력
-            vuln_count = len(ai_result.get('vulnerabilities', []))
-            print(f"📊 분석 완료: {vuln_count}개 취약점 발견")
-        
-    except Exception as e:
-        st.error(f"분석 오류: {e}")
-        results['error'] = str(e)
+        except Exception as e:
+            ai_result = {
+                'success': False,
+                'vulnerabilities': [],
+                'security_score': 0,
+                'summary': f'분석 오류: {e}',
+                'analyzed_by': 'Error',
+                'has_error': True,
+                'error_type': 'Analysis Failed'
+            }
+        results['ai_analysis'] = ai_result
+        vuln_count = len(ai_result.get('vulnerabilities', [])) if isinstance(ai_result, dict) else 0
+        print(f"📊 분석 완료: {vuln_count}개 취약점 발견")
     
     results['analysis_time'] = time.time() - start_time
     results['analyzed_files'] = len(file_list)
