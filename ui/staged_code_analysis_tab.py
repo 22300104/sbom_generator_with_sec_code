@@ -159,17 +159,8 @@ def render_input_stage():
     """1단계: 입력 선택"""
     st.markdown('<h3 class="sa-fade-up"><span class="material-symbols-outlined">upload_file</span> 1단계: 소스 코드 입력</h3>', unsafe_allow_html=True)
     
-    with st.container():
-        st.markdown('<div class="sa-card sa-fade-up">', unsafe_allow_html=True)
-        input_method = st.radio(
-            "입력 방법 선택:",
-            ["Agent Mode"],
-            horizontal=True
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    if input_method == "Agent Mode":
-        handle_github_mcp_agent()
+    # Agent Mode 바로 렌더링 (입력 방법 선택 UI 제거)
+    handle_github_mcp_agent()
 
 
 def handle_github_mcp_agent():
