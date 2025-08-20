@@ -182,28 +182,26 @@ def handle_github_mcp_agent():
     st.markdown("#### Agent Mode")
 
     if 'agent_slots' not in st.session_state:
-        st.session_state.agent_slots = {"repo": None, "mcp_url": None, "token": None, "base": None, "compare": None, "scope": "diff"}
+        st.session_state.agent_slots = {"repo": None, "base": None, "compare": None, "scope": "diff", "analysis": None, "pr_number": None}
     slots = st.session_state.agent_slots
 
     # 안내 + 예시
     with st.chat_message("assistant"):
         st.markdown(
             """
-            원하는 설정을 자연어로 알려주세요. 챗봇으로 입력해도 되고, 아래 '직접 입력' 폼에 채워도 됩니다.
+            원하는 분석 방식을 자연어로 알려주세요. (전부 대화형으로 진행)
 
-            예시:
-            - 공개 저장소 · 기본 브랜치 사용 · 변경사항만 분석
-              repo we45/Vulnerable-Flask-App, base main, compare feature/auth, 변경사항만
+            먼저 분석 유형을 정해주세요:
+            - 전체 레포지토리 분석: `full repo` 또는 `전체`
+            - 브랜치 비교 분석: `branch compare base main compare feature/x` 또는 `브랜치 비교`
+            - PR 분석: `pr #123` 또는 `PR 123`
 
-            - URL로 저장소 입력 · MCP 서버 URL 함께 지정 · 변경파일 전체 분석
-              repo https://github.com/owner/repo, mcp http://localhost:8888, base develop, compare release/1.2, 전체
+            다음으로 저장소를 알려주세요:
+            - `repo owner/repo` 또는 `repo https://github.com/owner/repo`
 
-            - 프라이빗 저장소 · 토큰 포함 · 변경파일 전체 분석
-              repo myorg/private-repo, token ghp_XXXXXXXXXXXXXXXX, base main, compare hotfix/logging, 변경파일 전체
-
-            - 최소 입력(기본값 보정):
-              repo owner/repo, compare feat/login
-              (기본 브랜치는 자동으로 main 또는 저장소 기본 브랜치를 사용)
+            브랜치/범위 예시(브랜치 비교 시):
+            - `base main, compare feature/auth, 변경사항만`
+            - `base develop, compare release/1.2, 전체`
             """
         )
     user_msg = st.chat_input("요청을 입력하세요")
@@ -217,34 +215,56 @@ def handle_github_mcp_agent():
                 slots[k] = v
         st.session_state.agent_slots = slots
 
-    # 보완 폼
+    # 보완(대화형 유지, 최소 입력만 제공)
     st.divider()
-    st.markdown("##### 직접 입력")
-    col1, col2 = st.columns(2)
-    with col1:
-        repo = st.text_input("저장소(https://github.com/owner/repo 또는 owner/repo)", value=slots.get("repo") or "")
-        mcp_url = st.text_input("MCP 서버 URL(선택)", value=slots.get("mcp_url") or os.getenv("MCP_GITHUB_SERVER_URL", ""))
-        token = st.text_input("GitHub 토큰(선택; MCP 없을 때 PR/프라이빗 필요)", value=slots.get("token") or os.getenv("GITHUB_TOKEN", ""), type="password")
-    with col2:
-        base = st.text_input("기준 브랜치", value=slots.get("base") or "main")
+    st.markdown("##### 직접 입력 (선택)")
+    repo = st.text_input("저장소(https://github.com/owner/repo 또는 owner/repo)", value=slots.get("repo") or "")
+    colb1, colb2, colb3 = st.columns(3)
+    with colb1:
+        analysis_type = st.selectbox("분석 유형", ["자동 감지", "전체", "브랜치 비교", "PR 분석"], index=0)
+    with colb2:
+        base = st.text_input("기준 브랜치", value=slots.get("base") or "")
+    with colb3:
         compare = st.text_input("비교 브랜치", value=slots.get("compare") or "")
-        scope = st.selectbox("분석 범위", ["변경사항만", "변경파일 전체"], index=(0 if (slots.get("scope") in [None, "diff"]) else 1))
+    scope = st.selectbox("분석 범위(브랜치/PR)", ["변경사항만", "변경파일 전체"], index=(0 if (slots.get("scope") in [None, "diff"]) else 1))
+    pr_num = st.text_input("PR 번호(선택)", value=slots.get("pr_number") or "")
 
     # 업데이트 저장
     slots.update({
-        "repo": repo if repo else None,
-        "mcp_url": mcp_url if mcp_url else None,
-        "token": token if token else None,
-        "base": base if base else None,
-        "compare": compare if compare else None,
+        "repo": repo if repo else slots.get("repo"),
+        "base": base if base else slots.get("base"),
+        "compare": compare if compare else slots.get("compare"),
         "scope": ("full" if scope == "변경파일 전체" else "diff"),
+        "analysis": ({
+            "자동 감지": slots.get("analysis"),
+            "전체": "full",
+            "브랜치 비교": "branch",
+            "PR 분석": "pr",
+        }[analysis_type] if analysis_type else slots.get("analysis")),
+        "pr_number": pr_num or slots.get("pr_number"),
     })
     st.session_state.agent_slots = slots
 
-    # 준비 확인
-    ready = all([slots.get("repo"), slots.get("base"), slots.get("compare")])
+    # 분석 유형 결정 및 입력 검증
+    analysis_kind = slots.get("analysis")
+    if not analysis_kind:
+        # 간단 자동화: base/compare가 있으면 branch, pr_number 있으면 pr, 아니면 full
+        if slots.get("pr_number"):
+            analysis_kind = "pr"
+        elif slots.get("base") and slots.get("compare"):
+            analysis_kind = "branch"
+        else:
+            analysis_kind = "full"
+        slots["analysis"] = analysis_kind
+
+    # 필수값 검증
+    ready = bool(slots.get("repo")) and (
+        (analysis_kind == "full") or
+        (analysis_kind == "branch" and slots.get("base") and slots.get("compare")) or
+        (analysis_kind == "pr" and slots.get("pr_number"))
+    )
     if not ready:
-        st.info("repo, base, compare를 채워주세요.")
+        st.info("입력이 부족합니다. repository / (branch: base, compare) / (PR: 번호) 중 필요한 값을 알려주세요.")
         return
 
     # URL 정규화
@@ -252,36 +272,43 @@ def handle_github_mcp_agent():
     if repo_url and '/' in repo_url and not repo_url.startswith('http'):
         repo_url = f"https://github.com/{repo_url}"
 
-    # MCP/토큰 저장(세션 환경)
-    if slots.get('mcp_url'):
-        os.environ['MCP_GITHUB_SERVER_URL'] = slots['mcp_url']
-    if slots.get('token'):
-        os.environ['GITHUB_TOKEN'] = slots['token']
+    # 토큰/MCP 서버 URL은 UI에서 입력받지 않습니다 (환경변수 사용)
 
     analyzer = GitHubBranchAnalyzer()
-    with st.spinner("브랜치 확인 중..."):
+    with st.spinner("저장소 확인 중..."):
         meta = analyzer.get_branches(repo_url)
     if not meta.get('success'):
-        st.error(meta.get('error', '브랜치 조회 실패'))
+        st.error(meta.get('error', '저장소 조회 실패'))
         return
 
     st.success(f"저장소 확인: {meta.get('owner')}/{meta.get('repo')}")
 
-    with st.spinner("분석용 코드 준비 중..."):
-        code_diff = analyzer.get_diff_code_only(repo_url, slots["base"], slots["compare"], selected_files=None)
-    if not code_diff.get('success'):
-        st.error(code_diff.get('error', '코드 준비 실패'))
-        return
-
-    code_to_analyze = code_diff.get('combined_added_code', '') if slots.get("scope") == 'diff' else code_diff.get('combined_full_code', '')
+    # 분석 유형별 코드 준비
+    code_to_analyze = ''
     file_list = []
-    for f in code_diff.get('file_analysis', [])[:100]:
-        file_list.append({
-            'path': f.get('filename', 'unknown.py'),
-            'name': Path(f.get('filename', 'unknown.py')).name,
-            'size': len((f.get('full_content') or f.get('added_code', '') or '').encode('utf-8')),
-            'lines': len(((f.get('full_content') or f.get('added_code', '') or '')).splitlines()),
-        })
+    if analysis_kind == 'branch':
+        with st.spinner("브랜치 변경 코드 수집 중..."):
+            code_diff = analyzer.get_diff_code_only(repo_url, slots["base"], slots["compare"], selected_files=None)
+        if not code_diff.get('success'):
+            st.error(code_diff.get('error', '코드 준비 실패'))
+            return
+        code_to_analyze = code_diff.get('combined_added_code', '') if slots.get("scope") == 'diff' else code_diff.get('combined_full_code', '')
+        for f in code_diff.get('file_analysis', [])[:100]:
+            file_list.append({
+                'path': f.get('filename', 'unknown.py'),
+                'name': Path(f.get('filename', 'unknown.py')).name,
+                'size': len((f.get('full_content') or f.get('added_code', '') or '').encode('utf-8')),
+                'lines': len(((f.get('full_content') or f.get('added_code', '') or '')).splitlines()),
+            })
+    elif analysis_kind == 'pr':
+        # PR diff → base/compare 자동 해석이 필요하지만, 간단 버전: GitHub compare API로는 바로 불가.
+        # 여기서는 PR 번호 안내만 하고, 추후 확장(별도 PR API로 files 변경 목록 수집) 여지를 남김.
+        st.warning("PR 분석은 간단 버전입니다. 우선 브랜치 비교로 진행해주세요 (향후 PR files API 연동 예정).")
+        return
+    else:
+        # full repo 분석은 다운로드 후 스마트 분석 로직으로 대체 가능. 현 버전은 브랜치 비교 중심이므로 안내.
+        st.warning("전체 레포 분석은 곧 제공 예정입니다. 우선 브랜치 비교 또는 PR 분석을 사용해주세요.")
+        return
 
     st.session_state.analysis_code = code_to_analyze
     st.session_state.analysis_file_list = file_list

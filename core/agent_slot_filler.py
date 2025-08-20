@@ -60,11 +60,11 @@ class AgentSlotFiller:
             "반환 형식(JSON만):\n"
             "{\n"
             "  \"repo\": \"https://github.com/owner/repo 또는 owner/repo\",\n"
-            "  \"mcp_url\": \"http(s)://... (선택)\",\n"
-            "  \"token\": \"ghp_... (선택)\",\n"
-            "  \"base\": \"기준 브랜치\",\n"
-            "  \"compare\": \"비교 브랜치\",\n"
-            "  \"scope\": \"diff 또는 full\"\n"
+            "  \"base\": \"기준 브랜치 (branch 비교 시)\",\n"
+            "  \"compare\": \"비교 브랜치 (branch 비교 시)\",\n"
+            "  \"scope\": \"diff 또는 full (branch/PR 분석 시)\",\n"
+            "  \"analysis\": \"full | branch | pr\",\n"
+            "  \"pr_number\": \"숫자 (PR 분석 시)\"\n"
             "}"
         )
 
@@ -84,11 +84,11 @@ class AgentSlotFiller:
             return self._empty()
         return {
             "repo": data.get("repo"),
-            "mcp_url": data.get("mcp_url"),
-            "token": data.get("token"),
             "base": data.get("base"),
             "compare": data.get("compare"),
             "scope": data.get("scope"),
+            "analysis": data.get("analysis"),
+            "pr_number": data.get("pr_number"),
         }
 
     def _regex_fallback(self, text: str) -> Dict[str, Optional[str]]:
@@ -100,14 +100,20 @@ class AgentSlotFiller:
             m2 = re.search(r"\b([\w.-]+)/([\w.-]+)\b", text)
             if m2:
                 repo = f"https://github.com/{m2.group(1)}/{m2.group(2)}"
-        mu = None
-        mu_m = re.search(r"https?://[\w\.-]+(?::\d+)?(?:/\S*)?", text)
-        if mu_m and "github.com" not in mu_m.group(0):
-            mu = mu_m.group(0)
-        tk = None
-        tk_m = re.search(r"gh[pousr]_[A-Za-z0-9]{10,}", text)
-        if tk_m:
-            tk = tk_m.group(0)
+        # 분석 타입
+        analysis = None
+        pr_number = None
+        if re.search(r"\bpr\b|pull\s*request", text, re.I):
+            analysis = "pr"
+            mpr = re.search(r"#?(\d{1,6})", text)
+            if mpr:
+                pr_number = mpr.group(1)
+        elif re.search(r"브랜치|branch|compare", text, re.I):
+            analysis = "branch"
+        elif re.search(r"전체|full\s*repo|all\s*files", text, re.I):
+            analysis = "full"
+        else:
+            analysis = None
         bb = None
         m = re.search(r"base[:=\s]+([\w\-/]+)", text, re.I)
         if m:
@@ -121,9 +127,9 @@ class AgentSlotFiller:
             scope = "diff"
         elif re.search(r"full|전체", text, re.I):
             scope = "full"
-        return {"repo": repo, "mcp_url": mu, "token": tk, "base": bb, "compare": cb, "scope": scope}
+        return {"repo": repo, "base": bb, "compare": cb, "scope": scope, "analysis": analysis, "pr_number": pr_number}
 
     def _empty(self) -> Dict[str, Optional[str]]:
-        return {"repo": None, "mcp_url": None, "token": None, "base": None, "compare": None, "scope": None}
+        return {"repo": None, "base": None, "compare": None, "scope": None, "analysis": None, "pr_number": None}
 
 
