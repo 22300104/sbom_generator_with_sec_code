@@ -394,7 +394,27 @@ class ImprovedSecurityAnalyzer:
         # 3. 파싱 시도
         try:
             result = json.loads(json_text)
-            vulnerabilities = result.get('vulnerabilities', [])
+
+            # 결과 형태 유연 처리: dict | list 모두 지원
+            vulnerabilities = []
+            if isinstance(result, list):
+                # LLM이 바로 취약점 배열을 반환한 경우
+                vulnerabilities = result
+            elif isinstance(result, dict):
+                # 표준 스키마
+                if 'vulnerabilities' in result and isinstance(result['vulnerabilities'], list):
+                    vulnerabilities = result['vulnerabilities']
+                # 대체 스키마(analysis.code_vulnerabilities 또는 analysis.vulnerabilities)
+                elif isinstance(result.get('analysis'), dict):
+                    analysis_obj = result['analysis']
+                    if isinstance(analysis_obj.get('code_vulnerabilities'), list):
+                        vulnerabilities = analysis_obj['code_vulnerabilities']
+                    elif isinstance(analysis_obj.get('vulnerabilities'), list):
+                        vulnerabilities = analysis_obj['vulnerabilities']
+                # 단일 취약점 객체를 반환한 경우
+                elif all(k in result for k in ['type', 'severity']):
+                    vulnerabilities = [result]
+
             print(f"✅ JSON 파싱 성공: {len(vulnerabilities)}개 취약점")
             return vulnerabilities
             

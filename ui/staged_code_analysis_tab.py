@@ -1293,21 +1293,37 @@ def run_analysis(code: str, file_list: List[Dict], mode: str, use_claude: bool, 
 
     # AI 보안 분석 (분리된 예외 처리, 실패 시에도 ai_analysis 키 유지)
     if mode in ["AI 보안 분석", "전체 분석"]:
-        try:
-            print(f"🔍 AI 분석 시작 (use_claude={use_claude})")
-            ai_analyzer = ImprovedSecurityAnalyzer(use_claude=use_claude)
-            ai_result = ai_analyzer.analyze_security(code, file_list)
-        except Exception as e:
+        # 엔진 가용성 체크: 키가 없으면 분석을 건너뛰되 에러로 처리하지 않음
+        has_claude_key = bool(os.getenv("ANTHROPIC_API_KEY"))
+        has_openai_key = bool(os.getenv("OPENAI_API_KEY"))
+
+        if not has_claude_key and not has_openai_key:
             ai_result = {
-                'success': False,
+                'success': True,
                 'vulnerabilities': [],
-                'security_score': 0,
-                'summary': f'분석 오류: {e}',
-                'analyzed_by': 'Error',
-                'has_error': True,
-                'error_type': 'Analysis Failed'
+                'security_score': 100,
+                'summary': 'AI 엔진 미설정으로 보안 분석을 건너뜀',
+                'analyzed_by': 'N/A',
+                'has_error': False,
+                'skipped': True,
             }
-        results['ai_analysis'] = ai_result
+            results['ai_analysis'] = ai_result
+        else:
+            try:
+                print(f"🔍 AI 분석 시작 (use_claude={use_claude})")
+                ai_analyzer = ImprovedSecurityAnalyzer(use_claude=use_claude)
+                ai_result = ai_analyzer.analyze_security(code, file_list)
+            except Exception as e:
+                ai_result = {
+                    'success': False,
+                    'vulnerabilities': [],
+                    'security_score': 0,
+                    'summary': f'분석 오류: {e}',
+                    'analyzed_by': 'Error',
+                    'has_error': True,
+                    'error_type': 'Analysis Failed'
+                }
+            results['ai_analysis'] = ai_result
         vuln_count = len(ai_result.get('vulnerabilities', [])) if isinstance(ai_result, dict) else 0
         print(f"📊 분석 완료: {vuln_count}개 취약점 발견")
     
@@ -1331,6 +1347,11 @@ def display_ai_results(ai_result: Dict):
     if vulnerabilities:
         for i, vuln in enumerate(vulnerabilities):
             print(f"  - 취약점 {i+1}: {vuln.get('type', 'Unknown')}")
+
+    # 스킵 처리 (API 키 미설정 등)
+    if ai_result.get('skipped'):
+        st.info("AI 엔진 미설정으로 보안 분석을 건너뜀")
+        return
 
     # 에러 체크
     if ai_result.get('has_error'):
