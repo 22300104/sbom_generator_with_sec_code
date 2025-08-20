@@ -562,8 +562,11 @@ class ImprovedSecurityAnalyzer:
         return text
         
     
+    # core/improved_llm_analyzer.py
+
+
     def _add_rag_evidence(self, vulnerabilities: List[Dict]) -> List[Dict]:
-        """각 취약점에 RAG 근거 추가"""
+        """각 취약점에 RAG 근거 추가 - 개선된 버전"""
         if not self.rag:
             return vulnerabilities
         
@@ -574,20 +577,52 @@ class ImprovedSecurityAnalyzer:
                 
                 # RAG에서 관련 가이드라인 검색
                 search_query = f"{vuln_type} 방어 방법 보안 가이드라인"
-                results = self.rag.search_similar(search_query, top_k=2)
+                results = self.rag.search_similar(search_query, top_k=3)  # top_k를 3으로 증가
                 
                 if results['documents'] and results['documents'][0]:
                     # 가장 관련성 높은 문서
                     evidence = results['documents'][0][0]
                     
-                    # 메타데이터가 있으면 페이지 정보 추가
+                    # 메타데이터가 있으면 상세 정보 추가
                     if results.get('metadatas') and results['metadatas'][0]:
-                        page = results['metadatas'][0][0].get('page', '?')
+                        metadata = results['metadatas'][0][0]
+                        
+                        # 페이지 정보 추출
+                        page = metadata.get('page', '?')
+                        page_start = metadata.get('page_start', page)
+                        page_end = metadata.get('page_end', page)
+                        
+                        # 페이지 범위 결정
+                        if page_start and page_end and page_start != page_end:
+                            page_info = f"{page_start}-{page_end}"
+                        else:
+                            page_info = str(page)
+                        
                         vuln['evidence'] = {
                             'source': 'KISIA Python 시큐어코딩 가이드',
-                            'page': page,
-                            'content': evidence[:500] + "..." if len(evidence) > 500 else evidence
+                            'document': 'Python_시큐어코딩_가이드(2023년_개정본).pdf',
+                            'page': page_info,
+                            'page_start': page_start,
+                            'page_end': page_end,
+                            'section_title': metadata.get('title', ''),
+                            'vulnerability_types': metadata.get('vulnerability_types', ''),
+                            'content': evidence[:500] + "..." if len(evidence) > 500 else evidence,
+                            'full_content': evidence,  # 전체 내용 보관
+                            'collection': results.get('collection_name', 'unknown')
                         }
+                        
+                        # 추가 관련 문서들도 저장 (있으면)
+                        if len(results['documents'][0]) > 1:
+                            related_docs = []
+                            for i in range(1, min(3, len(results['documents'][0]))):
+                                if i < len(results['metadatas'][0]):
+                                    related_meta = results['metadatas'][0][i]
+                                    related_docs.append({
+                                        'page': related_meta.get('page', '?'),
+                                        'type': related_meta.get('type', ''),
+                                        'keywords': related_meta.get('keywords', '')
+                                    })
+                            vuln['evidence']['related_sections'] = related_docs
                     else:
                         vuln['evidence'] = {
                             'source': 'KISIA 가이드라인',
@@ -597,7 +632,7 @@ class ImprovedSecurityAnalyzer:
             return vulnerabilities
         except Exception as e:
             print(f"⚠️ RAG 처리 실패: {e}")
-            return vulnerabilities  # 실패해도 원본 반환
+            return vulnerabilities
         
     def _calculate_security_score(self, vulnerabilities: List[Dict]) -> int:
         """보안 점수 계산"""

@@ -17,7 +17,7 @@ class SimpleRAG:
             self.chroma_client = chromadb.PersistentClient(path="data/vector_db")
             
             try:
-                self.collection = self.chroma_client.get_collection("secure_coding_guide")
+                self.collection = self.chroma_client.get_collection("kisia_vulnerabilities")
                 self.chroma_available = True
                 print(f"✅ 벡터 DB 로드 완료 (문서 수: {self.collection.count()})")
             except Exception as e:
@@ -36,20 +36,21 @@ class SimpleRAG:
         self.client = OpenAI(api_key=api_key)
         
     def search_similar(self, query: str, top_k: int = 5) -> Dict:
-        """유사한 문서 검색 (ChromaDB 있을 때만)"""
+        """유사한 문서 검색 (ChromaDB 있을 때만) - 개선된 버전"""
         if self.chroma_available and self.collection:
             try:
                 results = self.collection.query(
                     query_texts=[query],
                     n_results=top_k
                 )
+                # 컬렉션 이름 추가
+                results['collection_name'] = self.collection.name if hasattr(self.collection, 'name') else 'unknown'
                 return results
             except Exception as e:
                 print(f"검색 오류: {e}")
-                return {'documents': [[]], 'metadatas': [[]]}
+                return {'documents': [[]], 'metadatas': [[]], 'collection_name': 'error'}
         else:
-            # ChromaDB 없을 때 빈 결과 반환
-            return {'documents': [[]], 'metadatas': [[]]}
+            return {'documents': [[]], 'metadatas': [[]], 'collection_name': 'none'}
 
 
 # rag/simple_rag.py
@@ -76,16 +77,44 @@ class SimpleRAG:
         
         # 2. RAG 검색 (선택적, 빠르게)
         rag_note = ""
+        rag_metadata = None
+        
         if self.chroma_available:
             try:
                 start_time = time.time()
-                search_results = self.search_similar(question, top_k=2)
+                search_results = self.search_similar(question, top_k=3)
                 
                 if time.time() - start_time < 1.0 and search_results['documents'][0]:
                     docs = search_results['documents'][0]
+                    metadatas = search_results.get('metadatas', [[]])[0]
+                    
+                    # 출처 정보 구성
+                    source_info = []
+                    for i, (doc, meta) in enumerate(zip(docs[:2], metadatas[:2])):
+                        if meta:
+                            page = meta.get('page', '?')
+                            page_start = meta.get('page_start', page)
+                            page_end = meta.get('page_end', page)
+                            
+                            if page_start and page_end and page_start != page_end:
+                                page_range = f"p.{page_start}-{page_end}"
+                            else:
+                                page_range = f"p.{page}"
+                            
+                            source_info.append({
+                                'page_range': page_range,
+                                'title': meta.get('title', ''),
+                                'type': meta.get('type', ''),
+                                'vulnerability_types': meta.get('vulnerability_types', '')
+                            })
+                    
                     rag_context = "\n".join(docs[:2])
                     rag_note = f"\n\n[KISIA 가이드라인 참고]\n{rag_context}"
-                    print("✅ RAG 문서 발견")
+                    
+                    # 메타데이터 저장 (나중에 사용)
+                    rag_metadata = source_info
+                    
+                    print(f"✅ RAG 문서 발견 ({len(docs)}개)")
             except Exception as e:
                 print(f"⚠️ RAG 검색 스킵: {e}")
         
@@ -123,11 +152,22 @@ class SimpleRAG:
         if answer:
             footer_parts = ["\n\n---"]
             
-            # 어떤 정보를 활용했는지 표시
-            if "취약점" in context['vulnerabilities_detail'] and "취약점" in answer:
-                footer_parts.append("*🔍 코드 분석 결과 참조*")
-            if rag_note:
+            # RAG 메타데이터가 있으면 상세 출처 표시
+            if rag_metadata:
+                footer_parts.append("\n**📚 참고 문서:**")
+                footer_parts.append("*Python_시큐어코딩_가이드(2023년_개정본).pdf*")
+                
+                for source in rag_metadata:
+                    if source['page_range']:
+                        footer_parts.append(f"• {source['page_range']}")
+                        if source['title']:
+                            footer_parts.append(f"  - {source['title']}")
+                        if source['vulnerability_types']:
+                            footer_parts.append(f"  - 관련: {source['vulnerability_types']}")
+            
+            elif rag_note:
                 footer_parts.append("*📚 KISIA 가이드라인 참조*")
+            
             if "이전 대화" in context['conversation_history'] and len(context['conversation_history']) > 50:
                 footer_parts.append("*💬 대화 맥락 유지*")
             

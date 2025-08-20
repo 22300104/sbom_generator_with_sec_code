@@ -59,13 +59,28 @@ def render_qa_tab():
             help="OpenAI API 연결 상태"
         )
     
+    
     with col3:
+        # 실제 사용 중인 AI 엔진 확인
+        if os.getenv("ANTHROPIC_API_KEY"):
+            ai_engine = "Claude"
+        elif os.getenv("OPENAI_API_KEY"):
+            ai_engine = "GPT"
+        else:
+            ai_engine = "N/A"
+        
+        # RAG 상태에 따라 모드 표시
+        if stats['mode'] == "RAG 모드":
+            mode_text = f"RAG + {ai_engine}"
+        else:
+            mode_text = f"{ai_engine} Only"
+        
         st.metric(
             "응답 모드",
-            "RAG + GPT",
-            help="RAG 검색 + AI 생성 하이브리드 모드"
+            mode_text,
+            help=f"{'RAG 검색 + ' if stats['mode'] == 'RAG 모드' else ''}{ai_engine} 생성 모드"
         )
-    
+
     with col4:
         session_count = len(st.session_state.get('qa_messages', []))
         st.metric(
@@ -222,6 +237,20 @@ def process_question(question: str, rag):
             # ask() 함수가 RAG 검색과 AI 답변을 모두 처리
             response = rag.ask(question)
             
+            # 출처 정보 파싱 (있으면)
+            source_docs = []
+            if "📚 참고 문서:" in response:
+                # 응답에서 출처 정보 추출
+                lines = response.split('\n')
+                for i, line in enumerate(lines):
+                    if "Python_시큐어코딩_가이드" in line:
+                        # 다음 줄들에서 페이지 정보 수집
+                        j = i + 1
+                        while j < len(lines) and lines[j].startswith('•'):
+                            page_info = lines[j].strip('• ')
+                            source_docs.append(page_info)
+                            j += 1
+
             # 완료
             progress_bar.progress(100)
             elapsed = time.time() - start_time
@@ -230,6 +259,13 @@ def process_question(question: str, rag):
             # 답변 표시
             st.markdown(response)
             
+            # 출처가 있으면 별도 박스로 표시
+            if source_docs:
+                with st.expander("📖 가이드라인 출처 상세", expanded=False):
+                    st.info("**Python_시큐어코딩_가이드(2023년_개정본).pdf**")
+                    for doc in source_docs:
+                        st.caption(f"• {doc}")
+
             # 성능 정보
             col1, col2, col3 = st.columns(3)
             with col1:

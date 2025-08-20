@@ -990,15 +990,42 @@ def display_ai_results(ai_result: Dict):
                     }.get(confidence, '⚪')
                     st.write(f"**신뢰도:** {confidence_color} {confidence}")
                     
-                    # RAG 근거 (있는 경우)
                     if vuln.get('evidence'):
                         evidence = vuln['evidence']
                         st.write("**📚 가이드라인 근거:**")
+                        
+                        # 문서 정보 카드
                         with st.container():
-                            st.success(f"**{evidence.get('source', 'KISIA 가이드라인')}**")
-                            st.caption(evidence.get('content', '')[:500] + "...")
-                            if evidence.get('page'):
-                                st.caption(f"📄 페이지: {evidence['page']}")
+                            # 메인 정보
+                            col1, col2, col3 = st.columns([2, 1, 1])
+                            
+                            with col1:
+                                st.success(f"**{evidence.get('source', 'KISIA 가이드라인')}**")
+                                if evidence.get('document'):
+                                    st.caption(f"📄 {evidence['document']}")
+                            
+                            with col2:
+                                if evidence.get('page'):
+                                    st.info(f"**📖 페이지**\n{evidence['page']}")
+                            
+                            with col3:
+                                if evidence.get('section_title'):
+                                    st.info(f"**📑 섹션**\n{evidence['section_title'][:30]}...")
+                            
+                            # 내용 표시
+                            with st.expander("가이드라인 내용 보기", expanded=False):
+                                st.markdown(evidence.get('content', ''))
+                                
+                                # 관련 섹션이 있으면 표시
+                                if evidence.get('related_sections'):
+                                    st.divider()
+                                    st.caption("**📎 관련 섹션:**")
+                                    for related in evidence['related_sections']:
+                                        st.caption(f"• 페이지 {related['page']}: {related.get('keywords', 'N/A')}")
+                            
+                            # 직접 참조 링크 (선택적)
+                            if evidence.get('page_start'):
+                                st.caption(f"💡 상세 내용은 가이드라인 {evidence['page']} 페이지를 참조하세요.")
                 
                 with tabs[1]:
                     if vuln.get('exploit_scenario'):
