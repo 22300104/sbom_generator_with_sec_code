@@ -583,8 +583,11 @@ class ImprovedSecurityAnalyzer:
     # core/improved_llm_analyzer.py
 # _add_rag_evidence 메서드 전체 교체
 
+    # core/improved_llm_analyzer.py
+# _add_rag_evidence 메서드 수정 - 코드 부분 제거
+
     def _add_rag_evidence(self, vulnerabilities: List[Dict]) -> List[Dict]:
-        """각 취약점에 RAG 근거 추가 - 개선된 버전"""
+        """각 취약점에 RAG 근거 추가 - 코드 제외 버전"""
         if not self.rag:
             return vulnerabilities
         
@@ -632,14 +635,18 @@ class ImprovedSecurityAnalyzer:
                     )
                     
                     if best_doc_idx is not None and best_doc_idx < len(results['documents'][0]):
-                        evidence = results['documents'][0][best_doc_idx]
+                        # RAG 문서 내용
+                        evidence_text = results['documents'][0][best_doc_idx]
+                        
+                        # 코드 부분 제거 - 설명 부분만 추출
+                        cleaned_content = self._extract_description_only(evidence_text)
                         
                         # 메타데이터가 있으면 상세 정보 추가
                         if results.get('metadatas') and results['metadatas'][0]:
                             if best_doc_idx < len(results['metadatas'][0]):
                                 metadata = results['metadatas'][0][best_doc_idx]
                                 
-                                # 페이지 정보 추출 (수정됨)
+                                # 페이지 정보 추출
                                 page_start = metadata.get('page_start')
                                 page_end = metadata.get('page_end')
                                 
@@ -650,13 +657,11 @@ class ImprovedSecurityAnalyzer:
                                     else:
                                         page_info = str(page_start)
                                 else:
-                                    # page 필드가 있으면 사용 (폴백)
                                     page_info = metadata.get('page', '알 수 없음')
                                 
                                 # 메타데이터에서 문서 정보 동적 추출
                                 source_doc = metadata.get('source_document', 'Python_시큐어코딩_가이드(2023년_개정본).pdf')
                                 doc_type = metadata.get('document_type', 'KISIA')
-                                vuln_types_in_doc = metadata.get('vulnerability_types', '')
                                 
                                 vuln['evidence'] = {
                                     'source': f'{doc_type} 가이드라인' if doc_type else '보안 가이드라인',
@@ -665,12 +670,11 @@ class ImprovedSecurityAnalyzer:
                                     'page_start': page_start,
                                     'page_end': page_end,
                                     'section_title': metadata.get('title', ''),
-                                    'vulnerability_types': vuln_types_in_doc,
-                                    'content': evidence[:500] + "..." if len(evidence) > 500 else evidence,
-                                    'full_content': evidence,
+                                    # 코드가 제거된 깨끗한 내용만
+                                    'content': cleaned_content[:300] + "..." if len(cleaned_content) > 300 else cleaned_content,
                                     'collection': results.get('collection_name', 'unknown'),
                                     'relevance_score': self._calculate_relevance_score(
-                                        evidence, vuln_type, vuln.get('description', '')
+                                        evidence_text, vuln_type, vuln.get('description', '')
                                     )
                                 }
                                 
@@ -682,7 +686,7 @@ class ImprovedSecurityAnalyzer:
                                 # 메타데이터 없으면 기본 정보만
                                 vuln['evidence'] = {
                                     'source': 'KISIA 가이드라인',
-                                    'content': evidence[:500] + "..." if len(evidence) > 500 else evidence,
+                                    'content': cleaned_content[:300] + "..." if len(cleaned_content) > 300 else cleaned_content,
                                     'page': '알 수 없음'
                                 }
                 
@@ -695,6 +699,51 @@ class ImprovedSecurityAnalyzer:
         except Exception as e:
             print(f"⚠️ RAG 처리 실패: {e}")
             return vulnerabilities
+
+    def _extract_description_only(self, text: str) -> str:
+        """텍스트에서 코드 부분을 제거하고 설명만 추출"""
+        lines = text.split('\n')
+        cleaned_lines = []
+        in_code_block = False
+        
+        for line in lines:
+            # 코드 블록 시작/끝 표시 감지
+            if any(marker in line for marker in [
+                '[안전하지 않은 코드]', '[안전한 코드]', 
+                '안전하지 않은 코드 예시', '안전한 코드 예시',
+                '```python', '```', 'def ', 'class ', 'import '
+            ]):
+                in_code_block = True
+                continue
+            
+            # 코드 라인 번호 패턴 (예: "1:", "2:" 등)
+            if re.match(r'^\d+:', line.strip()):
+                in_code_block = True
+                continue
+            
+            # 권장사항이나 설명 섹션 시작
+            if any(marker in line for marker in ['[권장사항]', '[설명]', '[취약점']):
+                in_code_block = False
+            
+            # 코드 블록이 아닌 경우만 추가
+            if not in_code_block and line.strip():
+                # 추가 필터링: 코드처럼 보이는 라인 제외
+                if not any(pattern in line for pattern in ['__', 'self.', '()', '{}', '[]', '= ']):
+                    cleaned_lines.append(line.strip())
+        
+        # 연속된 텍스트로 결합
+        cleaned_text = ' '.join(cleaned_lines)
+        
+        # 중복 공백 제거
+        cleaned_text = re.sub(r'\s+', ' ', cleaned_text)
+        
+        # 섹션 제목과 설명 부분만 추출
+        if '[설명]' in cleaned_text:
+            parts = cleaned_text.split('[설명]')
+            if len(parts) > 1:
+                cleaned_text = parts[1].split('[')[0].strip()
+        
+        return cleaned_text
 
     def _extract_keywords_from_description(self, description: str) -> List[str]:
         """설명에서 보안 관련 키워드 추출"""

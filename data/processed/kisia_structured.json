@@ -1,0 +1,1700 @@
+{
+  "vulnerabilities": [
+    {
+      "section": "제1절 입력데이터 검증 및 표현",
+      "number": 1,
+      "korean_name": "SQL 삽입",
+      "english_type": "SQL_Injection",
+      "start_page": 8,
+      "end_page": 13,
+      "description": "검증 및 표현 ※ (1개 항목 제외) 메모리 버퍼 오버플로우 보안기능 ⦁적절한 인증 없는 중요 기능 허용, 부적절한 인가 등 16개 항목 시간 및 상태 ⦁경쟁조건, 종료되지 않는 반복문 또는 재귀함수 2개 항목 구성 에러처리 ⦁오류 메시지 정보노출, 오류상황 대응 부재 등 3개 항목 ⦁Null Pointer 역참조, 부적절한 자원 해제 등 3개 항목 코드오류 ※ (2개 항목 제외) 해제된 자원 사용, 초기화되지 않은 변수 사용 캡슐화 ⦁잘못된 세션에 의한 데이터 정보노출 등 4개 항목 API 오용 ⦁DNS lookup에 의한 보안결정 2개 항목 ⦁(3장) 구현단계 보안약점 제거 기준 및 용어 설명",
+      "unsafe_codes": [],
+      "safe_codes": [],
+      "recommendations": [
+        "본 가이드는 파이썬 소프트웨어 개발 시 발생 가능한 보안 위협 최소화를 위해 구현 단계에서 검증해야 하는",
+        "검증 및 표현 ※ (1개 항목 제외) 메모리 버퍼 오버플로우",
+        "제1절 입력데이터 검증 및 표현"
+      ]
+    },
+    {
+      "section": "제1절 입력데이터 검증 및 표현",
+      "number": 2,
+      "korean_name": "코드 삽입",
+      "english_type": "Code_Injection",
+      "start_page": 14,
+      "end_page": 17,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "외부 입력값을 입력 받아 변수 name과 content_id에 할당하고(line 8-9), 이 name과 content_id 값에 대한\n별도의 검증 없이 쿼리문의 인자 값으로 사용하는 단순 문자열 결합을 통해 쿼리를 생성하고 있다(line 12-15).\n이 경우 content_id 값으로 ‘a’ or ‘a’ = ‘a와 같은 공격 문자열을 입력하면 조건절이 content_id = ‘a’ or\n‘a’ = ‘a’로 바뀌고, 그 결과 board 테이블 전체 레코드의 name 컬럼의 내용이 공격자가 전달한 name의\n값으로 변경된다.\n2)\u0000사용자가\u0000전달한\u0000입력값을\u0000그대로\u0000쿼리\u0000문자열로\u0000만들지\u0000않고,\u0000DB\u0000API에서\u0000제공하는\u0000기능을\u0000사용해\u0000쿼리\u0000\n내에\u0000사용자\u0000입력값을\u0000구성하는\u0000방법을\u0000의미\n9\n\nPython 시큐어코딩 가이드",
+          "page": 14,
+          "type": "unsafe",
+          "label": "다음은 MySQL, PostgreSQL의 DB API를 사용해 입력값을 받아 처리 하는 안전하지 않은 코드 예시다."
+        },
+        {
+          "code": "1: from django.shortcuts import render\n2: from django.db import connection\n3:\n4: def update_board(request):\n5: ......\n6: dbconn = connection\n7:\n8: with dbconn.cursor() as curs:\n9: # 외부로부터 입력받은 값을 검증 없이 사용할 경우 안전하지 않다\n10: name = request.POST.get('name', '')\n11: content_id = request.POST.get('content_id', '')\n12:\n13: # 사용자의 검증되지 않은 입력값을 사용해 동적 쿼리문 생성\n14: sql_query = \"update board set name='\" + name + \"' where content_id='“ + content_id + \"'\"\n15:\n16: # 외부 입력값이 검증 없이 쿼리로 포함되어 안전하지 않다\n17: curs.execute(sql_query)\n18: dbconn.commit()\n19:\n20: return render(request, '/success.html')",
+          "page": 16,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "다. 코드 예제\n가) DB API 사용 예제",
+          "page": 14,
+          "type": "safe",
+          "label": "하면 안전한 코드를 작성할 수 있다."
+        },
+        {
+          "code": "사용하지 않고 인자화된 쿼리 생성 후(line 11) execute() 메서드의 두 번째 인자 값으로 이 값을 바인딩 해서\n쿼리문을 실행한다(line 15). 이렇게 매개변수 바인딩을 통해 execute() 함수를 호출하면 공격자가 쿼리를 변조\n하는 값을 삽입하더라도 해당 값이 바인딩된 매개변수의 값으로만 사용되기 때문에 안전하다.\n10\n\nPART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+          "page": 14,
+          "type": "safe",
+          "label": "다음은 이를 안전한 코드로 변환한 예시를 보여준다. 앞선 예제와 달리 입력 받은 외부 입력값을 그대로"
+        },
+        {
+          "code": "1: from django.shortcuts import render\n2: from django.db import connection\n3:\n4: def update_board(request):\n5: ......\n6: dbconn = connection\n7:\n8: with dbconn.cursor() as curs:\n9: name = request.POST.get('name', '')\n10: content_id = request.POST.get('content_id', '')\n11:\n12: # 외부 입력값 조작으로부터 안전한 인자화된 쿼리를 생성한다.\n13: sql_query = 'update board set name=%s where content_id=%s'\n14:\n15: # 사용자의 입력값이 인자화된 쿼리에 바인딩 후 실행되므로 안전하다.\n16: curs.execute(sql_query, (name, content_id))\n17: dbconn.commit()\n18:\n19: return render(request, '/success.html')\nSQLite DB API 사용 시에도 동일하게 정적인 쿼리문을 사전에 생성하고 사용자 입력을 바인딩하는 방법을\n적용해야 한다. SQLite에서는 인자화된 쿼리를 만들기 위해 “?”를 Placeholder로 사용하거나 “:name”처럼\nNamed Placeholder를 사용하는 방법 2가지를 적용 가능하다.\n나) ORM 사용 예제\nDjango의 querysets는 쿼리 인자화를 사용해 쿼리를 구성하기 때문에 SQL 삽입 공격으로부터 안전하다.\n부득이하게 원시 SQL 또는 사용자 정의 SQL을 사용할 경우에도 외부 입력값을 인자화된 쿼리의 바인딩 변수로\n사용하면 된다.\n아래는 Django의 원시 SQL을 사용하는 예시를 보여 준다. Django의 ORM 프레임워크는 원시 SQL 쿼리를\n수행하기 위해 Manager.raw() 기능을 제공한다. 외부로부터 입력받은 외부 입력값(line 6)을 쿼리문 생성에\n문자열 조합으로 사용해 쿼리문을 구성하고 있다(line 11).\n11",
+          "page": 17,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "제1절 입력데이터 검증 및 표현",
+        "프로그램 입력값에 대한 검증 누락 또는 부적절한 검증, 데이터의 잘못된 형식지정, 일관되지 않은 언어셋",
+        "데이터베이스(DB)와 연동된 웹 응용프로그램에서 입력된 데이터에 대한 유효성 검증을 하지 않을 경우 공격자가",
+        "취약한 웹 응용프로그램에서는 사용자로부터 입력된 값을 검증 없이 넘겨받아 동적쿼리(Dynamic Query)를",
+        "PART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현"
+      ]
+    },
+    {
+      "section": "제1절 입력데이터 검증 및 표현",
+      "number": 3,
+      "korean_name": "경로 조작 및 자원 삽입",
+      "english_type": "Path_Traversal",
+      "start_page": 18,
+      "end_page": 21,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: from django.shortcuts import render\n2: from app.models import Member\n3:\n4: def member_search(request):\n5: name = request.POST.get('name', '')\n6:\n7: # 입력값을 검증 없이 쿼리문 생성에 사용해 안전하지 않다\n8: query=“select * from member where name=‘” + name + “’”\n9:\n10: # 외부 입력값을 검증 없이 사용한 쿼리문을 raw()함수로 실행하면 안전하지 않다\n11: data = Member.objects.raw(query)\n12: return render(request, '/member_list.html', {'member_list':data})\n다음 코드에서는 Django에서 원시 코드 실행 시에도 인자화된 쿼리와 params 인수를 raw() 함수의 바인딩\n변수로 사용하는 안전한 예시를 보여 준다. 외부 입력값을 포함하는 쿼리문 생성 자체를 인자화된 쿼리 형식으로\n생성하고(line 10), raw() 메소드에서 두 번째 인자의 바인딩 변수로 사용했다.",
+          "page": 18,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        },
+        {
+          "code": "외부로부터 입력 받은 값을 아무런 검증 없이 eval() 함수의 인자로 사용하고 있다(line 10).\n14\n\nPART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현\n외부 입력값을 검증 없이 사용할 경우 공격자는 파이썬 코드를 통해 악성 기능 실행을 위한 라이브러리 로드\n및 원격 대화형 쉘 등을 실행할 수도 있다. 예를 들어 공격자가 다음과 같은 코드를 입력할 경우 20초 동안\n응용 프로그램이 sleep 상태에 빠질 수 있다.\n예시) “compile(‘for x in range(1):\\n import time\\n time.sleep(20)’,’a’,’single’)”",
+          "page": 18,
+          "type": "unsafe",
+          "label": "다음은 안전하지 않은 코드로 eval()을 사용해 사용자로부터 입력받은 값을 실행하여 결과를 반환 하는 예제다."
+        },
+        {
+          "code": "1: from django.shortcuts import render\n2:\n3: def route(request):\n4: # 외부에서 입력받은 값을 검증 없이 사용하면 안전하지 않다\n5: message = request.POST.get('message', '')\n6:\n7: # 외부 입력값을 검증 없이 eval 함수에 전달할 경우 의도하지 않은 코드가\n8: # 실행될 수 있어 위험하다\n9: ret = eval(message)\n10:\n11: return render(request, '/success.html', {'data':ret})",
+          "page": 21,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: from django.shortcuts import render\n2: from app.models import Member\n3:\n4: def member_search(request):\n5: name = request.POST.get('name', '')\n6:\n7: # 외부 입력값을 raw() 함수 실행 시 바인딩 변수로 사용하여 쿼리 구조가\n8: # 변경되지 않도록 한다.(list 형은 %s, dictionary 형은 %(key)s를 사용)\n9: query='select * from member where name=%s'\n10:\n11: # 인자화된 쿼리문을 사용하여 raw() 함수를 호출해 안전하다\n12: data = Member.objects.raw(query, [name])\n13: return render(request, '/member_list.html', {'member_list':data})\n12\n\nPART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현\n라. 참고자료\n① CWE-89: Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection'), MITRE,\nhttps://cwe.mitre.org/data/definitions/89.html\n② SQL Injection Prevention Cheat Sheet, OWASP\nhttps://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html\n③ Sqlite3 DB-API, Python, Python Software Foundation,\nhttps://docs.python.org/ko/3/library/sqlite3.html\n④ MySQL, Python Coding Examples, Oracle Corporation\nhttps://dev.mysql.com/doc/connector-python/en/connector-python-examples.html\n⑤ Django QuerySet API reference, Django Software Foundation,\nhttps://docs.djangoproject.com/en/3.2/ref/models/querysets/\n⑥ Django Performing raw SQL queries, Django Software Foundation,\nhttps://docs.djangoproject.com/en/3.2/topics/db/sql/\n⑦ SQL Expression Language Tutorial, SQLAlchemy,\nhttps://docs.sqlalchemy.org/en/14/core/tutorial.html#using-textual-sql\n13\n\nPython 시큐어코딩 가이드\n2. 코드 삽입\n가. 개요\n공격자가 소프트웨어의 의도된 동작을 변경하도록 임의 코드를 삽입해 소프트웨어가 비정상적으로 동작하도록\n하는 보안약점을 말한다. 코드 삽입은 프로그래밍 언어 자체의 기능에 한해 이뤄진다는 점에서 운영체제 명령어\n삽입과 다르다. 프로그램에서 사용자의 입력값 내에 코드가 포함되는 것을 허용할 경우 공격자는 개발자가 의도\n하지 않은 코드를 실행해 권한을 탈취하거나 인증 우회, 시스템 명령어 실행 등을 할 수 있다.\n파이썬에서 코드 삽입 공격을 유발할 수 있는 함수로는 eval(), exec() 등이 있다. 해당 함수의 인자를 면밀히\n검증하지 않는 경우 공격자가 전달한 코드가 그대로 실행될 수 있다.\n나. 안전한 코딩기법\n동적코드를 실행할 수 있는 함수를 사용하지 않는다. 필요 시, 실행 가능한 동적 코드를 입력값으로 받지\n않도록 외부 입력값에 대해 화이트리스트 기반 검증을 수행해야 한다. 유효한 문자만 포함하도록 동적 코드에\n사용되는 사용자 입력값을 필터링 하는 방법도 있다.\n다. 코드예제",
+          "page": 18,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "특수 문자 등을 필터링 하는 사전 검증 코드를 추가하면 코드 삽입 공격 위험을 완화할 수 있다. 아래 코드는\n입력 받은 외부 입력값(line 4)을 eval() 함수의 인자 값으로 사용하기 전에 입력값이 영문과 숫자만으로 입력\n되었는지 검증 후(line 9) 사용하도록 하고 있다.",
+          "page": 18,
+          "type": "safe",
+          "label": "다음은 안전한 코드로 변환한 예제를 보여 준다. 외부 입력값 내에 포함된 (파이썬 코드를 실행할 수 있는)"
+        },
+        {
+          "code": "1: from django.shortcuts import render\n2:\n3: def route(request):\n4: message = request.POST.get('message', '')\n5:\n6: # 사용자 입력을 영문, 숫자로 제한하며, 만약 입력값 내에 특수문자가 포함되어\n7: # 있을 경우 에러 메시지를 반환 한다\n8: if message.isalnum():\n9: ret = eval(message)\n10: return render(request, '/success.html', {'data':ret})\n11:\n12: return render(request, '/error.html')\n15",
+          "page": 18,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "7: # 입력값을 검증 없이 쿼리문 생성에 사용해 안전하지 않다",
+        "10: # 외부 입력값을 검증 없이 사용한 쿼리문을 raw()함수로 실행하면 안전하지 않다",
+        "PART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+        "검증하지 않는 경우 공격자가 전달한 코드가 그대로 실행될 수 있다.",
+        "않도록 외부 입력값에 대해 화이트리스트 기반 검증을 수행해야 한다. 유효한 문자만 포함하도록 동적 코드에"
+      ]
+    },
+    {
+      "section": "제1절 입력데이터 검증 및 표현",
+      "number": 4,
+      "korean_name": "크로스사이트 스크립트",
+      "english_type": "XSS",
+      "start_page": 22,
+      "end_page": 28,
+      "description": "가. 개요 크로스사이트 스크립트 공격(Cross-site scripting Attacks)은 웹사이트에 악성 코드를 삽입하는 공격 방법 이다. 공격자는 대상 웹 응용프로그램의 결함을 이용해 악성코드(일반적으로 클라이언트 측 JavaScript 사용)를 사용자에게 보낸다. XSS공격은 일반적으로 애플리케이션 호스트 자체보다 사용자를 목표로 삼는다. XSS는 공격자가 웹 응용프로그램을 속여 브라우저에서 실행될 수 있는 형식의 데이터(코드)를 다른 사용자 에게 전달할 때 발생한다. 공격자가 임의로 구성한 기본 웹 코드 외에도 악성코드 다운로드, 플러그인 또는 미디어 콘텐츠를 이용할 수도 있다. 사용자가 폼 양식에 입력한 데이터 또는 서버에서 클라이언트 단말(브라우저) 전달된 데이터가 적절한 검증 없이 사용자에게 표시되도록 허용되는 경우 발생한다. XSS공격에는 크게 세 가지 유형의 공격방법이 있다. ⦁유형 1 : Reflective XSS (or Non-persistent XSS) 22",
+      "unsafe_codes": [
+        {
+          "code": "인자로 사용하고 있다(line 9). 이렇게 되면 중요 데이터 탈취 및 서버의 권한 탈취, 액세스 거부, 심지어 완전한\n호스트 탈취로도 이어질 수 있다.",
+          "page": 22,
+          "type": "unsafe",
+          "label": "다음은 exec() 함수를 사용한 안전하지 않은 코드 예제를 보여 준다. 외부 입력값을 검증 없이 exec 함수의"
+        },
+        {
+          "code": "1: from django.shortcuts import render\n2:\n3: def request_rest_api(request):\n4: function_name = request.POST.get('function_name', '')\n5:\n6: # 사용자에게 전달받은 함수명을 검증하지 않고 실행\n7: # 입력값으로 “__import__(‘platform’).system()” 등을 입력 시\n8: # 시스템 정보 노출 위험이 있다\n9: exec('{}()'.format(function_name))\n10:\n11: return render(request, '/success.html')\n16\n\nPART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현\n다음은 위 코드를 안전하게 변환한 예제다. 우선 외부로부터 입력 받은 문자열 내부에서 발견된 라이브러리\n이름이 사전에 정의한 화이트리스트에 포함되는지 확인하고 리스트에 없는 경우엔 에러 페이지를 반환한다.",
+          "page": 22,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        },
+        {
+          "code": "1: import os\n2: from django.shortcuts import render\n3:\n4: def get_info(request):\n5: # 외부 입력값으로부터 파일명을 입력 받는다\n6: request_file = request.POST.get('request_file')\n7: (filename, file_ext) = os.path.splitext(request_file)\n8: file_ext = file_ext.lower()\n9:\n10: if file_ext not in ['.txt', '.csv']:\n11: return render(request, '/error.html', {'error':'파일을 열 수 없습니다.'})\n12:\n13: # 입력값을 검증 없이 파일 처리에 사용했다\n14: with open(request_file) as f:\n15: data = f.read()\n16:\n17: return render(request, '/success.html', {'data':data})\n외부 입력값에서 경로 조작 문자열 ( /, \\, .. 등)을 제거한 후 파일의 경로 설정에 사용하면 코드를 안전하게\n만들 수 있다. replace 함수 외에도 re.sub, filter 함수를 사용해 특수문자를 필터링 하는 것도 가능하다.",
+          "page": 25,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        },
+        {
+          "code": "검증 없이 사용할 경우 기존 자원과의 충돌로 의도치 않은 에러가 발생할 수 있다.",
+          "page": 22,
+          "type": "unsafe",
+          "label": "다음은 안전하지 않은 코드 예시로, 외부 입력을 소켓 포트 번호로 그대로 사용하고 있다. 외부 입력값을"
+        },
+        {
+          "code": "1: import socket\n2: from django.shortcuts import render\n3:\n4: def get_info(request):\n5: port = int(request.POST.get('port'))\n6:\n7: with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:\n8: # 외부로부터 입력받은 검증되지 않은 포트 번호를 이용하여\n9: # 소켓을 바인딩하여 사용하고 있어 안전하지 않다\n10: s.bind(('127.0.0.1', port))\n11: ...\n12: return render(request, '/success.html')\n13: return render(request, '/error.html', {'error':'소켓연결 실패'})\n다음은 안전한 예제를 보여 준다. 내부 자원에 접근 시 외부에서 입력 받은 값을 포트 번호와 같은 식별자로\n그대로 사용하는 것은 바람직하지 않으며, 꼭 필요한 경우엔 허용 가능한 목록을 설정한 후 목록 내에 포함된\n포트만 할당되도록 코드를 작성해야 한다.\n20\n\nPART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+          "page": 22,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: from django.shortcuts import render\n2:\n3: WHITE_LIST = ['get_friends_list', 'get_address', 'get_phone_number']\n4:\n5: def request_rest_api(request):\n6: function_name = request.POST.get('function_name', '')\n7:\n8: # 사용 가능한 함수를 화이트리스트 목록 내의 함수로 제한\n9: if function_name in WHITE_LIST:\n10: exec('{}()'.format(function_name))\n11: return render(request, '/success.html')\n12:\n13: return render(request, '/error.html', {'error':'허용되지 않은 함수입니다.'})\n라. 참고자료\n① CWE-94: Improper Control of Generation of Code ('Code Injection'), MITRE,\nhttps://cwe.mitre.org/data/definitions/94.html\n② CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code ('Eval Injection'), MITRE,\nhttps://cwe.mitre.org/data/definitions/95.html\n③ Code Injection, OWASP,\nhttps://owasp.org/www-community/attacks/Code_Injection\n④ Python Built-in Functions - eval(), exec(), compile(), Python Software Foundation,\nhttps://docs.python.org/3/library/functions.html#eval\nhttps://docs.python.org/3/library/functions.html#exec\nhttps://docs.python.org/3/library/functions.html#compile\n⑤ Python Built-in Types – isalnum(), Python Software Foundation,\nhttps://docs.python.org/3/library/stdtypes.html\n⑥ Reqular expression operations, Python Software Foundation,\nhttps://docs.python.org/3/library/re.html#module-re\n17\n\nPython 시큐어코딩 가이드\n3. 경로 조작 및 자원 삽입\n가. 개요\n검증되지 않은 외부 입력값을 통해 파일 및 서버 등 시스템 자원(파일, 소켓의 포트 등)에 대한 접근 혹은\n식별을 허용할 경우 입력값 조작으로 시스템이 보호하는 자원에 임의로 접근할 수 있는 보안약점이다. 경로조작\n및 자원삽입 약점을 이용해 공격자는 자원 수정·삭제, 시스템 정보누출, 시스템 자원 간 충돌로 인한 서비스\n장애 등을 유발시킬 수 있다. 또한 경로 조작 및 자원 삽입을 통해서 공격자가 허용되지 않은 권한을 획득해\n설정 파일을 변경하거나 실행시킬 수 있다.\n파이썬에서는 subprocess.popen()과 같이 프로세스를 여는 함수, os.pipe()처럼 파이프를 여는 함수,\nsocket 연결 등에서 외부 입력값을 검증 없이 사용할 경우 경로 조작 및 자원 삽입의 취약점이 발생할 수 있다.\n나. 안전한 코딩기법\n외부로부터 받은 입력값을 자원(파일, 소켓의 포트 등)의 식별자로 사용하는 경우 적절한 검증을 거치도록\n하거나 사전에 정의된 리스트에 포함된 식별자만 사용하도록 해야 한다. 특히 외부의 입력이 파일명인 경우에는\n필터를 적용해 경로순회(directory traversal) 공격의 위험이 있는 문자( /, \\, .. 등)를 제거해야 한다.\n다. 코드예제\n가) 경로 조작 예제\n다음은 외부 입력값으로 파일 경로 등을 입력받아 파일을 여는 예시를 보여 준다. 만약 공격자가\n‘../../.",
+          "page": 23,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: import os\n2: from django.shortcuts import render\n3:\n4: def get_info(request):\n5: request_file = request.POST.get('request_file')\n6: (filename, file_ext) = os.path.splitext(request_file)\n7: file_ext = file_ext.lower()\n8:\n9: # 외부 입력값으로 받은 파일 이름은 검증하여 사용한다.\n10: if file_ext not in ['.txt', '.csv']:\n11: return render(request, '/error.html', {'error':'파일을 열수 없습니다.'})\n12:\n13: # 파일 명에서 경로 조작 문자열을 필터링 한다.\n14: filename = filename.replace('.', '')\n15: filename = filename.replace('/', '')\n16: filename = filename.replace('\\\\', '')\n19\n\nPython 시큐어코딩 가이드",
+          "page": 22,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "17:\n18: try:\n19: with open(filename + file_ext) as f:\n21: data = f.read()\n22: except:\n23: return render(\n24: request, \"/error.html\", {\"error\": \"파일이 존재하지 않거나 열 수 없는 파일입니다.\"}\n25: )\n26:\n27: return render(request, '/success.html', {'data':data})\n나) 자원 삽입 예제",
+          "page": 26,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: import socket\n2: from django.shortcuts import render\n3:\n4: ALLOW_PORT = [4000, 6000, 9000]\n5:\n6: def get_info(request):\n7: port = int(request.POST.get('port'))\n8:\n9: # 사용 가능한 포트 번호를 화이트리스트 내의 포트로 제한\n10: if port not in ALLOW_PORT:\n11: return render(request, '/error.html', {'error':'소켓연결 실패'})\n12:\n13: with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:\n14: s.bind(('127.0.0.1', port))\n15: ......\n16: return render(request, '/success.html')\n라. 참고자료\n① CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal'), MITRE,\nhttps://cwe.mitre.org/data/definitions/22.html\n② CWE-99: Improper Control of Resource Identifiers ('Resource Injection'), MITRE,\nhttps://cwe.mitre.org/data/definitions/99.html\n③ Path Traversal, OWASP,\nhttps://owasp.org/www-community/attacks/Path_Traversal\n④ Resource Injection, OWASP,\nhttps://owasp.org/www-community/attacks/Resource_Injection\n⑤ File Uploads, Django Software Foundation,\nhttps://docs.djangoproject.com/en/3.2/topics/http/file-uploads/\n⑥ HTML Helpers, Werkzeug,\nhttps://werkzeug.palletsprojects.com/en/2.0.x/utils/#module-werkzeug.utils\n21\n\nPython 시큐어코딩 가이드\n4. 크로스사이트 스크립트(XSS)\n가. 개요\n크로스사이트 스크립트 공격(Cross-site scripting Attacks)은 웹사이트에 악성 코드를 삽입하는 공격 방법\n이다. 공격자는 대상 웹 응용프로그램의 결함을 이용해 악성코드(일반적으로 클라이언트 측 JavaScript 사용)를\n사용자에게 보낸다. XSS공격은 일반적으로 애플리케이션 호스트 자체보다 사용자를 목표로 삼는다.\nXSS는 공격자가 웹 응용프로그램을 속여 브라우저에서 실행될 수 있는 형식의 데이터(코드)를 다른 사용자\n에게 전달할 때 발생한다. 공격자가 임의로 구성한 기본 웹 코드 외에도 악성코드 다운로드, 플러그인 또는\n미디어 콘텐츠를 이용할 수도 있다. 사용자가 폼 양식에 입력한 데이터 또는 서버에서 클라이언트 단말(브라우저)\n전달된 데이터가 적절한 검증 없이 사용자에게 표시되도록 허용되는 경우 발생한다.\nXSS공격에는 크게 세 가지 유형의 공격방법이 있다.\n⦁유형 1 : Reflective XSS (or Non-persistent XSS)\n22",
+          "page": 27,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "검증을 수행해야 한다. 아래는 파이썬에서 제공하는 입력값 검증용 String 메소드 예시를 보여 준다.",
+        "입력값 검증 시 외부 입력값이 특정 형식을 따라야 하는 경우 정규 표현식을 이용해 검증을 할 수 있다.",
+        "파이썬에서는 re 라이브러리를 사용해 정규식 기반 검증이 가능하다. 예를 들어 이메일 형식의 입력만 허용하고",
+        "다음은 exec() 함수를 사용한 안전하지 않은 코드 예제를 보여 준다. 외부 입력값을 검증 없이 exec 함수의",
+        "6: # 사용자에게 전달받은 함수명을 검증하지 않고 실행"
+      ]
+    },
+    {
+      "section": "제1절 입력데이터 검증 및 표현",
+      "number": 5,
+      "korean_name": "운영체제 명령어 삽입",
+      "english_type": "Command_Injection",
+      "start_page": 29,
+      "end_page": 32,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: from django.shortcuts import render\n2: from django.utils.safestring import mark_safe\n3:\n4: def profile_link(request):\n5: # 외부 입력값을 검증 없이 HTML 태그 생성의 인자로 사용\n6: profile_url = request.POST.get('profile_url')\n7: profile_name = requst.POST.get('profile_name')\n8:\n9: object_link = '<a href=\"{}\">{}</a>'.format(profile_url, profile_name)\n10: # mark_safe함수는 Django의 XSS escape 정책을 따르지 않는다\n11: object_link = mark_safe(object_link)\n12:\n13: return render(request, 'my_profile.html',{'object_link':object_link})\nDjango 프레임워크는 템플릿 생성 시 HTML에서 위험한 것으로 간주되는 특수 문자(“<”, “>”, “‘”, “””,\n“&”)를 모두 HTML 엔티티로 치환 하지만 mark_safe를 사용할 경우 이 정책을 따르지 않는다. 따라서\nmark_safe 함수를 사용할 경우에는 각별한 주의가 필요하고 신뢰할 수 없는 데이터에 대해서는 mark_safe\n함수를 사용하지 않아야 한다.\n25\n\nPython 시큐어코딩 가이드",
+          "page": 31,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        },
+        {
+          "code": "1: <!doctype html>\n2: <html>\n3: <body>\n4: <div class=\"content\">\n5: {% autoescape off %}\n6: <!-- autoescape off로 설정하면 해당 블록내의 데이터는 XSS 공격에\n7: 노출될 수 있다 -->\n8: {{ content }}\n9: {% endautoescape %}\n10: </div>\n11: <div class=\"content2\">\n12: <!-- safe 필터 사용으로 XSS 공격에 노출될 수 있다 -->\n13: {{ content | safe }}\n14: </div>\n15: </body>\n16: </html>\n신뢰할 수 없는 입력값 또는 동적 데이터에 대해서는 autoescape 옵션 값을 on으로 설정해야 하며, safe\n필터를 부득이 하게 사용할 경우에는 추가적인 보안대책이 필요하다.\n26",
+          "page": 29,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: from django.shortcuts import render\n2:\n3: def profile_link(request):\n4: # 외부 입력값을 검증 없이 HTML 태그 생성의 인자로 사용\n5: profile_url = request.POST.get('profile_url')\n6: profile_name = requst.POST.get('profile_name')\n7:\n8: object_link = '<a href=\"{}\">{}</a>'.format(profile_url, profile_name)\n9: # 신뢰할 수 없는 데이터에 대해서는 mark_safe 함수를 사용해선 안 된다\n10:\n11: return render(request, 'my_profile.html',{'object_link':object_link})\n다음은 또 다른 Django 프레임워크 템플릿 예제를 보여 준다. autoescape 블록 사용 시 설정값을 off로\n할 경우와 개별 변수에 대해서 safe 필터를 사용할 경우 크로스사이트 스크립트 공격에 노출될 수 있다.",
+          "page": 32,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "PART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+        "사용자로 하여금 공격자가 만든 서버로 데이터를 보내도록 해야 한다. 이 방법은 보통 악의적으로 제작된",
+        "- Persistent XSS는 신뢰할 수 없거나 확인되지 않은 사용자 입력(코드)이 서버에 저장되고, 이 데이터가",
+        "- DOM XSS은 웹 페이지에 있는 사용자 입력값을 적절하게 처리하기 위한 JavaScript의 검증 로직을 무효화",
+        "사용해 문자열을 변환해야 한다. HTML 태그를 허용해야 하는 게시판에서는 허용할 HTML 태그들을 화이트"
+      ]
+    },
+    {
+      "section": "제1절 입력데이터 검증 및 표현",
+      "number": 6,
+      "korean_name": "위험한 형식 파일 업로드",
+      "english_type": "File_Upload",
+      "start_page": 33,
+      "end_page": 35,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: from flask import Flask, request, render_template\n2:\n3: @app.route('/search', methods=['POST'])\n4: def search():\n5: search_keyword = request.form.get('search_keyword')\n6: # 사용자의 입력을 아무런 검증 또는 치환 없이 동적 웹페이지에 사용하고 있어\n7: # XSS 공격이 발생할 수 있다\n8: return render_template('search.html', search_keyword=search_keyword)\n27\n\nPython 시큐어코딩 가이드\n동적 웹 페이지 생성에 사용하는 데이터를 HTML 엔티티 코드 (Entity Code)로 치환하여 안전하게 표현해야\n한다. html.escape 메소드는 문자열의 &, < 및 > 특수문자를 HTML에서 안전한 값으로 변환한다. quote\n옵션 값이 True이면 문자 (“)와 (‘)도 변환된다. <a href=”…“>에서처럼 따옴표로 구분된 HTML 속성\n(attribute) 값이 들어간 문자열을 포함할 경우에도 사용할 수 있다.",
+          "page": 33,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: <!doctype html>\n2: <html>\n3: <body>\n4: <div class=\"content\">\n5: {% autoescape on %}\n6: <!--autoescape on으로 해당 블록내의 데이터는 XSS 공격에 노출되지 않음. -->\n7: {{ content }}\n8: {% endautoescape %}\n9: </div>\n10: <div class=\"content2\">\n11: <!-- 검증되지 않은 데이터에는 safe 필터를 사용하지 않는다. -->\n12: {{ content }}\n13: </div>\n14: </body>\n15: </html>\nautoescape 블록을 사용할 경우 많은 주의를 기울여야 한다. autoescape 옵션값을 off로 설정한 템플릿\n페이지를 include 또는 extends하는 템플릿까지 영향이 확장된다. 공통적으로 사용하는 템플릿페이지에 off로\n설정할 경우 템플릿 페이지가 XSS 공격에 노출될 수 있다.\n나) Flask에서의 예제\n사용자의 요청에 포함된 값, DB에 저장된 값 또는 내부의 연산을 통해서 생성된 값을 포함한 데이터를 동적\n웹페이지 생성에 사용하는 경우 XSS 공격이 발생할 가능성이 있어 위험하다. 아래 예제는 Flask 프레임워크를\n사용한 안전하지 않은 사례를 보여 준다.",
+          "page": 33,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: import html\n2: from flask import Flask, request, render_template\n3:\n4: @app.route('/search', methods=['POST'])\n5: def search():\n6: search_keyword = request.form.get('search_keyword')\n7:\n8: # 동적 웹페이지 생성에 사용되는 데이터는\n9: # HTML 엔티티코드로 치환하여 표현해야 한다\n10: escape_keyword = html.escape(search_keyword)\n11: return render_template('search.html', search_keyword=escape_keyword)\n라. 참고자료\n① CWE-79: Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting'), MITRE,\nhttps://cwe.mitre.org/data/definitions/79.html\n② Cross Site Scripting (XSS), OWASP,\nhttps://owasp.org/www-community/attacks/xss/\n③ html - HyperText Markup Language support, Python Software Foundation,\nhttps://docs.python.org/3/library/html.html\n④ Flask Security Considerations Cross-Site Scripting (XSS), Flask docs,\nhttps://flask-docs-kr.readthedocs.io/ko/latest/security.html\n⑤ Django Security in Django Cross site scripting (XSS) protection, Django Software Foundation,\nhttps://docs.djangoproject.com/en/3.2/topics/security/\n28\n\nPART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현\n5. 운영체제 명령어 삽입\n가. 개요\n적절한 검증 절차를 거치지 않은 사용자 입력값이 운영체제 명령어의 일부 또는 전부로 구성되어 실행되는\n경우 의도하지 않은 시스템 명령어가 실행돼 부적절하게 권한이 변경되거나 시스템 동작 및 운영에 악영향을\n미칠 수 있다.\n명령어 라인의 파라미터나 스트림 입력 등 외부 입력을 사용해 시스템 명령어를 생성 하는 프로그램을 많이\n찾아볼 수 있다. 이 경우 프로그램 외부로부터 받은 입력 문자열은 기본적으로 신뢰할 수 없기 때문에 적절한\n처리를 해주지 않으면 공격으로 이어질 수 있다.\n파이썬에서 eval() 함수와 exec() 함수는 내부에서 문자열을 실행하기에 편리하지만, String 형식의 표현된\n식을 인수로 받아 반환하는 eval() 함수와 인수로 받은 문자열을 실행하는 exec()를 같이 사용하면 여러 변수들에\n동적으로 값을 할당해 사용할 수 있어 명령어 삽입(Command Injection) 공격에 취약하다.\n나. 안전한 코딩기법\n외부 입력값 내에 시스템 명령어를 포함하는 경우 |, ;, &, :, >, <, `(backtick), \\, ! 과 같이 멀티라인 및\n리다이렉트 문자 등을 필터링 하고 명령을 수행할 파일명과 옵션을 제한해 인자로만 사용될 수 있도록 해야\n한다. 외부 입력에 따라 명령어를 생성하거나 선택이 필요한 경우에는 명령어 생성에 필요한 값들을 미리 지정해\n놓고 사용해야 한다.\n29",
+          "page": 34,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "PART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+        "11: <!-- 검증되지 않은 데이터에는 safe 필터를 사용하지 않는다. -->",
+        "autoescape 블록을 사용할 경우 많은 주의를 기울여야 한다. autoescape 옵션값을 off로 설정한 템플릿",
+        "6: # 사용자의 입력을 아무런 검증 또는 치환 없이 동적 웹페이지에 사용하고 있어",
+        "동적 웹 페이지 생성에 사용하는 데이터를 HTML 엔티티 코드 (Entity Code)로 치환하여 안전하게 표현해야"
+      ]
+    },
+    {
+      "section": "제1절 입력데이터 검증 및 표현",
+      "number": 7,
+      "korean_name": "신뢰되지 않은 URL주소로 자동접속 연결",
+      "english_type": "Open_Redirect",
+      "start_page": 36,
+      "end_page": 38,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: import os\n2: from django.shortcuts import render\n3:\n4: def execute_command(request):\n5: app_name_string = request.POST.get('app_name','')\n6: # 입력 파라미터를 제한하지 않아 외부 입력값으로 전달된\n7: # 모든 프로그램이 실행될 수 있음\n8: os.system(app_name_string)\n9: return render(request, '/success.html')\n외부에서 입력받은 값이 명령어의 인자로 사용되지 않고 명령어 그 자체로 사용될 경우에는 사전에 화이트\n리스트 파라미터 배열을 정의한 후 외부의 입력에 따라 적절한 파라미터를 선택하도록 하여 외부의 부적절한\n입력이 명령어로 사용되는 것을 금지해야 한다.",
+          "page": 36,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        },
+        {
+          "code": "1: import subprocess\n2: from django.shortcuts import render\n3:\n4: def execute_command(request):\n5: date = request.POST.get('date','')\n6: # 입력받은 파라미터를 제한하지 않아 전달된 모든 프로그램이 실행될 수 있음\n7: cmd_str = “cmd /c backuplog.bat ” + date\n8: subprocess.run(cmd_str, shell=True)\n9: return render(request, '/success.html')\n운영체제 명령어 실행 시에는 외부에서 들어오는 값에 의하여 멀티라인을 지원하는 특수문자(|, ;, &, :, `,\n\\, !)나 파일 리다이렉트 특수문자( >, >> )등을 제거하여 원하지 않는 운영체제 명령어가 실행될 수 없도록\n필터링을 수행한다.\n명령어 라인을 구문 분석하고 escape 하는 기능을 제공하는 모듈인 shlex 모듈을 사용해 필터링을 수행할\n수 있다. subprocess의 옵션 값 중 shell를 True로 설정할 경우 중간 프로세스에 의해 명령이 실행되고 파일\n이름, 와일드카드(*), 환경변수 확장 등의 쉘 기능을 검증 없이 실행하게 되므로 shell의 옵션은 삭제해야 한다\n(기본값은 False).\n31\n\nPython 시큐어코딩 가이드",
+          "page": 37,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: import os\n2: from django.shortcuts import render\n3:\n4: ALLOW_PROGRAM = ['notepad', 'calc']\n5:\n6: def execute_command(request):\n7: app_name_string = request.POST.get('app_name','')\n8:\n9: # 입력받은 파라미터가 허용된 시스템 명령어 목록에 포함되는지 검사\n10: if app_name_string not in ALLOW_PROGRAM:\n11: return render(request, '/error.html', {'error':'허용되지 않은 프로그램입니다.'})\n12:\n13: os.system(app_name_string)\n14: return render(request, '/success.html')\n30\n\nPART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현\n다음은 subprocess() 함수를 사용해 별도의 프로세스로 응용 프로그램을 실행하는 안전하지 않은 예제다.\n외부 입력값으로 받은 파라미터를 별도의 검증 없이 subprocess의 인자 값으로 사용하고 있다.",
+          "page": 36,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: import subprocess\n2: from django.shortcuts import render\n3:\n4: def execute_command(request):\n5: date = request.POST.get('date','')\n6:\n7: # 명령어를 추가로 실행 또는 또 다른 명령이 실행될 수 있는 키워드에\n8: # 대한 예외처리\n9: for word in ['|', ';', '&', ':', '>', '<', '`', '\\\\', '!']:\n10: date = date.replace(word, “”)\n11: # re.sub 함수를 사용해 특수문자를 제거하는 방법도 있다\n12: # date = re.sub('[|;&:><`\\\\\\!]', '', date)\n13:\n14: # shell=True 옵션은 제거 하고 명령과 인자를 배열로 입력\n15: subprocess.run([\"cmd\", \"/c\", \"backuplog.bat\", date])\n16: return render(request, '/success.html')\n라. 참고자료\n① CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection'), MITRE,\nhttps://cwe.mitre.org/data/definitions/78.html\n② Command Injection, OWASP\nhttps://owasp.org/www-community/attacks/Command_Injection\n③ OS Command Injection Defense Cheat Sheet, OWASP\nhttps://cheatsheetseries.owasp.org/cheatsheets/OS_Command_Injection_Defense_Cheat_Sheet.html\n④ Miscellaneous operating system interfaces - os.system(), Python Software Foundation\nhttps://docs.python.org/3.10/library/os.html?highlight=os%20system#module-os\n⑤ Subprocess management, Python Software Foundation,\nhttps://docs.python.org/ko/3/library/subprocess.html#security-considerations\n⑥ Regular expression operations, Python Software Foundation,\nhttps://docs.python.org/3/library/re.html\n32",
+          "page": 38,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "입력이 명령어로 사용되는 것을 금지해야 한다.",
+        "PART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+        "외부 입력값으로 받은 파라미터를 별도의 검증 없이 subprocess의 인자 값으로 사용하고 있다.",
+        "이름, 와일드카드(*), 환경변수 확장 등의 쉘 기능을 검증 없이 실행하게 되므로 shell의 옵션은 삭제해야 한다"
+      ]
+    },
+    {
+      "section": "제1절 입력데이터 검증 및 표현",
+      "number": 8,
+      "korean_name": "부적절한 XML 외부 개체 참조",
+      "english_type": "XXE",
+      "start_page": 39,
+      "end_page": 41,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: from django.shortcuts import render\n2: from django.core.files.storage import FileSystemStorage\n3:\n4: def file_upload(request):\n5: if request.FILES['upload_file']:\n6: # 사용자가 업로드하는 파일을 검증 없이 저장하고 있어\n7: # 안전하지 않다\n8: upload_file = request.FILES['upload_file']\n9: fs = FileSystemStorage(location='media/screenshot', base_url='media/screenshot')\n10: # 업로드 하는 파일에 대한 크기, 개수, 확장자 등을 검증하지 않음\n11: filename = fs.save(upload_file.name, upload_file)\n12: return render(request, '/success.html', {'filename':filename})\n13: return render(request, '/error.html', {'error':'파일 업로드 실패'})\n아래 코드는 업로드 하는 파일의 개수, 크기, 파일 확장자 등을 검사해 업로드를 제한하고 있다. 파일 타입\n확인은 MIME 타입을 확인하는 과정으로 파일 이름에서 확장자만 검사할 경우 변조된 확장자를 통해 업로드\n제한을 회피할 수 있어 파일자체의 시그니처를 확인하는 과정을 보여 준다.",
+          "page": 40,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: import os\n2: from django.shortcuts import render\n3: from django.core.files.storage import FileSystemStorage\n4:\n5: # 업로드 하는 파일 개수, 크기, 확장자 제한\n6: FILE_COUNT_LIMIT = 5\n7: # 업로드 하는 파일의 최대 사이즈 제한 예 ) 5MB - 5*1024*1024\n8: FILE_SIZE_LIMIT = 5242880\n9: # 허용하는 확장자는 화이트리스트로 관리한다.\n10: WHITE_LIST_EXT = [\n11: '.jpg',\n12: '.jpeg'\n13: ]\n34\n\nPART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+          "page": 39,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "14:\n15: def file_upload(request):\n16: # 파일 개수 제한\n17: if len(request.FILES) == 0 or len(request.FILES) > FILE_COUNT_LIMIT:\n18: return render(request, '/error.html', {'error': '파일 개수 초과'})\n19:\n20: for filename, upload_file in request.FILES.items():\n21: # 파일 타입 체크\n22: if upload_file.content_type != 'image/jpeg':\n23: return render(request, '/error.html', {'error': '파일 타입 오류'})\n24: # 파일 크기 제한\n25: if upload_file.size > FILE_SIZE_LIMIT:\n26: return render(request, '/error.html', {'error': '파일사이즈 오류'})\n27: # 파일 확장자 검사\n28: file_name, file_ext = os.path.splitext(upload_file.name)\n29: if file_ext.lower() not in WHITE_LIST_EXT:\n30: return render(request, '/error.html', {'error': '파일 타입 오류'})\n31:\n32: fs = FileSystemStorage(location='media/screenshot', base_url = 'media/screenshot')\n33: for upload_file in request.FILES.values():\n34: filename = fs.save(upload_file.name, upload_file)\n35: filename_list.append(filename)\n36:\n37: return render(request, \"/success.html\", {\"filename_list\": filename_list})\n라. 참고자료\n① CWE-434: Unrestricted Upload of File with Dangerous Type, MITRE,\nhttps://cwe.mitre.org/data/definitions/434.html\n② Unrestricted File Upload, OWASP,\nhttps://owasp.org/www-community/vulnerabilities/Unrestricted_File_Upload\n③ User-uploaded content, Django Software Foundation,\nhttps://docs.djangoproject.com/en/3.2/topics/security/#user-uploaded-content-security\n35",
+          "page": 41,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "PART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+        "파일 업로드 공격을 방지하기 위해서 특정 파일 유형만 허용하도록 화이트리스트 방식으로 파일 유형을 제한",
+        "해야 한다. 이때 파일의 확장자 및 업로드 된 파일의 Content-Type도 함께 확인해야 한다. 또한 파일 크기",
+        "및 파일 개수를 제한하여 시스템 자원 고갈 등으로 서비스 거부 공격이 발생하지 않도록 제한해야 한다. 업로드",
+        "된 파일을 웹 루트 폴더 외부에 저장해 공격자가 URL을 통해 파일을 실행할 수 없도록 해야 하며, 가능하면"
+      ]
+    },
+    {
+      "section": "제1절 입력데이터 검증 및 표현",
+      "number": 9,
+      "korean_name": "XML 삽입",
+      "english_type": "XML_Injection",
+      "start_page": 42,
+      "end_page": 43,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: from django.shortcuts import redirect\n2:\n3: def redirect_url(request):\n4: url_string = request.POST.get('url', '')\n5: # 사용자 입력에 포함된 URL 주소로 리다이렉트 하는 경우\n6: # 피싱 사이트로 접속되는 등 사용자가 피싱 공격에 노출될 수 있다\n7: return redirect(url_string)",
+          "page": 43,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "포함될 수 있기 때문에 화이트리스트로 사전에 정의된 안전한 웹사이트에 한하여 리다이렉트 할 수 있도록 한다.",
+          "page": 42,
+          "type": "safe",
+          "label": "다음은 안전한 코드 예제로 사용자로부터 주소를 입력받아 리다이렉트하고 있는 코드로 위험한 도메인이"
+        },
+        {
+          "code": "1: from django.shortcuts import render, redirect\n2:\n3: ALLOW_URL_LIST = [\n4: '127.0.0.1',\n5: '192.168.0.1',\n6: '192.168.0.100',\n7: 'https://login.myservice.com',\n8: '/notice',\n9: ]\n10:\n11: def redirect_url(request):\n12: url_string = request.POST.get('url', '')\n13:\n14: # 이동할 수 있는 URL 범위를 제한하여\n15: # 위험한 사이트의 접근을 차단하고 있다\n16: if url_string not in ALLOW_URL_LIST:\n17: return render(request, '/error.html', {'error':'허용되지 않는 주소입니다.'})\n18:\n19: return redirect(url_string)\n37",
+          "page": 42,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "확인해야 한다. Flask 프레임워크의 Flask-Security-Too 라이브러리의 경우 get_post_logout_redirect 함수와",
+        "URL이 존재하는지 검증해야 한다.",
+        "경우는 모든 리다이렉션에서 프로토콜과 host 정보가 들어가지 않는 상대 URL(relative)을 사용 및 검증해야",
+        "https://myhompage.com/ 처럼 서비스하고 있는 URL로 시작하는지를 확인해야 한다.",
+        "PART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현"
+      ]
+    },
+    {
+      "section": "제1절 입력데이터 검증 및 표현",
+      "number": 10,
+      "korean_name": "LDAP 삽입",
+      "english_type": "LDAP_Injection",
+      "start_page": 44,
+      "end_page": 47,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: from xml.sax import make_parser\n2: from xml.sax.handler import feature_external_ges\n3: from xml.dom.pulldom import parseString, START_ELEMENT\n4: from django.shortcuts import render\n5: from .model import comments\n6:\n7: def get_xml(request):\n8: if request.method == “GET”:\n9: data = comments.objects.all()\n10: com = data[0].comment\n11: return render(request, '/xml_view.html', {'com':com})\n12:\n13: elif request.method == “POST”:\n14: parser = make_parser()\n15: # 외부 일반 엔티티를 포함하는 설정을 True로 적용할 경우 취약하다\n16: parser.setFeature(feature_external_ges, True)\n17: doc = parseString(request.body.decode(‘utf-8’), parser=parser)\n18: for event, node in doc:\n19: if event == START_ELEMENT and node.tagName == “foo”:\n20: doc.expandNode(node)\n21: text = node.toxml()\n22: comments.objects.filter(id=1).update(comment=text)\n23: return render(request, '/xml_view.html')\n40\n\nPART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현\n만약 sax 패키지를 사용해 XML을 파싱할 경우 외부 엔티티를 처리하는 방식의 옵션(feature_external_ges)을\nFalse로 설정해야 한다.",
+          "page": 44,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: from xml.sax import make_parser\n2: from xml.sax.handler import feature_external_ges\n3: from xml.dom.pulldom import parseString, START_ELEMENT\n4: from django.shortcuts import render\n5: from .model import comments\n6:\n7: def get_xml(request):\n8: if request.method == “GET”:\n9: data = comments.objects.all()\n10: com = data[0].comment\n11: return render(request, '/xml_view.html', {'com':com})\n12:\n13: elif request.method == “POST”:\n14: parser = make_parser()\n15: parser.setFeature(feature_external_ges, False)\n16: doc = parseString(request.body.decode(‘utf-8’), parser=parser)\n17: for event, node in doc:\n18: if event == START_ELEMENT and node.tagName == “foo”:\n19: doc.expandNode(node)\n20: text = node.toxml()\n21: comments.objects.filter(id=1).update(comment=text);\n22: return render(request, '/xml_view.html')\n라. 참고자료\n① CWE-611: Improper Restriction of XML External Entity Reference, MITRE,\nhttps://cwe.mitre.org/data/definitions/611.html\n② XML External Entity (XXE) Processing, OWASP,\nhttps://owasp.org/www-community/vulnerabilities/XML_External_Entity_(XXE)_ Processing\n③ XML External Entity Prevention Cheat Sheet, OWASP,\nhttps://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html\n④ XML vulnerabilities, Python Software Foundation,\nhttps://docs.python.org/3/library/xml.html#xml-vulnerabilities\n⑤ lxml API, lxml library,\nhttps://lxml.de/api/lxml.etree.XMLParser-class.html\n⑥ PyGoat, OWASP,\nhttps://github.com/adeyosemanputra/pygoat\n41",
+          "page": 47,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "PART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+        "로컬 정적 DTD를 사용하도록 설정하고 외부에서 전송된 XML 문서에 포함된 DTD를 완전하게 비활성화해야",
+        "외부 라이브러리를 사용할 경우 기본적으로 외부 엔티티에 대한 구문 분석 기능을 제공하는지 확인하고 제공이",
+        "되는 경우 해당 기능을 비활성화 할 수 있는 방법을 확인해 외부 엔티티 구문 분석 기능을 비활성화 한다.",
+        "비활성화 해야 한다. 또한 외부 문서 조회 시 네트워크 액세스를 방지하는 no_network 옵션이 활성화(True)"
+      ]
+    },
+    {
+      "section": "제1절 입력데이터 검증 및 표현",
+      "number": 11,
+      "korean_name": "크로스사이트 요청 위조",
+      "english_type": "CSRF",
+      "start_page": 48,
+      "end_page": 54,
+      "description": "가. 개요 특정 웹사이트에 대해 사용자가 인지하지 못한 상황에서 사용자의 의도와는 무관하게 공격자가 의도한 행위 (수정, 삭제, 등록 등)를 요청하게 하는 공격을 말한다. 웹 응용프로그램이 사용자로부터 받은 요청이 해당 사용자가 의도한 대로 작성되고 전송된 것인지 확인하지 않는 경우 발생 가능하다. 특히 사용자가 관리자 권한을 가지는 경우 사용자 권한관리, 게시물 삭제, 사용자 등록 등 관리자 권한으로만 수행 가능한 기능을 공격자의 의도대로 실행시킬 수 있게 된다. 공격자는 사용자가 인증한 세션이 특정 동작을 수행해도 계속 유지되어 정상적인 요청과 비정상적인 요청을 구분하지 못하는 점을 악용한다. 파이썬에서 가장 많이 사용하고 있는 Django 프레임워크와 Flask 프레임워크에서는 각각 CSRF(Cross-Site Request Forgery) 토큰 기능을 지원하고 있으며, Django는 {% csrf token %} 태그를 이용해 CSRF 토큰 기능 제공하고 Flask에서는 Flask-WTF 확장 라이브러리를 통해 {{form.csrf_token}} 태그를 이용한 CSRF 토큰 기능을 제공해 태그를 사용하는 경우 CSRF 공격에 대비할 수 있다.",
+      "unsafe_codes": [
+        {
+          "code": "1: from django.shortcuts import render\n2: from lxml import etree\n3:\n4: def parse_xml(request):\n5: user_name = request.POST.get('user_name', '')\n6:\n7: parser = etree.XMLParser(resolve_entities=False)\n8: tree = etree.parse('user.xml', parser)\n9: root = tree.getroot()\n10:\n11: # 검증되지 않은 외부 입력값 user_name을 사용한 안전하지 않은\n12: # 질의문이 query 변수에 저장\n13: query = \"/collection/users/user[@name='\" + user_name + \"']/home/text()\"\n14: elmts = root.xpath(query)\n15: return render(request, 'parse_xml.html', {'xml_element':elmts})\n42\n\nPART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현\n파이썬 3.3 이후 보안상의 이유로 금지된 xml.etree.ElementTree 모듈 대신 lxml 라이브러리를 사용하고\n외부 입력값은 인자화해서 사용한다.",
+          "page": 48,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        },
+        {
+          "code": "1: from ldap3 import Connection, Server, ALL\n2: from django.shortcuts import render\n3:\n4: config = {\n5: \"bind_dn\": \"cn=read-only-admin,dc=example,dc=com\",\n6: \"password\": \"password\",\n7: }\n8:\n9: def ldap_query(request):\n10: search_keyword = request.POST.get('search_keyword','')\n11:\n12: dn = config['bind_dn']\n13: password = config['password']\n14: address = 'ldap.badSoruce.com'\n15: server = Server(address, get_info=ALL)\n16: conn = Connection(server, user=dn, password, auto_bind=True )\n17:\n18: # 사용자 입력을 필터링 하지 않는 경우 공격자의 권한 상승으로\n19: # 이어질 수 있다\n20: search_str = '(&(objectclass=%s))' % search_keyword\n21:\n22: conn.search(\n23: 'dc=company,dc=com',\n24: search_str,\n25: attributes=['sn', 'cn', 'address', 'mail', 'mobile', 'uid'],\n26: )\n27:\n28: return render(request, '/ldap_query_response.html', {'ldap':conn.entries})\n45\n\nPython 시큐어코딩 가이드\n사용자의 입력 중 LDAP 질의문에 사용될 변수를 이스케이프 하여 질의문 실행 시 공격에 노출되는 것을\n예방할 수 있다.",
+          "page": 51,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: from django.shortcuts import render\n2: from lxml import etree\n3:\n4: def parse_xml(request):\n5: user_name = request.POST.get('user_name', '')\n6:\n7: parser = etree.XMLParser(resolve_entities=False)\n8: tree = etree.parse('user.xml', parser)\n9: root = tree.getroot()\n10:\n11: # 외부 입력값을 paramname으로 인자화 해서 사용\n12: query = '/collection/users/user[@name = $paramname]/home/text()'\n13: elmts = root.xpath(query, paramname=user_name)\n14: return render(request, 'parse_xml.html', {'xml_element':elmts})\n라. 참고자료\n① CWE-643: Improper Neutralization of Data within XPath Expressions ('XPath Injection'), MITRE,\nhttps://cwe.mitre.org/data/definitions/643.html\n② XPATH Injection, OWASP,\nhttps://owasp.org/www-community/attacks/XPATH_Injection\n③ XML vulnerabilities, Python Software Foundation,\nhttps://docs.python.org/3/library/xml.html#xml-vulnerabilities\n43\n\nPython 시큐어코딩 가이드\n10. LDAP 삽입\n가. 개요\n외부 입력값을 적절한 처리 없이 LDAP 쿼리문이나 결과의 일부로 사용하는 경우 LDAP 쿼리문이 실행될 때\n공격자는 LDAP 쿼리문의 내용을 마음대로 변경할 수 있다. 이로 인해 프로세스가 명령을 실행한 컴포넌트와\n동일한 권한(Permission)을 가지고 동작하게 된다.\n파이썬에는 파이썬-ldap 및 ldap3라는 두 개의 라이브러리가 있다. ldap3가 python-ldap 보다 더 현대적인\n라이브러리다. ldap3 모듈은 파이썬 2.6부터 모든 파이썬 3 버전에 호환된다. ldap3에서는 좀 더 파이썬적인\n방식으로 LDAP서버와 상호 작용할 수 있는 완전한 기능의 추상화 계층이 포함되어 있다. python-ldap은\nOpenLDAP에서 만든 파이썬2의 패키지로 파이썬3에서는 ldap3 라이브러리를 사용하는 것이 권장된다.\n나. 안전한 코딩기법\n다른 삽입 공격들과 마찬가지로 LDAP 삽입에 대한 기본적인 방어 방법은 적절한 유효성 검사이다.\n⦁올바른 인코딩(Encoding) 함수를 사용해 모든 변수 이스케이프(Escape) 처리\n⦁화이트리스트 방식의 입력값 유효성 검사\n⦁사용자 패스워드와 같은 민감한 정보가 포함된 필드 인덱싱\n⦁LDAP 바인딩 계정에 할당된 권한 최소화\n44\n\nPART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현\n다. 코드예제\n사용자의 입력을 그대로 LDAP 질의문에 사용하고 있으며 이 경우 권한 상승 등의 공격에 노출될 수 있다.",
+          "page": 49,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: from ldap3 import Connection, Server, ALL\n2: from ldap3.utils.conv import escape_filter_chars\n3: from django.shortcuts import render\n4:\n5: config = {\n6: \"bind_dn\": \"cn=read-only-admin,dc=example,dc=com\",\n7: \"password\": \"password\",\n8: }\n9:\n10: def ldap_query(request):\n11: search_keyword = request.POST.get('search_keyword','')\n12:\n13: dn = config['bind_dn']\n14: password = config['password']\n15: address = 'ldap.goodsource.com'\n16: server = Server(address, get_info=ALL)\n17: conn = Connection(server, dn, password, auto_bind=True )\n19:\n20: # 사용자의 입력에 필터링을 적용하여 공격에 사용될 수 있는 문자를\n21: # 이스케이프하고 있다\n22: escpae_keyword = escape_filter_chars(search_keyword)\n23: search_str = '(&(objectclass=%s))' % escpae_keyword\n24:\n25: conn.search(\n26: 'dc=company,dc=com',\n27: search_str,\n28: attributes=['sn', 'cn', 'address', 'mail', 'mobile', 'uid'],\n29: )\n30:\n31: return render(request, '/ldap_query_response.html', {'ldap':conn.entries})\n46\n\nPART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현\n라. 참고자료\n① CWE-90: Improper Neutralization of Special Elements used in an LDAP Query ('LDAP Injection'), MITRE,\nhttps://cwe.mitre.org/data/definitions/90.html\n② LDAP Injection Prevention Cheat Sheet, OWASP,\nhttps://cheatsheetseries.owasp.org/cheatsheets/LDAP_Injection_Prevention_Cheat_ Sheet.html\n③ LDAP filter handling, python-ldap project team\nhttps://www.python-ldap.org/en/python-ldap-3.3.0/reference/ldap-filter.html\n47\n\nPython 시큐어코딩 가이드\n11. 크로스사이트 요청 위조(CSRF)\n가. 개요\n특정 웹사이트에 대해 사용자가 인지하지 못한 상황에서 사용자의 의도와는 무관하게 공격자가 의도한 행위\n(수정, 삭제, 등록 등)를 요청하게 하는 공격을 말한다. 웹 응용프로그램이 사용자로부터 받은 요청이 해당 사용자가",
+          "page": 52,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "검증되지 않은 외부 입력값이 XQuery 또는 XPath 쿼리문을 생성하는 문자열로 사용되어 공격자가 쿼리문의",
+        "인자화된 쿼리문을 지원하는 XQuery를 사용해야 한다.",
+        "11: # 검증되지 않은 외부 입력값 user_name을 사용한 안전하지 않은",
+        "PART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+        "OpenLDAP에서 만든 파이썬2의 패키지로 파이썬3에서는 ldap3 라이브러리를 사용하는 것이 권장된다."
+      ]
+    },
+    {
+      "section": "제1절 입력데이터 검증 및 표현",
+      "number": 12,
+      "korean_name": "서버사이드 요청 위조",
+      "english_type": "SSRF",
+      "start_page": 55,
+      "end_page": 57,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: MIDDLEWARE = [\n2: 'django.contrib.sessions.middleware.SessionMiddleware',\n3: # MIDDLEWARE 목록에서 CSRF 항목을 삭제 또는 주석처리 하면\n4: # Django 앱에서 CSRF 유효성 검사가 전역적으로 제거된다\n5: # 'django.middleware.csrf.CsrfViewMiddleware',\n6: 'django.contrib.auth.middleware.AuthenticationMiddleware',\n7: 'django.contrib.messages.middleware.MessageMiddleware',\n8: 'django.middleware.locale.LocaleMiddleware',\n9: ......\n10: ]\n다음은 Django의 CSRF 기능을 활성화하기 위한 안전한 미들웨어 설정 예제를 보여 준다. 미들웨어의\nCSRF 기능을 주석 또는 삭제 처리하지 않아야 한다. 템플릿 페이지에는 csrf_token을 form 태그 안에 명시\n해야 미들웨어에서 정상적으로 CSRF 기능을 사용할 수 있다.\n49\n\nPython 시큐어코딩 가이드",
+          "page": 55,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        },
+        {
+          "code": "1: from django.shortcuts import render\n2: from django.views.decorators.csrf import csrf_exempt\n3:\n4: # csrf.exempt 데코레이터로 미들웨어에서 보호되는 CSRF 기능을 해제한다\n5: @csrf.exempt\n6: def pay_to_point(request):\n7: user_id = request.POST.get('user_id', '')\n8: pay = request.POST.get('pay', '')\n9: product_info = request.POST.get('product_info', '')\n10:\n11: ret = handle_pay(user_id, pay, product_info)\n12:\n13: return render(request, '/view_wallet.html', {'wallet':ret})\n50\n\nPART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현\nDjango는 기본적으로 CSRF 기능을 강제하고 있지만, 부득이하게 CSRF 기능을 해제해야 하는 경우는 미들\n웨어의 CSRF 기능을 전역적으로 비활성화 하기 보다는 미들웨어의 CSRF 기능은 활성화 하고 필요한 요청에\n대해서만 csrf_exempt 데코레이터를 사용하여야 하고 이 경우에 크로스사이트 요청 위조의 위협에 노출될\n수 있으므로 주의를 기울여야 한다.",
+          "page": 55,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        },
+        {
+          "code": "1: <!--html page-->\n2: <form action=\"\" method=\"POST\">\n3: <!-- form 태그 내부에 csrf_token 미적용-->\n4: <table>\n5: {{form.as_table}}\n6: </table>\n7: <input type=\"submit\"/>\n8: </form>\n51",
+          "page": 55,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: MIDDLEWARE = [\n2: 'django.contrib.sessions.middleware.SessionMiddleware',\n3: # MIDDLEWARE 목록에서 CSRF 항목을 활성화 한다\n4: 'django.middleware.csrf.CsrfViewMiddleware',\n5: 'django.contrib.auth.middleware.AuthenticationMiddleware',\n6: 'django.contrib.messages.middleware.MessageMiddleware',\n7: 'django.middleware.locale.LocaleMiddleware',\n8: ......\n9: ]\n⦁Django 뷰 기능 설정(views.py) 사례\n미들웨어에 CSRF 검증 기능이 활성화 되어 있어도 View에서 CSRF 기능을 해제하는 경우에는 해당 요청에\n대해서 CSRF 검증 기능을 사용하지 않게 된다. 다음은 Function-Based View에서 CSRF 검증 기능을 비활성화\n하는 예제를 보여 준다.",
+          "page": 56,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: from django.shortcuts import render\n2: from django.template import RequestContext\n3:\n4: # csrf_exempt 데코레이터를 삭제하거나 주석 처리한다.\n5: # @csrf_exempt\n6: def pay_to_point(request):\n7: user_id = request.POST.get('user_id', '')\n8: pay = request.POST.get('pay', '')\n9: product_info = request.POST.get('product_info', '')\n10:\n11: ret = handle_pay(user_id, pay, product_info)\n12:\n13: return render(request, '/view_wallet.html', {'wallet':ret})\n⦁Django 템플릿 설정 사례\n미들웨어에서 CSRF 기능을 활성화해도 템플릿 페이지에 CSRF 토큰을 명시하지 않을 경우 CSRF 검증\n기능을 사용할 수 없다.",
+          "page": 57,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "PART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+        "Django 프레임워크에서는 1.2 버전부터 CSRF 취약점을 방지 기능을 기본으로 제공하고 있다. 미들웨어의",
+        "해야 미들웨어에서 정상적으로 CSRF 기능을 사용할 수 있다.",
+        "미들웨어에 CSRF 검증 기능이 활성화 되어 있어도 View에서 CSRF 기능을 해제하는 경우에는 해당 요청에",
+        "대해서 CSRF 검증 기능을 사용하지 않게 된다. 다음은 Function-Based View에서 CSRF 검증 기능을 비활성화"
+      ]
+    },
+    {
+      "section": "제1절 입력데이터 검증 및 표현",
+      "number": 13,
+      "korean_name": "HTTP 응답분할",
+      "english_type": "HTTP_Response_Splitting",
+      "start_page": 58,
+      "end_page": 60,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: from flask import Flask\n2:\n3: app = Flask(__name__)\nFlask 프레임워크를 사용해 웹 애플리케이션을 구축하는 경우 CSRF를 방지하려면 Flask-WTF extension의\nCSRFProtect를 사용해야 한다. 다음과 같이 app에 설정하고 HTML(템플릿) 페이지에는 CSRF 토큰을 추가\n해야 한다.\n52\n\nPART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+          "page": 58,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        },
+        {
+          "code": "1: <form action=\"\" method=\"POST\">\n2: <!-- form 태그 내부에 csrf_token 미적용-->\n3: <table>\n4: {{as_table}}\n5: </table>\n6: <input type=\"submit\"/>\n7: </form>\n템플릿 페이지에도 csrf_token 값을 명시해줘야 정상적인 CSRF 검증이 수행된다.\nFlaskForm 사용 시에는 {{ form.csrf_token }}을 명시해야 하고 템플릿에 FlaskForm을 사용하지 않을\n경우에는 form 태그 안에 hidden input 값으로 {{ csrf_token }} 값을 명시해야 한다.\n53\n\nPython 시큐어코딩 가이드",
+          "page": 58,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: <!--html page-->\n2: <form action=\"\" method=\"POST\">\n3: {% csrf_token %} <!--csrf_token 사용->\n4: <table>\n5: {{form.as_table}}\n6: </table>\n7: <input type=\"submit\"/>\n8: </form>\n나) Flask 프레임워크 사용\n⦁Flask app 설정 사례\nFlask의 WTF 패키지를 사용하면 CSRF 보호 기법을 사용할 수 있다. 아래 예제 코드는 CSRF 설정이 되지\n않은 상태를 보여 준다.",
+          "page": 58,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: from flask import Flask\n2: from flask_wtf.csrf import CSRFProtect\n3:\n4: # CSRF 설정 추가\n5: csrf = CSRFProtect(app)\n6: app = Flask(__name__)\n7: app.config[‘SECRET_KEY’] = os.environ.get('SECRET_KEY')\n8: csrf.init_app(app)\n⦁Flask 템플릿 설정 사례\n위 코드처럼 함수에 CSRF 기능을 활성화 해도 HTML 파일에 csrf_token을 명시하지 않을 경우 CSRF\n검증 기능을 사용할 수 없다.",
+          "page": 59,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: <form action=\"\" method=\"POST\">\n2: <!-- form 태그 내부에 csrf_token 적용-->\n3: <input type=\"hidden\" name=\"csrf_token\" value=\"{{ csrf_token() }}\" />\n4: <table>\n5: {{table}}\n6: </table>\n7: <input type=\"submit\"/>\n8: </form>\n라. 참고자료\n① CWE-352: Cross-Site Request Forgery (CSRF), MITRE,\nhttps://cwe.mitre.org/data/definitions/352.html\n② Cross Site Request Forgery (CSRF), OWASP,\nhttps://owasp.org/www-community/attacks/csrf\n③ Cross-Site Request Forgery Prevention Cheat Sheet, OWASP\nhttps://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html\n④ Cross Site Request Forgery protection, Django Software Foundation\nhttps://docs.djangoproject.com/en/3.2/ref/csrf/\n⑤ CSRF Protection, WTForms\nhttps://flask-wtf.readthedocs.io/en/0.15.x/csrf/\n54",
+          "page": 60,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "CSRF 검증 기능을 사용할 수 있다.",
+        "Flask 프레임워크를 사용해 웹 애플리케이션을 구축하는 경우 CSRF를 방지하려면 Flask-WTF extension의",
+        "CSRFProtect를 사용해야 한다. 다음과 같이 app에 설정하고 HTML(템플릿) 페이지에는 CSRF 토큰을 추가",
+        "PART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+        "검증 기능을 사용할 수 없다."
+      ]
+    },
+    {
+      "section": "제1절 입력데이터 검증 및 표현",
+      "number": 14,
+      "korean_name": "정수형 오버플로우",
+      "english_type": "Integer_Overflow",
+      "start_page": 61,
+      "end_page": 63,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "않은 다른 서버의 자원에 접근할 수 있게 된다.",
+          "page": 61,
+          "type": "unsafe",
+          "label": "다음 예제는 안전하지 않은 코드를 보여 준다. 사용자로부터 입력된 URL 주소를 검증 없이 사용하면 의도하지"
+        },
+        {
+          "code": "1: from django.shortcuts import render\n2: import requests\n3:\n4: def call_third_party_api(request):\n5: addr = request.POST.get('address', '')\n6:\n7: # 사용자가 입력한 주소를 검증하지 않고 HTTP 요청을 보낸 후\n8: # 응답을 사용자에게 반환\n9: result = requests.get(addr).text\n10: return render(request, '/result.html', {'result':result})",
+          "page": 61,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "URL 값을 임의로 조작할 수 없다.\n56\n\nPART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+          "page": 61,
+          "type": "safe",
+          "label": "다음과 같이 안전한 코드를 작성하면 사전에 정의된 서버 목록을 정의하고 매칭되는 URL만 사용할 수 있으므로"
+        },
+        {
+          "code": "1: from django.shortcuts import render\n2: import requests\n3:\n4: # 허용하는 도메인을 화이트리스트에 정의할 경우 DNS rebinding 공격 등에\n5: # 노출될 위험이 있어 신뢰할 수 있는 자원에 대한 IP를 사용해\n6: # 검증하는 것이 조금 더 안전하다\n7: ALLOW_SERVER_LIST = [\n8: 'https://127.0.0.1/latest/',\n9: 'https://192.168.0.1/user_data',\n10: 'https://192.168.0.100/v1/public',\n11: ]\n12:\n13: def call_third_party_api(request):\n14: addr = request.POST.get('address', '')\n15:\n16: # 사용자가 입력한 URL을 화이트리스트로 검증한 후 그 결과를 반환하여\n17: # 검증되지 않은 주소로 요청을 보내지 않도록 제한한다\n18: if addr not in ALLOW_SERVER_LIST:\n19: return render(request, '/error.html', {‘error’ = '허용되지 않은 서버입니다.'})\n20:\n21: result = requests.get(addr).text\n22: return render(request, '/result.html', {'result':result})\n라. 참고자료\n① CWE-918: Server-Side Request Forgery (SSRF), MITRE\nhttps://cwe.mitre.org/data/definitions/918.html\n② Server Side Request Forgery, OWASP\nhttps://owasp.org/www-community/attacks/Server_Side_Request_Forgery\n③ Server-Side Request Forgery Prevention Cheat Sheet, OWASP\nhttps://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html\n57",
+          "page": 63,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "PART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+        "적절한 검증 절차를 거치지 않은 사용자 입력값을 내부 서버간의 요청에 사용해 악의적인 행위가 발생할 수",
+        "하여 필터링 한다. 또한 동일한 내부 네트워크에 있더라도 기기 인증, 접근권한을 확인하여 요청이 이루어질",
+        "다음 예제는 안전하지 않은 코드를 보여 준다. 사용자로부터 입력된 URL 주소를 검증 없이 사용하면 의도하지",
+        "7: # 사용자가 입력한 주소를 검증하지 않고 HTTP 요청을 보낸 후"
+      ]
+    },
+    {
+      "section": "제1절 입력데이터 검증 및 표현",
+      "number": 15,
+      "korean_name": "보안기능 결정에 사용되는 부적절한 입력값",
+      "english_type": "Input_Validation",
+      "start_page": 64,
+      "end_page": 66,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: from django.http import HttpResponse\n2:\n3: def route(request):\n4: content_type = request.POST.get('content-type')\n5: # 외부 입력값을 검증 또는 필터링 하지 않고\n6: # 응답 헤더의 값으로 포함시켜 회신한다\n7: ......\n8: res = HttpResponse()\n9: res['Content-Type'] = content_type\n10: return res\n응답 분할을 예방하기 위해 \\r, \\n과 같은 문자에 대해 치환 또는 예외처리를 적용해 응답분할이 발생하지\n않도록 예방해야 한다.",
+          "page": 65,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: from django.http import HttpResponse\n2:\n3: def route(request):\n4: content_type = request.POST.get('content-type')\n5:\n6: # 응답헤더에 포함될 수 있는 외부 입력값 내의 개행 문자를 제거한다\n7: content_type = content_type.replace('\\r', '')\n8: content_type = content_type.replace('\\n', '')\n9: ......\n10: res = HttpResponse()\n11: res['Content-Type'] = content_type\n12: return res\n59\n\nPython 시큐어코딩 가이드\n라. 참고자료\n① CWE-113: Improper Neutralization of CRLF Sequences in HTTP Headers ('HTTP Response Splitting'), MITRE,\nhttps://cwe.mitre.org/data/definitions/113.html\n② HTTP Response Splitting, OWASP,\nhttps://owasp.org/www-community/attacks/HTTP_Response_Splitting\n③ Django security releases issued, Django Software Foundation,\nhttps://www.djangoproject.com/weblog/2021/may/06/security-releases/\n60",
+          "page": 64,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "버전의 라이브러리, 프레임워크를 사용하고 외부 입력값에 대해서는 철저한 검증 작업을 수행해야 한다.",
+        "같은 개행문자를 제거해야 한다. 외부 입력값이 헤더, 쿠키, 로그 등에 사용될 경우에는 항상 개행문자를 검증",
+        "하고 가능하다면 헤더에 사용되는 예약어 등을 화이트리스트로 제한해야 한다.",
+        "PART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+        "사용자 요청에 포함된 값을 필터링 및 검증 없이 응답에 사용하는 경우 개행문자로 인해 여러 개의 응답으로"
+      ]
+    },
+    {
+      "section": "제1절 입력데이터 검증 및 표현",
+      "number": 16,
+      "korean_name": "포맷 스트링 삽입",
+      "english_type": "Format_String",
+      "start_page": 67,
+      "end_page": 68,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: import numpy as np\n2:\n3: def handle_data(number, pow):\n4: res = np.power(number, pow, dtype=np.int64)\n5: # 64비트를 넘어서는 숫자와 지수가 입력될 경우 오버플로우가 발생해 결과값이 0이 된다\n6: return res\n오버플로우 발생을 예방하려면 입력하는 값이 사용하는 데이터 타입의 최소보다 크거나 최대보다 작은지\n확인해야 한다. 만약 위 코드 예시처럼 값을 계산해야 하는 경우 오버플로우가 발생하지 않는 파이썬 기본 자료형에\n계산 결과값을 저장한 후 그 값을 검사해 오버플로우 여부를 확인해야 한다.",
+          "page": 68,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: import numpy as np\n2:\n3: MAX_NUMBER = np.iinfo(np.int64).max\n4: MIN_NUMBER = np.iinfo(np.int64).min\n5:\n6: def handle_data(number, pow):\n7:\n8: calculated = number ** pow\n9: # 파이썬 기본 자료형으로 큰 수를 계산한 후 이를 검사해 오버플로우 탐지\n10: if calculated > MAX_NUMBER or calculated < MIN_NUMBER:\n11: # 오버플로우 탐지 시 비정상 종료를 나타내는 –1 값 반환\n12: return –1\n13:\n14: res = np.power(number, pow, dtype=np.int64)\n15: return res\n62",
+          "page": 67,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "PART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+        "플로우 발생에 유의해야 한다. 이처럼 언어 자체에서는 안정성을 보장하지만 특정 취약점에 취약한 패키지 또는",
+        "라이브러리를 사용하는 것에 주의해야 한다.",
+        "하는 데이터 타입의 표현 방식과 최대 크기를 반드시 확인해야 한다. numpy에서는 기본적으로 64비트 길이의",
+        "반드시 변수의 최소 및 최대값을 확인하고 범위를 넘어서는 값을 할당하지 않는지 테스트해야 한다."
+      ]
+    },
+    {
+      "section": "제2절 보안기능",
+      "number": 1,
+      "korean_name": "적절한 인증 없는 중요 기능 허용",
+      "english_type": "Missing_Authentication",
+      "start_page": 69,
+      "end_page": 71,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "초기화 하고 메일을 보내는 예제다. 쿠키에서 등급을 가져와 관리자 여부를 확인한다.",
+          "page": 71,
+          "type": "unsafe",
+          "label": "다음은 안전하지 않은 코드로 쿠키에 저장된 권한 등급을 가져와 관리자인지 확인 후에 사용자의 패스워드를"
+        },
+        {
+          "code": "1: from django.shortcuts import render\n2:\n3: def init_password(request):\n4: # 쿠키에서 권한 정보를 가져 온다\n5: role = request.COOKIE['role']\n6: request_id = request.POST.get('user_id', '')\n7: request_mail = request.POST.get('user_email','')\n8: # 쿠키에서 가져온 권한이 관리자인지 비교\n9: if role == 'admin':\n10: # 사용자의 패스워드 초기화 및 메일 발송 처리\n11: password_init_and_sendmail(request_id, request_mail)\n12: return render(request, '/success.html')\n13: else:\n14: return render(request, '/failed.html')\n65",
+          "page": 69,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [],
+      "recommendations": [
+        "PART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+        "PART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+        "상태 정보나 민감한 데이터 특히 사용자 세션 정보와 같은 중요 정보는 서버에 저장하고 보안확인 절차도",
+        "다음은 안전하지 않은 코드로 쿠키에 저장된 권한 등급을 가져와 관리자인지 확인 후에 사용자의 패스워드를",
+        "초기화 하고 메일을 보내는 예제다. 쿠키에서 등급을 가져와 관리자 여부를 확인한다."
+      ]
+    },
+    {
+      "section": "제2절 보안기능",
+      "number": 2,
+      "korean_name": "부적절한 인가",
+      "english_type": "Improper_Authorization",
+      "start_page": 72,
+      "end_page": 74,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: from django.shortcuts import render\n2: AUTHENTICATE_KEY = 'Passw0rd'\n3:\n4: def make_user_message(request):\n5: user_info = get_user_info(request.POST.get('user_id', ''))\n6:\n7: format_string = request.POST.get('msg_format', '')\n8: # 내부의 민감한 정보가 외부로 노출될 수 있다.\n9: # 사용자가 입력한 문자열을 포맷 문자열로 사용하고 있어 안전하지 않다\n10: message = format_string.format(user=user_info)\n11:\n12: return render(request, '/user_page.html', {'message':message})\n외부에서 입력 받은 문자열은 반드시 포맷 지정자를 이용해 바인딩 후 사용해야 하며 직접적으로 포맷문자열로\n사용해서는 안 된다.",
+          "page": 74,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: from django.shortcuts import render\n2:\n3: def init_password(request):\n4: # 세션에서 권한 정보를 가져옴\n5: role = request.session['role']\n6: request_id = request.POST.get('user_id', '')\n7: request_mail = request.POST.get('user_email','')\n8: # 세션에서 가져온 권한이 관리자인지 비교\n9: if role == ‘admin’:\n10: # 사용자의 패스워드 초기화 및 메일 발송 처리\n11: password_init_and_sendmail(request_id, request_mail)\n12: return render(request, '/sucess.html')\n13: else:\n14: return render(request, '/failed.html')\n라. 참고자료\n① CWE-807: Reliance on Untrusted Inputs in a Security Decision, MITRE,\nhttps://cwe.mitre.org/data/definitions/807.html\n② How to use sessions, Django Software Foundation,\nhttps://docs.djangoproject.com/en/3.2/topics/http/sessions/\n③ Flask Sessions,\nhttps://flask-session.readthedocs.io/en/latest/\n66\n\nPART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현\n16. 포맷 스트링 삽입\n가. 개요\n외부로부터 입력된 값을 검증하지 않고 입·출력 함수의 포맷 문자열로 그대로 사용하는 경우 발생할 수 있는\n보안약점이다. 공격자는 포맷 문자열을 이용해 취약한 프로세스를 공격하거나 메모리 내용을 읽고 쓸 수 있다.\n이를 통해 취약한 프로세스의 권한을 취득해 임의의 코드를 실행 할 수 있다.\n파이썬에서는 문자열의 포맷팅 방법으로 “% formatting”, “str.format”, “f-string” 과 같이 세 가지 문자열\n포맷팅 방식을 제공하고 있다(f-string 은 파이썬 3.6 버전부터 사용 가능하다). 공격자는 포맷 문자열을 이용해\n내부 정보를 문자열로 만들 수 있으며, 이를 그대로 사용하는 경우 중요 정보 유출로 이어질 수 있다.\n나. 안전한 코딩기법\n포맷 문자열을 처리하는 함수 사용 시 사용자 입력값을 직접적으로 포맷 문자열로 사용하거나 포맷 문자열\n생성에 포함시키지 않아야 한다. 사용자로부터 입력 받은 데이터를 포맷 문자열로 사용하고자 하는 경우에는\n서식 지정자를 포함하지 않거나 파이썬의 내장함수 또는 내장변수 등이 포함되지 않도록 해야 한다.\n다. 코드예제\n아래 예시에서는 외부에서 입력받은 문자열을 바로 포맷스트링으로 사용하고 있는데, 이는 내부 정보가 외부로\n노출될 수 있는 문제를 내포하고 있다.\n공격자가 # {user.__init__.__globals__[AUTHENTICATE_KEY]} 형식의 문자열 입력 시 전역 변수에 접근\n하여 AUTHENTICATE_KEY의 값을 탈취 할 수 있다.\n67\n\nPython 시큐어코딩 가이드",
+          "page": 72,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: from django.shortcuts import render\n2: AUTHENTICATE_KEY = 'Passw0rd'\n3:\n4: def make_user_message(request):\n5: user_info = get_user_info(request.POST.get('user_id', ''))\n6:\n7: # 사용자가 입력한 문자열을 포맷 문자열로 사용하지 않아 안전하다\n8: message = 'user name is {}'.format(user_info.name)\n9:\n10: return render(request, '/user_page.html', {'message':message})\n라. 참고자료\n① CWE-134: Use of Externally-Controlled Format String, MITRE,\nhttps://cwe.mitre.org/data/definitions/134.html\n② Format string attack, OWASP,\nhttps://owasp.org/www-community/attacks/Format_string_attack\n③ 파이썬 format, Python Software Foundation,\nhttps://docs.python.org/3/library/functions.html#format\n④ Format String Syntax, Python Software Foundation,\nhttps://docs.python.org/3/library/string.html#format-string-syntax\n68",
+          "page": 72,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "PART 제2장 시큐어코딩 가이드 ❘ 제1절 입력데이터 검증 및 표현",
+        "외부로부터 입력된 값을 검증하지 않고 입·출력 함수의 포맷 문자열로 그대로 사용하는 경우 발생할 수 있는",
+        "서식 지정자를 포함하지 않거나 파이썬의 내장함수 또는 내장변수 등이 포함되지 않도록 해야 한다.",
+        "외부에서 입력 받은 문자열은 반드시 포맷 지정자를 이용해 바인딩 후 사용해야 하며 직접적으로 포맷문자열로"
+      ]
+    },
+    {
+      "section": "제2절 보안기능",
+      "number": 3,
+      "korean_name": "중요한 자원에 대한 잘못된 권한 설정",
+      "english_type": "Incorrect_Permission",
+      "start_page": 75,
+      "end_page": 76,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: from django.shortcuts import render\n2: from re import escape\n3: import hashlib\n4:\n5: def change_password(request):\n6: new_pwd = request.POST.get('new_password','')\n7:\n8: # 로그인한 사용자 정보\n9: user = '%s' % escape(request.session['userid'])\n10:\n11: # 현재 password와 일치 여부를 확인하지 않고 수정함\n12: sha = hashlib.sha256(new_pwd.encode())\n13: update_password_from_db(user, sha.hexdigest())\n14:\n15: return render(request, '/success.html')\nDB에 저장된 사용자 패스워드와 변경을 요청한 패스워드의 일치 여부를 확인하고, 변경 요청한 패스워드와\n재확인 패스워드가 일치하는지 확인 후 DB의 패스워드를 수정해 안전하게 코드를 적용할 수 있다.",
+          "page": 76,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: from django.contrib.auth.decorators import login_required\n2: from django.shortcuts import render\n3: from re import escape\n4: import hashlib\n5:\n6: # login_required decorator를 사용해 login된 사용자만 접근하도록 처리\n7: @login_required\n8: def change_password(request):\n9: new_pwd = request.POST.get('new_password','')\n10: crnt_pwd = request.POST.get('current_password','')\n11:\n12: # 로그인한 사용자 정보를 세션에서 가져온다.\n13: user = '%s' % escape(request.session['userid'])\n14:\n15: crnt_h = hashlib.sha256(crnt_pwd.encode())\n16: h_pwd = crnt_h.hexdigest()\n70",
+          "page": 75,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "적용한다. 또한 안전하다고 검증된 라이브러리나 프레임워크(Django authentication system, Flask-Login 등)를",
+        "다음은 패스워드 수정 시 수정을 요청한 패스워드와 DB에 저장된 사용자 패스워드 일치 여부를 확인하지",
+        "않고 처리하고 있으며 패스워드의 재확인 절차도 생략되어 취약한 코드 예시를 보여 준다.",
+        "11: # 현재 password와 일치 여부를 확인하지 않고 수정함",
+        "DB에 저장된 사용자 패스워드와 변경을 요청한 패스워드의 일치 여부를 확인하고, 변경 요청한 패스워드와"
+      ]
+    },
+    {
+      "section": "제2절 보안기능",
+      "number": 4,
+      "korean_name": "취약한 암호화 알고리즘 사용",
+      "english_type": "Weak_Cryptography",
+      "start_page": 77,
+      "end_page": 80,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: from django.shortcuts import render\n2: from .model import Content\n3:\n4: def delete_content(request):\n5: action = request.POST.get('action', '')\n6: content_id = request.POST.get('content_id', '')\n7: # 작업 요청을 하는 사용자의 권한 확인 없이 delete를 수행\n8: if action is not None and action == \"delete\":\n9: Content.objects.filter(id=content_id).delete()\n10: return render(request, '/success.html')\n11: else:\n12: return render(request, '/error.html', {'error':'접근 권한이 없습니다.'})\n세션에 저장된 사용자 정보를 통해 해당 사용자가 수행할 작업에 대한 권한이 있는지 확인한 후 권한이 있는\n경우에만 작업을 수행하도록 해야 한다.",
+          "page": 79,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "17:\n18: # DB에서 기존 사용자의 Hash된 패스워드 가져오기\n19: old_pwd = get_password_from_db(user)\n20:\n21: # 패스워드를 변경하기 전 사용자에 대한 재인증을 수행한다.\n22: if old_pwd == h_pwd:\n23: new_h = hashlib.sha256(new_pwd.encode())\n24: update_password_from_db(user, new_h.hexdigest())\n25: return render(request, '/success.html')\n26: else:\n27: return render(request, ‘failed.html’, {'error': '패스워드가 일치하지 않습니다'})\n라. 참고자료\n① CWE-306: Missing Authentication for Critical Function, MITRE,\nhttps://cwe.mitre.org/data/definitions/306.html\n② Access Control, OWASP,\nhttps://www.owasp.org/index.php/Access_Control_Cheat_Sheet\n③ Using the Django authentication system, Django Software Foundation,\nhttps://docs.djangoproject.com/en/3.2/topics/auth/default/\n④ Flask-Security,\nhttps://flask-login.readthedocs.io/en/latest/\n71\n\nPython 시큐어코딩 가이드\n2. 부적절한 인가\n가. 개요\n프로그램이 모든 가능한 실행 경로에 대해서 접근 제어를 검사하지 않거나 불완전하게 검사하는 경우 공격자는\n접근 가능한 실행경로를 통해 정보를 유출할 수 있다.\n나. 안전한 코딩기법\n응용 프로그램이 제공하는 정보와 기능이 가지는 역할에 맞게 분리 개발함으로써 공격자에게 노출되는 공격\n노출면(Attack Surface)3)을 최소화하고 사용자의 권한에 따른 ACL(Access Control List)을 관리한다.\n다. 코드예제\n사용자 입력값에 따라 삭제 작업을 수행하고 있으며 사용자의 권한 확인을 위한 별도의 통제가 적용되지\n않은 예시를 보여 준다.\n3)\u0000공격자가\u0000진입\u0000또는\u0000영향을\u0000줄\u0000수\u0000있는\u0000시스템\u0000경계선\u0000지점,\u0000시스템\u0000요소\u0000또는\u0000환경을\u0000의미(https://csrc.nist.g\nov/glossary/term/attack_surface)\n72\n\nPART 제2장 시큐어코딩 가이드 ❘ 제2절 보안기능",
+          "page": 77,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: from django.contrib.auth.decorators import login_required, permission_required\n2: from django.shortcuts import render\n3: from .model import Content\n4:\n5: @login_required\n6: # 해당 기능을 수행할 권한이 있는지 확인\n7: @permission_required('content.delete', raise_exception=True)\n8: def delete_content(request):\n9: action = request.POST.get('action', '')\n10: content_id = request.POST.get('content_id', '')\n11:\n12: if action is not None and action == \"delete\":\n13: Content.objects.filter(id=content_id).delete()\n14: return render(request, '/success.html')\n15: else:\n16: return render(request, '/error.html', {'error':'삭제 실패'})\n73\n\nPython 시큐어코딩 가이드\n라. 참고자료\n① CWE-285: Improper Authorization, MITRE,\nhttps://cwe.mitre.org/data/definitions/285.html\n② Access Control, OWASP,\nhttps://www.owasp.org/index.php/Access_Control_Cheat_Sheet\n③ Using the Django authentication system, Django Software Foundation,\nhttps://docs.djangoproject.com/en/3.2/topics/auth/default/\n74",
+          "page": 77,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "사용자 입력값에 따라 삭제 작업을 수행하고 있으며 사용자의 권한 확인을 위한 별도의 통제가 적용되지",
+        "7: # 작업 요청을 하는 사용자의 권한 확인 없이 delete를 수행",
+        "세션에 저장된 사용자 정보를 통해 해당 사용자가 수행할 작업에 대한 권한이 있는지 확인한 후 권한이 있는",
+        "경우에만 작업을 수행하도록 해야 한다.",
+        "6: # 해당 기능을 수행할 권한이 있는지 확인"
+      ]
+    },
+    {
+      "section": "제2절 보안기능",
+      "number": 5,
+      "korean_name": "암호화되지 않은 중요정보",
+      "english_type": "Unencrypted_Data",
+      "start_page": 81,
+      "end_page": 84,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: import os\n2:\n3: def write_file():\n4: # 모든 사용자가 읽기, 쓰기, 실행 권한을 가지게 된다.\n5: os.chmod('/root/system_config', 0o777)\n6:\n7: with open(\"/root/system_config\", 'w') as f:\n8: f.write(\"your config is broken\")\n75\n\nPython 시큐어코딩 가이드\n주요 파일에 대해서는 최소 권한만 할당해야 한다. 구체적으로 파일의 소유자라고 하더라도 기본적으로 읽기\n권한만 부여해야 하며, 부득이하게 쓰기 권한이 필요한 경우에만 제한적으로 쓰기 권한을 부여해야 한다.",
+          "page": 81,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: import os\n2:\n3: def write_file():\n4: # 소유자 외에는 아무런 권한을 주지 않음.\n5: os.chmod('/root/system_config', 0o700)\n6:\n7: with open(\"/root/system_config\", ‘'w') as f:\n8: f.write(\"your config is broken\")\n라. 참고자료\n① CWE-732: Incorrect Permission Assignment for Critical Resource, MITRE,\nhttps://cwe.mitre.org/data/definitions/732.html\n② OS – Miscellaneous operating system interfaces, Python Software Foundation,\nhttps://docs.python.org/3/library/os.html\n76\n\nPART 제2장 시큐어코딩 가이드 ❘ 제2절 보안기능\n4. 취약한 암호화 알고리즘 사용\n가. 개요\n개발자들은 환경설정 파일에 저장된 패스워드를 보호하기 위해 간단한 인코딩 함수를 이용해 패스워드를\n감추는 방법을 사용하기도 한다. 하지만 base64와 같은 지나치게 간단한 인코딩 함수로는 패스워드를 제대로\n보호할 수 없다.\n정보보호 측면에서 취약하거나 위험한 암호화 알고리즘을 사용해서는 안 된다. 표준화되지 않은 암호화 알고리즘을\n사용하는 것은 공격자가 알고리즘을 분석해 무력화시킬 수 있는 가능성을 높일 수도 있다. 몇몇 오래된 암호화\n알고리즘의 경우는 컴퓨터의 성능이 향상됨에 따라 취약해지기도 해서, 예전에는 해독하는데 몇 십 억년이 걸릴\n것이라고 예상되던 알고리즘이 며칠이나 몇 시간 내에 해독되기도 한다. RC2(ARC2), RC4(ARC4), RC5,\nRC6, MD4, MD5, SHA1, DES 알고리즘이 여기에 해당된다.\n나. 안전한 코딩기법\n자신만의 암호화 알고리즘을 개발하는 것은 위험하며, 학계 및 업계에서 이미 검증된 표준화된 알고리즘을\n사용해야 한다. 기존에 취약하다고 알려진 DES, RC5 등의 암호알고리즘을 대신하여 3TDEA, AES, SEED\n등의 안전한 암호알고리즘으로 대체하여 사용한다. 또한 업무관련 내용, 개인정보 등에 대한 암호 알고리즘\n적용 시 안전한 암호화 알고리즘을 사용해야 한다.\n77\n\nPython 시큐어코딩 가이드\n< 암호알고리즘 검증기준 ver3.0 (암호모듈시험기관) >\n분류 암호 알고리즘\n최소 안전성 수준 ⦁112비트\n⦁운영모드\nARIA - 기밀성(ECB, CBC, CFB, OFB, CTR)\n- 기밀성/인증(CCM, GCM)\n⦁운영모드\nSEED - 기밀성(ECB, CBC, CFB, OFB, CTR)\n블록암호\n- 기밀성/인증(CCM, GCM)\n(운영모드)\n⦁운영모드\nLEA - 기밀성(ECB, CBC, CFB, OFB, CTR)",
+          "page": 82,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "주요 파일에 대해서는 최소 권한만 할당해야 한다. 구체적으로 파일의 소유자라고 하더라도 기본적으로 읽기",
+        "권한만 부여해야 하며, 부득이하게 쓰기 권한이 필요한 경우에만 제한적으로 쓰기 권한을 부여해야 한다.",
+        "자신만의 암호화 알고리즘을 개발하는 것은 위험하며, 학계 및 업계에서 이미 검증된 표준화된 알고리즘을",
+        "사용해야 한다. 기존에 취약하다고 알려진 DES, RC5 등의 암호알고리즘을 대신하여 3TDEA, AES, SEED",
+        "적용 시 안전한 암호화 알고리즘을 사용해야 한다."
+      ]
+    },
+    {
+      "section": "제2절 보안기능",
+      "number": 6,
+      "korean_name": "하드코드된 중요정보",
+      "english_type": "Hardcoded_Secrets",
+      "start_page": 85,
+      "end_page": 87,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: import base64\n2: from Crypto.Cipher import DES\n3: from Crypto.Util.Padding import pad\n4:\n5: def get_enc_text(plain_text, key):\n6: # 취약함 암호화 알고리즘인 DES를 사용하여 안전하지 않음\n7: cipher_des = DES.new(key, DES.MODE_ECB)\n8: encrypted_data = base64.b64encode(cipher_aes.encrypt(pad(plain_text, 32)))\n9: return encrypted_data.decode('ASCII')\n파이썬 2.x 버전에서는 PyCrypto를 사용하면 되지만 파이썬 3.x 버전 환경에서 사용 시 동작을 하지 않는\n경우가 발생하며, 더 이상 유지 관리 되지 않으므로(deprecated) PyCrypto를 개선한 버전인 pycryptodome를\n사용해야 한다. 또한 취약한 DES 알고리즘 대신 안전한 AES 암호화 알고리즘을 사용한다.\n블록 암호화에서 운영 모드를 ECB(Electronic Code Block) 모드로 사용할 경우 한 개의 블록만 해독되면\n나머지 블록도 해독이 되는 단점이 있다. CBC(Cipher Block Chaining) 모드는 평문의 각 블록이 XOR 연산을\n통해 이전 암호문과 연산이 되기 때문에 같은 평문이라도 암호문이 서로 다르다. 이러한 특성으로 보안성이\nECB 모드보다 높다.",
+          "page": 85,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        },
+        {
+          "code": "1: import hashlib\n2:\n3: def make_md5(plain_text):\n4: # 취약한 md5 해시함수 사용\n5: hash_text = hashlib.md5(plain_text.encode('utf-8')).hexdigest()\n6:\n7: return hash_text\n아래 코드처럼 수학적으로 안전하다고 알려진 sha-256 해시함수 등을 적용해야 한다.",
+          "page": 86,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: import base64\n2: from Crypto.Cipher import AES\n3: from Crypto.Util.Padding import pad\n4:\n5: def get_enc_text(plain_text, key, iv):\n6: # 안전한 알고리즘인 AES 를 사용하여 안전함.\n7: cipher_aes = AES.new(key, AES.MODE_CBC, iv)\n8: encrypted_data = base64.b64encode(cipher_aes.encrypt(pad(plain_text, 32)))\n9:\n10: return encrypted_data.decode('ASCII')\n79\n\nPython 시큐어코딩 가이드\n다음 예제는 취약한 MD5 해시함수를 사용하는 예시다. 암호 알고리즘과 마찬가지로 해시함수도 수학적으로\n취약한 것으로 확인된 MD5와 같은 함수를 사용하면 해시값을 역계산해 평문이 유출될 수 있다.",
+          "page": 85,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: import hashlib\n2:\n3: def make_sha256(plain_text):\n4: # 안전한 sha-256 해시함수 사용\n5: hash_text = hashlib.sha256(plain_text.encode('utf-8')).hexdigest()\n6:\n7: return hash_text\n라. 참고자료\n① CWE-327: Use of a Broken or Risky Cryptographic Algorithm, MITRE,\nhttps://cwe.mitre.org/data/definitions/327.html\n② Welcome to pyca/cryptography, Cryptography,\nhttps://cryptography.io/en/latest/\n③ Welcome to PyCryptodome’s documentation, PyCryptodome,\nhttps://www.pycryptodome.org/en/latest/\n④ Cryptographic Services, Python Software Foundation,\nhttps://docs.python.org/3/library/crypto.html\n80\n\nPART 제2장 시큐어코딩 가이드 ❘ 제2절 보안기능\n5. 암호화되지 않은 중요정보\n가. 개요\n많은 응용 프로그램은 메모리나 디스크 상에서 중요한 정보(개인정보, 인증정보, 금융정보 등)를 처리한다.\n이러한 중요 정보가 제대로 보호되지 않을 경우 보안 문제가 발생하거나 데이터의 무결성이 깨질 수 있다. 특히\n사용자 또는 시스템의 중요 정보가 포함된 데이터를 평문으로 송·수신 또는 저장 시 인가되지 않은 사용자에게\n민감한 정보가 노출될 수 있다.\n나. 안전한 코딩기법\n개인정보(주민등록번호, 여권번호 등), 금융정보(카드번호, 계좌번호 등), 패스워드 등 중요정보를 저장하거나\n통신채널로 전송할 때는 반드시 암호화 과정을 거쳐야 하며 중요정보를 읽거나 쓸 경우에 권한인증 등을 통해\n적합한 사용자만 중요정보에 접근하도록 해야 한다.\n가능하다면 SSL 또는 HTTPS 등과 같은 보안 채널을 사용해야 한다. 보안 채널을 사용하지 않고 브라우저\n쿠키에 중요 데이터를 저장하는 경우 쿠키 객체에 보안속성을 설정해(Ex. secure = True) 중요 정보의 노출을\n방지할 수 있다.\n다. 코드예제\n⦁중요정보 평문저장\n아래 예제는 사용자로부터 전달받은 패스워드 암호화를 누락한 경우이다.\n81",
+          "page": 85,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "사용해야 한다. 또한 취약한 DES 알고리즘 대신 안전한 AES 암호화 알고리즘을 사용한다.",
+        "취약한 것으로 확인된 MD5와 같은 함수를 사용하면 해시값을 역계산해 평문이 유출될 수 있다.",
+        "아래 코드처럼 수학적으로 안전하다고 알려진 sha-256 해시함수 등을 적용해야 한다.",
+        "적합한 사용자만 중요정보에 접근하도록 해야 한다.",
+        "가능하다면 SSL 또는 HTTPS 등과 같은 보안 채널을 사용해야 한다. 보안 채널을 사용하지 않고 브라우저"
+      ]
+    },
+    {
+      "section": "제2절 보안기능",
+      "number": 7,
+      "korean_name": "충분하지 않은 키 길이 사용",
+      "english_type": "Insufficient_Key_Length",
+      "start_page": 88,
+      "end_page": 90,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: def update_pass(dbconn, password, user_id):\n2: curs = dbconn.cursor()\n3: # 암호화되지 않은 패스워드를 DB에 저장\n4: curs.execute(\n5: 'UPDATE USERS SET PASSWORD=%s WHERE USER_ID=%s',\n6: password,\n7: user_id\n8: )\n9: dbconn.commit()\n아래는 해시 알고리즘을 이용하여 단방향 암호화 이후에 패스워드를 저장하고 있다. 이 때, 해시함수 또한\nSHA256과 같이 안정성이 검증된 알고리즘을 사용해야 한다.",
+          "page": 88,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        },
+        {
+          "code": "1: import socket\n2:\n3: HOST = '127.0.0.1'\n4: PORT = 65434\n5:\n6: def send_password(password):\n7: ......\n8: with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:\n9: s.connect((HOST, PORT))\n10: # 패스워드를 암호화 하지 않고 전송하여 안전하지 않다.\n11: s.sendall(password.encode('utf-8'))\n12: data = s.recv(1024)\n13: .......\n아래는 네트워크를 통해 전달되는 패스워드가 노출되지 않도록 암호화하여 전송하는 예시를 보여 준다.",
+          "page": 89,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: from Crypto.Hash import SHA256\n2:\n3: def update_pass(dbconn, password, user_id, salt):\n4: # 단방향 암호화를 이용하여 패스워드를 암호화\n5: hash_obj = SHA256.new()\n6: hash_obj.update(bytes(password + salt, 'utf-8'))\n7: hash_pwd = hash_obj.hexdigest()\n8: curs = dbconn.cursor()\n9: curs.execute(\n10: 'UPDATE USERS SET PASSWORD=%s WHERE USER_ID=%s',\n11: (hash_pwd, user_id)\n12: )\n13: dbconn.commit()\n82\n\nPART 제2장 시큐어코딩 가이드 ❘ 제2절 보안기능\n⦁중요정보 평문전송\n아래 예제는 인자값으로 전달 받은 패스워드를 검증 없이 네트워크를 통해 전송하는 예시를 포함한다. 전달\n받은 패스워드가 암호화가 되어 있지 않을 경우 패킷 스니핑을 통하여 패스워드가 노출될 수 있다.",
+          "page": 88,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: import socket\n2: import os\n3: from Crypto.Cipher import AES\n4:\n5: HOST = '127.0.0.1'\n6: PORT = 65434\n7:\n8: def send_password(password):\n9: # 문자열로 저장되어 있는 블록키를 로드\n10: block_key = os.environ.get('BLOCK_KEY')\n11:\n12: aes = AEScipher(block_key)\n13: # 패스워드 등 중요 정보는 암호화하여 전송하는 것이 안전하다\n14: enc_passowrd = aes.encrypt(passowrd)\n15:\n83\n\nPython 시큐어코딩 가이드",
+          "page": 88,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "16: with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:\n17: s.connect((HOST, PORT))\n18: s.sendall(enc_passowrd.encode('utf-8'))\n19: data = s.recv(1024)\n20: .......\n21:\n22: class AEScipher:\n23: BS = AES.block_size\n24:\n25: def __init__(self, s_key):\n26: self.s_key = hashlib.sha256(s_key.encode(\"utf-8\")).digest()\n27:\n28: def pad(self, m):\n29: return m + bytes([self.BS - len(m) % self.BS] * (self.BS - len(m) % self.BS))\n30:\n31: def encrypt(self, plain):\n32: plain = self.pad(plain.encode())\n33: iv = Random.new().read(AES.block_size)\n34: cipher = AES.new(self.s_key, AES.MODE_CBC, iv)\n35: return base64.b64encode(iv + cipher.encrypt(plain)).decode(\"utf-8\")\n36: ......\n라. 참고자료\n① CWE-312: Cleartext Storage of Sensitive Information, MITRE,\nhttps://cwe.mitre.org/data/definitions/312.html\n② CWE-319: Cleartext Transmission of Sensitive Information, MITRE,\nhttps://cwe.mitre.org/data/definitions/319.html\n③ Password Plaintext Storage, OWASP,\nhttps://owasp.org/www-community/vulnerabilities/Password_Plaintext_Storage\n84",
+          "page": 90,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "SHA256과 같이 안정성이 검증된 알고리즘을 사용해야 한다.",
+        "아래 예제는 인자값으로 전달 받은 패스워드를 검증 없이 네트워크를 통해 전송하는 예시를 포함한다. 전달"
+      ]
+    },
+    {
+      "section": "제2절 보안기능",
+      "number": 8,
+      "korean_name": "적절하지 않은 난수 값 사용",
+      "english_type": "Weak_Random",
+      "start_page": 91,
+      "end_page": 93,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: import pymysql\n2:\n3: def query_execute(query):\n4: # user, passwd가 소스코드에 평문으로 하드코딩되어 있음\n5: dbconn = pymysql.connect(\n6: host='127.0.0.1',\n7: port='1234',\n8: user='root',\n9: passwd='1234',\n10: db='mydb',\n11: charset='utf8',\n12: )\n13: curs = dbconn.cursor()\n14: curs.execute(query)\n15: dbconn.commit()\n16: dbconn.close()\n패스워드와 같은 중요 정보는 안전한 암호화 방식으로 암호화 후 별도의 분리된 공간(파일)에 저장해야 하며,\n암호화된 정보 사용 시 복호화 과정을 거친 후 사용해야 한다.\n86\n\nPART 제2장 시큐어코딩 가이드 ❘ 제2절 보안기능",
+          "page": 92,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: import pymysql\n2: import json\n3:\n4: def query_execute(query, config_path):\n5: with open(config_path, 'r') as config:\n6: # 설정 파일에서 user, passwd를 가져와 사용\n7: dbconf = json.load(fp=config)\n8: # 암호화되어 있는 블록 암호화 키를 복호화 해서 가져오는\n9: # 사용자 정의 함수\n10: blockKey = get_decrypt_key(dbconf['blockKey'])\n11: # 설정 파일에 암호화되어 있는 값을 가져와 복호화한 후에 사용\n12: dbUser = decrypt(blockKey, dbconf['user'])\n13: dbPasswd = decrypt(blockKey, dbconf['passwd'])\n14:\n15: dbconn = pymysql.connect(\n16: host=dbconf['host']\n17: port=dbconf['port'],\n18: user=dbUser,\n19: passwd=dbPasswd,\n20: db=dbconf['db_name'],\n21: charset='utf8',\n22: )\n23:\n24: curs = dbconn.cursor()\n25: curs.execute(query)\n26: dbconn.commit()\n27: dbconn.close()\n라. 참고자료\n① CWE-259: Use of Hard-coded Password, MITRE,\nhttps://cwe.mitre.org/data/definitions/259.html\n② CWE-321: Use of Hard-coded Cryptographic Key, MITRE,\nhttps://cwe.mitre.org/data/definitions/321.html\n③ Use of hard-coded password, OWASP,\nhttps://owasp.org/www-community/vulnerabilities/Use_of_hard-coded_password\n④ Password Management Hardcoded Password, OWASP,\nhttps://owasp.org/www-community/vulnerabilities/Password_Management_Hardcoded_Password\n87",
+          "page": 93,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "패스워드와 같은 중요 정보는 안전한 암호화 방식으로 암호화 후 별도의 분리된 공간(파일)에 저장해야 하며,",
+        "암호화된 정보 사용 시 복호화 과정을 거친 후 사용해야 한다."
+      ]
+    },
+    {
+      "section": "제2절 보안기능",
+      "number": 9,
+      "korean_name": "취약한 패스워드 허용",
+      "english_type": "Weak_Password",
+      "start_page": 94,
+      "end_page": 97,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: from Crypto.PublicKey import RSA, DSA, ECC\n2: from tinyec import registry\n3: import secrets\n4:\n5: def make_rsa_key_pair():\n6: # RSA키 길이를 2048 비트 이하로 설정하는 경우 안전하지 않음\n7: private_key = RSA.generate(1024)\n8: public_key = private_key.publickey()\n9:\n10: def make_ecc():\n11: # ECC의 키 길이를 224비트 이하로 설정하는 경우 안전하지 않음\n12: ecc_curve = registry.get_curve('secp192r1')\n13: private_key = secrets.randbelow(ecc_curve.field.n)\n14: public_key = private_key * ecc_curve.g\nRSA, DSA의 경우 키의 길이는 적어도 2048 비트를, ECC의 경우 224 비트 이상으로 설정해야 안전하다.\n다음은 tinyec 모듈을 사용하여 ECC 키를 생성한 예제다.\n89\n\nPython 시큐어코딩 가이드",
+          "page": 95,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: from Crypto.PublicKey import RSA, DSA, ECC\n2: from tinyec import registry\n3: import secrets\n4:\n5: def make_rsa_key_pair():\n6: # RSA 키 길이를 2048 비트 이상으로 길게 설정\n7: private_key = RSA.generate(2048)\n8: public_key = private_key.publickey()\n9:\n10: def make_ecc():\n11: # ECC 키 길이를 224 비트 이상으로 설정\n12: ecc_curve = registry.get_curve('secp224r1')\n13: private_key = secrets.randbelow(ecc_curve.field.n)\n14: public_key = private_key * ecc_curve.g\n라. 참고자료\n① CWE-326: Inadequate Encryption Strength, MITRE,\nhttps://cwe.mitre.org/data/definitions/326.html\n② FEDERAL INFORMATION PROCESSING STANDARDS PUBLICATION (FIPS PUB 186-4), NIST\nhttps://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.186-4.pdf\n③ PyCryptodome-RSA,\nhttps://pycryptodome.readthedocs.io/en/latest/src/public_key/rsa.html\n④ 암호 알고리즘 및 키 길이 이용 안내서, KISA,\nhttps://www.kisa.or.kr/2060305/form?postSeq=5&lang_type=KO#fnPostAttachDownload\n⑤ DSA, Pycryptodome,\nhttps://pycryptodome.readthedocs.io/en/latest/src/public_key/dsa.html\n⑥ ECC, Pycryptodome,\nhttps://pycryptodome.readthedocs.io/en/latest/src/public_key/ecc.html\n90\n\nPART 제2장 시큐어코딩 가이드 ❘ 제2절 보안기능\n8. 적절하지 않은 난수 값 사용\n가. 개요\n예측 불가능한 숫자가 필요한 상황에서 예측 가능한 난수를 사용한다면 공격자가 생성되는 다음 숫자를 예상해\n시스템을 공격할 수 있다.\n나. 안전한 코딩기법\n난수 발생기에서 시드(Seed)를 사용하는 경우에는 고정된 값을 사용하지 않고 예측하기 어려운 방법으로\n생성된 값을 사용한다.\npython에서 random 모듈은 주로 보안 목적이 아닌 게임, 퀴즈 및 시뮬레이션을 위해 설계되었다. 세션\nID, 암호화키 등 주요 보안 기능을 위한 값을 생성하고 주요 보안 기능을 수행하는 경우에는 random 모듈보다\n암호화 목적으로 설계된 secrets 모듈을 사용해야 한다.\nsecrets 모듈은 python 3.6 이상에서만 사용 가능하며 암호, 계정 인증, 보안 토큰과 같은 데이터를 관리\n하는데 적합한 강력한 난수 생성에 사용할 수 있다. python 3.6 이하에서는 os.urandom(), random.SystemRandom\n클래스를 사용하는 것이 안전하다.\n다. 코드예제\nrandom 라이브러리 사용 시에는 반드시 유추하기 어려운 seed 값을 이용하여 난수를 생성해야 하며, 이렇게\n생성된 난수라 하더라도 강도가 낮기 때문에 주요 보안 기능을 위한 난수 이용 시에는 안전하지 않다. 아래는",
+          "page": 96,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "되는데, 검증된 암호화 알고리즘을 사용하더라도 키 길이가 충분히 길지 않으면 짧은 시간 안에 키를 찾아낼",
+        "비교표를 기반으로 암호 알고리즘 및 키 길이를 선택해야 한다.",
+        "RSA 알고리즘은 적어도 2,048 비트 이상의 길이를 가진 키와 함께 사용해야 하고, 대칭 암호화 알고리즘(Symmetric",
+        "Encryption Algorithm)의 경우에는 적어도 128비트 이상의 키를 사용해야 한다(암호 강도 112비트 이상).",
+        "RSA, DSA의 경우 키의 길이는 적어도 2048 비트를, ECC의 경우 224 비트 이상으로 설정해야 안전하다."
+      ]
+    },
+    {
+      "section": "제2절 보안기능",
+      "number": 10,
+      "korean_name": "부적절한 전자서명 확인",
+      "english_type": "Improper_Signature_Verification",
+      "start_page": 98,
+      "end_page": 101,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: import random\n2:\n3: def get_otp_number():\n4: random_str = ''\n5: # 시스템 현재 시간 값을 시드로 사용하고 있으며, 주요 보안 기능을 위한\n6: # 난수로 안전하지 않다\n7: for i in range(6):\n8: random_str += str(random.randrange(10))\n9:\n10: return random_str\n다음 코드는 secrets 라이브러리를 사용해 6자리의 난수 값을 생성하는 안전한 예제다.",
+          "page": 98,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        },
+        {
+          "code": "1: import random\n2: import string\n3:\n4: def generate_session_key():\n5: RANDOM_STRING_CHARS = string.ascii_letters + string.digits\n6: # random 라이브러리를 보안 기능에 사용하면 위험하다\n7: return “”.join(random.choice(RANDOM_STRING_CHARS) for i in range(32))\n92\n\nPART 제2장 시큐어코딩 가이드 ❘ 제2절 보안기능\n패스워드나 인증정보 및 보안토큰 생성에 사용하는 경우 안전한 secrets 라이브러리로 생성한 난수를 이용\n해야 한다.",
+          "page": 98,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        },
+        {
+          "code": "1: from flask import request, redirect\n2: from Models import User\n3: from Models import db\n4:\n5: @app.route('/register', methods=['POST'])\n6: def register():\n7: userid = request.form.get('userid')\n8: password = request.form.get('password')\n9: confirm_password = request.form.get('confirm_password')\n10:\n11: if password != confirm_password:\n12: return make_response(\"패스워드가 일치하지 않습니다\", 400)\n13: else:\n14: usertable = User()\n15: usertable.userid = userid\n16: usertable.password = password\n17: # 패스워드 생성 규칙을 확인하지 않고 회원 가입\n18: db.session.add(usertable)\n19: db.session.commit()\n20: return make_response(\"회원가입 성공\", 200)\n94\n\nPART 제2장 시큐어코딩 가이드 ❘ 제2절 보안기능\n사용자 계정 보호를 위해 회원가입 시 패스워드 복잡도와 길이를 검증 후 가입 승인처리를 수행해야 한다.\n코드 내의 특수문자(‘!@#$%^&*’)는 기업 내부 정책에 따라 변경하여 사용하면 되며, 패스워드를 숫자로만\n10자리로 구성할 경우 취약할 수 있으니 사용자가 안전한 패스워드로 변경할 수 있도록 안내해야 한다.",
+          "page": 98,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: import secrets\n2:\n3: def get_otp_number():\n4: random_str = ''\n5:\n6: # 보안기능에 적합한 난수 생성용 secrets 라이브러리 사용\n7: for i in range(6):\n8: random_str += str(secrets.randbelow(10))\n9:\n10: return random_str\n다음은 세션 토큰값을 생성하는 예제로 random 라이브러리를 사용해 안전하지 않다.",
+          "page": 98,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: import secrets\n2: import string\n3:\n4: def generate_session_key():\n5: RANDOM_STRING_CHARS = string.ascii_letters+string.digits\n6: # 보안 기능과 관련된 난수는 secrets 라이브러리를 사용해야 안전하다\n7: return “”.join(secrets.choice(RANDOM_STRING_CHARS) for i in range(32))\n라. 참고자료\n① CWE-330: Use of Insufficiently Random Values, MITRE,\nhttps://cwe.mitre.org/data/definitions/330.html\n② Insecure Randomness, OWASP,\nhttps://owasp.org/www-community/vulnerabilities/Insecure_Randomness\n③ Generate pseudo-random numbers, Python Software Foundation,\nhttps://docs.python.org/3/library/random.html\n④ Generate secure random numbers for managing secrets, Python Software Foundation,\nhttps://docs.python.org/3/library/secrets.html\n93\n\nPython 시큐어코딩 가이드\n9. 취약한 패스워드 허용\n가. 개요\n사용자에게 강한 패스워드 조합규칙을 요구하지 않으면 사용자 계정이 취약하게 된다. 안전한 패스워드를\n생성하기 위해서는 「패스워드 선택 및 이용 안내서」에서 제시하는 패스워드 설정 규칙을 적용해야 한다.\n나. 안전한 코딩기법\n패스워드 생성 시 강한 조건 검증을 수행한다. 패스워드(패스워드)는 숫자와 영문자, 특수문자 등을 혼합하여\n사용하고 주기적으로 변경하여 사용하도록 해야 한다.\n다. 코드예제\n사용자가 입력한 패스워드에 대한 복잡도 검증 없이 가입 승인 처리를 수행하고 있다.",
+          "page": 99,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: from flask import request, redirect\n2: from Models import User\n3: from Models import db\n4: import re\n5:\n6: @app.route('/register', methods=['POST'])\n7: def register():\n8: userid = request.form.get('userid')\n9: password = request.form.get('password')\n10: confirm_password = request.form.get('confirm_password')\n11:\n12: if password != confirm_password:\n13: return make_response(\"패스워드가 일치하지 않습니다.\", 400)\n14:\n15: if not check_password(password):\n16: return make_response(\"패스워드 조합규칙에 맞지 않습니다.\", 400)\n17: else:\n18: usertable = User()\n19: usertable.userid = userid\n20: usertable.password = password\n21:\n22: db.session.add(usertable)\n23: db.session.commit()\n24: return make_response(\"회원가입 성공\", 200)\n25:\n26: def check_password(password):\n27: # 3종 이상 문자로 구성된 8자리 이상 패스워드 검사 정규식 적용\n28: PT1 = re.compile('^(?=.*[A-Z])(?=.*[a-z])[A-Za-z\\d!@#$%^&*]{8,}$')\n29: PT2 = re.compile('^(?=.*[A-Z])(?=.*\\d)[A-Za-z\\d!@#$%^&*]{8,}$')\n30: PT3 = re.compile('^(?=.*[A-Z])(?=.*[!@#$%^&*])[A-Za-z\\d!@#$%^&*]{8,}$')\n31: PT4 = re.compile('^(?=.*[a-z])(?=.*\\d)[A-Za-z\\d!@#$%^&*]{8,}$')\n32: PT5 = re.compile('^(?=.*[a-z])(?=.*[!@#$%^&*])[A-Za-z\\d!@#$%^&*]{8,}$')\n33: PT6 = re.compile('^(?=.*\\d)(?=.*[!@#$%^&*])[A-Za-z\\d!@#$%^&*]{8,}$')\n34:\n35: # 문자 구성 상관없이 10자리 이상 패스워드 검사 정규식\n36: PT7 = re.compile('^[A-Za-z\\d!@#$%^&*]{10,}$')\n37:\n38: for pattern in [PT1, PT2, PT3, PT4, PT5, PT6, PT7]:\n39: if pattern.match(password):\n40: return True\n41: return False\n95",
+          "page": 101,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "6: # 보안 기능과 관련된 난수는 secrets 라이브러리를 사용해야 안전하다",
+        "생성하기 위해서는 「패스워드 선택 및 이용 안내서」에서 제시하는 패스워드 설정 규칙을 적용해야 한다.",
+        "패스워드 생성 시 강한 조건 검증을 수행한다. 패스워드(패스워드)는 숫자와 영문자, 특수문자 등을 혼합하여",
+        "사용하고 주기적으로 변경하여 사용하도록 해야 한다.",
+        "사용자가 입력한 패스워드에 대한 복잡도 검증 없이 가입 승인 처리를 수행하고 있다."
+      ]
+    },
+    {
+      "section": "제2절 보안기능",
+      "number": 11,
+      "korean_name": "부적절한 인증서 유효성 검증",
+      "english_type": "Improper_Certificate_Validation",
+      "start_page": 102,
+      "end_page": 105,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: import base64\n2: from Crypto.PublicKey import RSA\n3: from Crypto.Hash import SHA256\n4: from Crypto.Signature import PKCS1_v1_5 as SIGNATURE_PKCS1_v1_5\n5: from Crypto.Cipher import PKCS1_v1_5, AES\n6: from Crypto.Util.Padding import unpad\n7: ...\n8:\n9: def verify_data(request):\n10: # 클라이언트로부터 전달받은 데이터(전자서명을 수신 처리 하지 않음)\n11: encrypted_code = request.POST.get(\"encrypted_msg\", \"\") # 암호화된 파이썬 코드\n12:\n13: # 서버의 대칭키 로드 (송수신측이 대칭키를 이미 공유했다고 가정)\n14: with open(f\"{PATH}/keys/secret_key.out\", \"rb\") as f:\n15: secret_key = f.read()\n16:\n17: # 대칭키로 클라이언트가 전달한 파이썬 코드 복호화\n18: # (decrypt_with_symmetric_key 함수는 임의의 함수명으로 세부적인 복호화 과정은 생략함)\n19: origin_python_code = decrypt_with_symmetric_key(secret_key, encrypted_code)\n20:\n21: # 클라이언트로부터 전달 받은 파이썬 코드 실행\n22: eval(origin_python_code)\n23:\n24: return render(\n25: request,\n26: \"/verify_success.html\",\n27: {\"result\": \"파이썬 코드를 실행했습니다.\"},\n28: )\n중요한 정보 또는 기능 실행으로 연결되는 데이터를 전달하는 경우 반드시 전자서명을 함께 전송해야 하며,\n수신측에서는 전자서명을 확인해 송신측에서 보낸 데이터의 무결성을 검증해야 한다. 만약 송수신 측 언어가\n다른 경우 사용한 암호 라이브러리에 따라 데이터 인코딩 방식에 차이가 있으니 반드시 코드 배포 전 서명\n검증에 필요한 복호화 과정이 정상적으로 잘 처리되는지 검증해야 한다.\n99",
+          "page": 105,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: import re\n2: from django.core.exceptions import ValidationError\n3: from django.utils.translation import ugettext as _\n4:\n5: class CustomValidator(object):\n6: def validate(self, password, user=None):\n7: # 3종 이상 문자로 구성된 8자리 이상 패스워드 검사 정규식\n8: PT1 = re.compile('^(?=.*[A-Z])(?=.*[a-z])[A-Za-z\\d!@#$%^&*]{8,}$')\n9: PT2 = re.compile('^(?=.*[A-Z])(?=.*\\d)[A-Za-z\\d$@$!%*?&]{8,}$')\n10: PT3 = re.compile('^(?=.*[A-Z])(?=.*[!@#$%^&*])[A-Za-z\\d!@#$%^&*]{8,}$')\n11: PT4 = re.compile('^(?=.*[a-z])(?=.*\\d)[A-Za-z\\d!@#$%^&*]{8,}$')\n12: PT5 = re.compile('^(?=.*[a-z])(?=.*[!@#$%^&*])[A-Za-z\\d!@#$%^&*]{8,}$')\n13: PT6 = re.compile('^(?=.*\\d)(?=.*[!@#$%^&*])[A-Za-z\\d!@#$%^&*]{8,}$')\n14:\n15: # 문자 구성 상관없이 10자리 이상 패스워드 검사 정규식\n16: PT7 = re.compile('^[A-Za-z\\d!@#$%^&*]{10,}$')\n17: for pattern in [PT1, PT2, PT3, PT4, PT5, PT6, PT7]:\n18: if pattern.match(password):\n19: return None\n20: raise ValidationError(\n21: _(\"패스워드 조합규칙에 적합하지 않습니다..\"),\n22: code='improper_password',\n23: )\n24:\n25: def get_help_text(self):\n26: return _(\n27: \"패스워드는 영문 대문자, 소문자, 숫자, 특수문자 조합 중 2가지 이상 8자리이거나 문자 구성\n28: 상관없이 10자리 이상이어야 합니다.\"\n29: )\n96\n\nPART 제2장 시큐어코딩 가이드 ❘ 제2절 보안기능\n라. 참고자료\n① CWE-521: Weak Password Requirements, MITRE,\nhttps://cwe.mitre.org/data/definitions/521.html\n② Authentication Cheat Sheet, OWASP,\nhttps://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html\n③ Regular Expression HOWTO, Python Software Foundation,\nhttps://docs.python.org/3/howto/regex.html\n④ Password management in Django, Django Software Foundation,\nhttps://docs.djangoproject.com/en/4.0/topics/auth/passwords/\n97\n\nPython 시큐어코딩 가이드\n10. 부적절한 전자서명 확인\n가. 개요\n프로그램, 라이브러리, 코드의 전자서명에 대한 유효성 검증이 적절하지 않아 공격자의 악의적인 코드가 실행",
+          "page": 102,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "Django에서는 미들웨어의 AUTH_PASSWORD_VALIDATORS 설정에서 패스워드에 대한 검증을 지원하며,",
+        "기본적으로 아래와 같은 검증을 수행한다.",
+        "⦁UserAttributeSimilarityValidator : 패스워드가 사용자의 다른 속성값(이름, 성, 이메일)등과의 유사도 확인",
+        "⦁MinimumLengthValidator : 패스워드 길이의 최소값 확인(default 8)",
+        "⦁CommonPasswordValidator : 사람들이 가장 많이 사용하는 패스워드 20,000개에 해당하는지 확인"
+      ]
+    },
+    {
+      "section": "제2절 보안기능",
+      "number": 12,
+      "korean_name": "사용자 하드디스크에 저장되는 쿠키를 통한 정보 노출",
+      "english_type": "Cookie_Exposure",
+      "start_page": 106,
+      "end_page": 108,
+      "description": "",
+      "unsafe_codes": [],
+      "safe_codes": [
+        {
+          "code": "1: # 전자서명 검증에 사용한 코드는 의존한 파이썬 패키지 및 송신측 언어에 따라\n2: # 달라질 수 있으며, 사전에 공유한 공개키로 복호화한 전자서명과 원본 데이터 해시값의\n3: # 일치 여부를 검사하는 코드를 포함\n4: def verify_digit_signature (\n5: origin_data: bytes, origin_signature: bytes, client_pub_key: str ) -> bool:\n6: hashed_data = SHA256.new(origin_data)\n7: signer = SIGNATURE_PKCS1_v1_5.new(RSA.importKey(client_pub_key))\n8:\n9: return signer.verify(hashed_data, base64.b64decode(origin_signature))\n10:\n11: def verify_data(request):\n12: # 클라이언트로부터 전달받은 데이터\n13: encrypted_code = request.POST.get(\"encrypted_msg\", \"\") # 암호화된 파이썬 코드\n14: encrypted_sig = request.POST.get(\"encrypted_sig\", \"\") # 암호화된 전자서명\n15:\n16: # 서버의 대칭(비밀)키 및 공개키 로드\n17: with open(f\"/keys/secret_key.out\", \"rb\") as f:\n18: secret_key = f.read()\n19:\n20: with open(f\"/keys/public_key.out\", \"rb\") as f:\n21: public_key = f.read()\n22:\n23: # 대칭키로 파이썬 코드 및 전자서명 복호화\n24: origin_python_code = decrypt_with_symmetric_key(symmetric_key, encrypted_code)\n25: origin_signature = decrypt_with_symmetric_key(symmetric_key, encrypted_sig)\n26:\n27: # 클라이언트의 공개키를 통해 파이썬 코드(원문)와 전자서명을 검증\n28: verify_result = verify_digit_signature(origin_python_code, origin_signature, client_pub_key)\n29:\n30: # 전자서명 검증을 통과했다면 파이썬 코드 실행\n31: if verify_result:\n32: eval(origin_python_code)\n33: return render(request, \"/verify_success.html\",\n34: {\"result\": \"전자서명 검증 통과 및 파이썬 코드를 실행했습니다.\"},\n35: )\n36: else:\n37: return render(request, \"/verify_failed.html\",\n38: {\"result\": \"전자서명 또는 파이썬 코드가 위/변조되었습니다.\"},\n39: )\n100\n\nPART 제2장 시큐어코딩 가이드 ❘ 제2절 보안기능\n라. 참고자료\n① CWE-347: Improper Verification of Cryptographic Signature, MITRE,\nhttps://cwe.mitre.org/data/definitions/347.html\n② Security Consideration for Code Signing, NIST,\nhttps://csrc.nist.gov/CSRC/media/Publications/white-paper/2018/01/26/security-considerations-for-code\n-signing/final/documents/security-considerations-for-code-signing.pdf",
+          "page": 106,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "1: # 전자서명 검증에 사용한 코드는 의존한 파이썬 패키지 및 송신측 언어에 따라",
+        "27: # 클라이언트의 공개키를 통해 파이썬 코드(원문)와 전자서명을 검증",
+        "30: # 전자서명 검증을 통과했다면 파이썬 코드 실행",
+        "34: {\"result\": \"전자서명 검증 통과 및 파이썬 코드를 실행했습니다.\"},",
+        "11. 부적절한 인증서 유효성 검증"
+      ]
+    },
+    {
+      "section": "제2절 보안기능",
+      "number": 13,
+      "korean_name": "주석문 안에 포함된 시스템 주요정보",
+      "english_type": "Information_in_Comments",
+      "start_page": 109,
+      "end_page": 110,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: import os\n2: import socket\n3: import ssl\n4:\n5: HOST, PORT = \"127.0.0.1\", 7917\n6:\n7: def connect_with_server():\n8:\n9: with socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0) as sock:\n10: # 보안 정책 수동 설정\n11: context = ssl.SSLContext()\n12:\n13: # SSLContext 생성자를 직접 호출할 때, CERT_NONE이 기본값\n14: # 상대방을 인증하지 않기 때문에 통신하고자하는 서버의 신뢰성을 보장할 수 없음\n15: context.verify_mode = ssl.CERT_NONE\n16:\n17: with context.wrap_socket(sock) as ssock:\n18: try:\n19: ssock.connect((HOST, PORT))\n20: ssock.send(\"Hello I'm a vulnerable client :)\".encode(\"utf-8\"))\n21: data = ssock.recv(1024).decode(\"utf-8\")\n22: print(f\">> server from ({HOST}, {PORT}): {data}\\n\")\n23: finally:\n24: ssock.close()\nSSL 연결 시 PROTOCOL_TLS_CLIENT 프로토콜을 추가해 인증서 유효성 검사와 호스트 이름 확인을\n위한 context를 구성하면 verify_mode가 CERT_REQUIRED로 설정되며 서버의 인증서 유효성을 검증할 수 있다.\n103\n\nPython 시큐어코딩 가이드",
+          "page": 109,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: import os\n2: import socket\n3: import ssl\n4:\n5: CURRENT_PATH = os.getcwd()\n6: HOST_NAME = \"test-server\"\n7: HOST, PORT = \"127.0.0.1\", 7917\n8: SERVER_CA_PEM = f\"{CURRENT_PATH}/rsa_server/CA.pem\" # 서버로부터 전달받은 CA 인증서\n9:\n10: def connect_with_server():\n11:\n12: with socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0) as sock:\n13: # PROTOCOL_TLS_CLIENT 프로토콜을 추가하여 인증서 유효성 검사와 호스트 이름 확인을 위한\n14: # context를 구성. verify_mode가 CERT_REQUIRED로 설정됨\n15: # check_hostname이 True로 설정됨\n16: context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)\n17:\n18: # 서버로부터 전달받은 CA 인증서를 context에 로드\n19: # CERT_REQUIRED로 인해 필수\n20: context.load_verify_locations(SERVER_CA_PEM)\n21:\n22: # 호스트 이름(HOST_NAME)이 일치하지 않으면 통신 불가\n23: # 생성된 소켓과 context wrapping 시 server_hostname이 실제 서버에서\n24: # 등록(server.csr)한 호스트 명과 일치해야 함\n25: with context.wrap_socket(sock, server_hostname=HOST_NAME) as ssock:\n26: try:\n27: ssock.connect((HOST, PORT))\n28:\n29: ssock.send(\"Hello I'm a patched client :)\".encode(\"utf-8\"))\n30:\n31: data = ssock.recv(1024).decode(\"utf-8\")\n32:\n33: print(f\">> server from ({HOST}, {PORT}): {data}\\n\")\n34: finally:\n35: ssock.close()\n104",
+          "page": 110,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "SSL 연결 시 PROTOCOL_TLS_CLIENT 프로토콜을 추가해 인증서 유효성 검사와 호스트 이름 확인을",
+        "위한 context를 구성하면 verify_mode가 CERT_REQUIRED로 설정되며 서버의 인증서 유효성을 검증할 수 있다.",
+        "13: # PROTOCOL_TLS_CLIENT 프로토콜을 추가하여 인증서 유효성 검사와 호스트 이름 확인을 위한",
+        "24: # 등록(server.csr)한 호스트 명과 일치해야 함"
+      ]
+    },
+    {
+      "section": "제2절 보안기능",
+      "number": 14,
+      "korean_name": "솔트 없이 일방향 해시 함수 사용",
+      "english_type": "Missing_Salt",
+      "start_page": 111,
+      "end_page": 112,
+      "description": "",
+      "unsafe_codes": [],
+      "safe_codes": [],
+      "recommendations": []
+    },
+    {
+      "section": "제2절 보안기능",
+      "number": 15,
+      "korean_name": "무결성 검사없는 코드 다운로드",
+      "english_type": "Unverified_Download",
+      "start_page": 113,
+      "end_page": 115,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: from django.http import HttpResponse\n2:\n3: def remind_user_state(request):\n4: res = HttpResponse()\n5: # 쿠키의 만료시간을 1년으로 과도하게 길게 설정하고 있어 안전하지 않다\n6: res.set_cookie('rememberme', 1, max_age=60*60*24*365)\n7: return res\n만료 시간은 해당 기능에 맞춰 최소로 설정하고 영속적인 쿠키에는 중요 정보가 포함되지 않도록 한다. 쿠키를\nHTTPS를 통해서만 전송하도록 secure 속성값을 True(기본값은 False)를 사용할 수 있다. 클라이언트 측에서\nJavaScript를 통해 쿠키를 접근하지 못하도록 제한 하고자 할 경우엔 httpOnly 속성을 True(기본값은 False)로\n설정한다. 다음은 쿠키 만료 시간을 1시간으로 설정한 예시다.",
+          "page": 113,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        },
+        {
+          "code": "1: def user_login(id, passwd):\n2: # 주석문에 포함된 중요 시스템의 인증 정보\n3: # id = admin\n4: # passwd = passw0rd\n5: result = login(id, passwd)\n6:\n7: return result\n109",
+          "page": 113,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: from django.http import HttpResponse\n2:\n3: def remind_user_state(request):\n4: res = HttpResponse()\n5: # 쿠키의 만료시간을 적절하게 부여하고 secure 및 httpOnly 옵션을 활성화 한다.\n6: res.set_cookie('rememberme', 1, max_age=60*60, secure=True, httponly=True)\n7: return res\nDjango에서는 settings.py에 아래와 같이 추가해 전역으로 설정할 수 있다.\n107\n\nPython 시큐어코딩 가이드",
+          "page": 113,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: from django.http import HttpResponse\n2: from django.conf.global_settings import (\n3: SESSION_COOKIE_AGE,\n4: SESSION_COOKIE_HTTPONLY,\n5: SESSION_COOKIE_HTTPONLY,\n6: )\n7:\n8: \"\"\"\n9: # settings.py\n10: SESSION_COOKIE_AGE = 60 * 60 * 24 * 14\n11: SESSION_COOKIE_HTTPONLY = True\n12: SESSION_COOKIE_SECURE = True\n13: \"\"\"\n14:\n15: def remind_user_state(request):\n16: res = HttpResponse()\n17: # 서버 세팅(setting.py)에서 default로 쿠키 옵션을 설정한 상태\n18: res.set_cookie(\n19: \"rememerme\",\n20: 1,\n21: max_age=SESSION_COOKIE_AGE,\n22: secure=SESSION_COOKIE_HTTPONLY,\n23: httponly=SESSION_COOKIE_HTTPONLY,\n24: )\n25: return res\n라. 참고자료\n① CWE-539: Use of Persistent Cookies Containing Sensitive Information, MITRE,\nhttps://cwe.mitre.org/data/definitions/539.html\n② Expire and Max-Age Attributes, OWASP,\nhttps://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html\n#expire-and-max-age-attributes\n③ HTTP state management, Python Software Foundation,\nhttps://docs.python.org/ko/3/library/http.cookies.html\n④ Django set_cookie, Django Software Foundation,\nhttps://docs.djangoproject.com/en/dev/ref/request-response/#django.http.HttpResponse.set_cookie\n⑤ Django Settings, Django Software Foundation,\nhttps://docs.djangoproject.com/en/4.0/ref/settings/#sessions\n108\n\nPART 제2장 시큐어코딩 가이드 ❘ 제2절 보안기능\n13. 주석문 안에 포함된 시스템 주요정보\n가. 개요\n소프트웨어 개발자가 편의를 위해서 주석문에 패스워드를 적어둔 경우 소프트웨어가 완성된 후에는 그것을\n제거하는 것이 매우 어렵게 된다. 만약 공격자가 소스코드에 접근할 수 있다면 시스템에 손쉽게 침입할 수 있다.\n나. 안전한 코딩기법\n주석에는 아이디, 패스워드 등 보안과 관련된 내용을 기입하지 않는다.\n다. 코드예제\n편리성을 위해 아이디, 패스워드 등 중요정보를 주석문 안에 작성 후 지우지 않는 경우 정보 노출 보안약점이",
+          "page": 114,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "section": "제2절 보안기능",
+      "number": 16,
+      "korean_name": "반복된 인증시도 제한 기능 부재",
+      "english_type": "Missing_Brute_Force_Protection",
+      "start_page": 116,
+      "end_page": 118,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: import hashlib\n2:\n3: def get_hash_from_pwd(pw):\n4: # salt 없이 생성된 해시값은 강도가 약해 취약하다\n5: h = hashlib.sha256(pw.encode())\n6:\n7: return h.digest()\n111\n\nPython 시큐어코딩 가이드\n짧은 길이의 패스워드로 강도 높은 해시값을 생성하기 위해서는 반드시 솔트 값을 함께 전달해야 한다.",
+          "page": 116,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: def user_login(id, passwd):\n2: # 주석문에 포함된 민감한 정보는 삭제\n3: result = login(id, passwd)\n4: return result\n라. 참고자료\n① CWE-615: Inclusion of Sensitive Information in Source Code Comments, MITRE,\nhttps://cwe.mitre.org/data/definitions/615.html\n110\n\nPART 제2장 시큐어코딩 가이드 ❘ 제2절 보안기능\n14. 솔트 없이 일방향 해시 함수 사용\n가. 개요\n패스워드와 같이 중요정보를 저장할 경우 가변 길이 데이터를 고정된 크기의 해시값으로 변환해주는 일방향\n해시함수를 이용해 저장할 수 있다. 만약 중요정보를 솔트(Salt)없이 일방향 해시함수를 사용해 저장한다면\n공격자는 미리 계산된 레인보우 테이블을 이용해 해시값을 알아낼 수 있다.\n나. 안전한 코딩기법\n패스워드와 같은 중요 정보를 저장할 경우 임의의 길이인 데이터를 고정된 크기의 해시값으로 변환해주는\n일방향 해시함수를 이용하여 저장한다. 또한 솔트값은 사용자별로 유일하게 생성해야 하며, 이를 위해 사용자별\n솔트 값을 별도로 저장하는 과정이 필요하다.\n파이썬에서는 hashlib 라이브러리를 사용해 해시값을 생성할 수 있으며 salt 값은 os.urandom() 등 안전한\n난수 생성 라이브러리를 사용하여 생성해야 한다.\n다. 코드예제\n다음은 salt 없이 길이가 짧은 패스워드를 해시 함수에 전달해 원문이 공격자에 의해 쉽게 유추되는 예시를 보여 준다.",
+          "page": 116,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: import hashlib\n2: import secrets\n3:\n4: def get_hash_from_pwd(pw):\n5: # 솔트 값을 사용하면 길이가 짧은 패스워드로도 고강도의 해시를 생성할 수 있다.\n6: # 솔트 값은 사용자별로 유일하게 생성해야 하며, 패스워드와 함께 DB에 저장해야 한다\n7: salt = secrets.token_hex(32)\n8: h = hashlib.sha256(salt.encode() + pw.encode())\n9:\n10: return h.digest(), salt\n라. 참고자료\n① CWE-759: Use of a One-Way Hash without a Salt, MITRE,\nhttps://cwe.mitre.org/data/definitions/759.html\n② Password Storage Cheat Sheet – Salting, OWASP,\nhttps://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#salting\n③ hashlib – Secure hashes and message digests, Python Software Foundation,\nhttps://docs.python.org/3/library/hashlib.html\n④ secrets, Python Software Foundation,\nhttps://docs.python.org/ko/3/library/secrets.html#module-secrets\n112",
+          "page": 118,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "일방향 해시함수를 이용하여 저장한다. 또한 솔트값은 사용자별로 유일하게 생성해야 하며, 이를 위해 사용자별",
+        "난수 생성 라이브러리를 사용하여 생성해야 한다.",
+        "짧은 길이의 패스워드로 강도 높은 해시값을 생성하기 위해서는 반드시 솔트 값을 함께 전달해야 한다.",
+        "6: # 솔트 값은 사용자별로 유일하게 생성해야 하며, 패스워드와 함께 DB에 저장해야 한다"
+      ]
+    },
+    {
+      "section": "제3절 시간 및 상태",
+      "number": 1,
+      "korean_name": "경쟁조건: 검사시점과 사용시점",
+      "english_type": "TOCTOU",
+      "start_page": 119,
+      "end_page": 121,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: import requests\n2:\n3: def execute_remote_code():\n4: # 신뢰할 수 없는 사이트에서 코드를 다운로드\n5: url = \"https://www.somewhere.com/storage/code.py\"\n6:\n7: # 원격 코드 다운로드\n8: file = requests.get(url)\n9: remote_code = file.content\n10:\n11: file_name = 'save.py'\n12: with open(file_name, 'wb') as f:\n13: f.write(file.content)\n14: ......",
+          "page": 120,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: import requests\n2: import hashlib\n3: import configparser\n4:\n5: def execute_remote_code():\n6: config = configparser.RawConfigParser()\n7: config.read(‘sample_config.cfg’)\n8:\n9: url = \"https://www.somewhere.com/storage/code.py\"\n10: remote_code_hash = config.get('HASH', 'file_hash')\n11:\n12: # 원격 코드 다운로드\n13: file = requests.get(url)\n14: remote_code = file.content\n15:\n16: sha = hashlib.sha256()\n17: sha.update(remote_code)\n18:\n19: # 다운로드 받은 파일의 해시값 검증\n20: if sha.hexdigest() != remote_code_hash:\n21: raise Exception(‘파일이 손상되었습니다.’)\n22:\n23: file_name = 'save.py'\n24: with open(file_name, 'wb') as f\n25: f.write(file.content)\n26: ......\n114\n\nPART 제2장 시큐어코딩 가이드 ❘ 제2절 보안기능\n라. 참고자료\n① CWE-494: Download of Code Without Integrity Check, MITRE,\nhttps://cwe.mitre.org/data/definitions/494.html\n② Secure hashes and message digests, Python Software Foundation,\nhttps://docs.python.org/3/library/hashlib.html\n➂ Top 25 Series – Download of Code Without Integrity Check, SANS,\nhttps://www.sans.org/blog/top-25-series-rank-20-download-of-code-without-integrity-check/\n115",
+          "page": 119,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "파일(및 해당 소프트웨어) 무결성을 확인하는 두 가지 주요 방법으로는 암호화 해시 및 디지털 서명이 있다.",
+        "무결성을 보장하기 위해 해시를 사용하고 가능하면 적절한 코드 서명 인증서를 사용하고 확인하는 것이 더",
+        "소스코드는 신뢰할 수 있는 사이트에서만 다운로드해야 하고 파일의 인증서 또는 해시값을 검사해 변조되지",
+        "않은 파일인지 확인하여야 한다.",
+        "19: # 다운로드 받은 파일의 해시값 검증"
+      ]
+    },
+    {
+      "section": "제3절 시간 및 상태",
+      "number": 2,
+      "korean_name": "종료되지 않는 반복문 또는 재귀 함수",
+      "english_type": "Infinite_Loop",
+      "start_page": 122,
+      "end_page": 124,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: import hashlib\n2: from django.shortcuts import render\n3:\n4: def login(request):\n5: user_id = request.POST.get('user_id', '')\n6: user_pw = request.POST.get('user_pw', '')\n7:\n8: sha = hashlib.sha256()\n9: sha.update(user_pw.encode(‘utf-8’))\n10:\n11: hashed_passwd = get_user_pw(user_id)\n12:\n13: # 인증 시도에 따른 제한이 없어 반복적인 인증 시도가 가능\n14: if sha.hexdigest() == hashed_passwd:\n15: return render(request, '/index.html', {'state':'login_success'})\n16: else:\n17: return render(request, '/login.html', {'state':'login_failed'})\n다음은 사용자 로그인 시도에 대한 횟수를 제한하여 무차별 공격에 대응하는 방법을 보여 준다.",
+          "page": 123,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: import hashlib\n2: from django.shortcuts import render\n3: from .models import LoginFail\n4:\n5: LOGIN_TRY_LIMIT = 5\n6:\n7: def login(request):\n8: user_id = request.POST.get('user_id', '')\n9: user_pw = request.POST.get('user_pw', '')\n10: sha = hashlib.sha256()\n11: sha.update(user_pw.encode(‘utf-8’))\n12: hashed_passwd = get_user_pw(user_id)\n13:\n14: if sha.hexdigest() == hashed_passwd:\n15: # 로그인 성공 시 실패 횟수 삭제\n16: LoginFail.objects.filter(user_id=user_id).delete()\n17: return render(request, '/index.html', {'state':'login_success'})\n117\n\nPython 시큐어코딩 가이드",
+          "page": 122,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "18: # 로그인 실패 기록 가져오기\n19: if LoginFail.objects.filter(user_id=user_id).exists():\n20: login_fail = LoginFail.objects.get(user_id=user_id)\n21: COUNT = login_fail.count\n22: else:\n23: COUNT = 0\n24:\n25: if COUNT >= LOGIN_TRY_LIMIT:\n26: # 로그인 실패횟수 초과로 인해 잠금된 계정에 대한 인증 시도 제한\n27: return render(request, \"/account_lock.html\", {\"state\": \"account_lock\"})\n28: else:\n29: # 로그인 실패 횟수 DB 기록\n30: # 첫 시도라면 DB에 insert,\n31: # 실패 기록이 존재한다면 update\n32: LoginFail.objects.update_or_create(\n33: user_id=user_id,\n34: defaults={\"count\": COUNT + 1},\n35: )\n36:\n37: return render(request, \"/login.html\", {\"state\": \"login_failed\"})\n라. 참고자료\n① CWE-307: Improper Restriction of Excessive Authentication Attempts, MITRE,\nhttps://cwe.mitre.org/data/definitions/307.html\n② Blocking Brute Force Attacks, OWASP,\nhttps://owasp.org/www-community/controls/Blocking_Brute_Force_Attacks\n➂ additional security topics, Django Software Foundation,\nhttps://docs.djangoproject.com/en/3.2/topics/security/#additional-security-topics\n➃ Django-defender,\nhttps://github.com/jazzband/django-defender\n118",
+          "page": 124,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "외에 CAPTCHA나 Two-Factor 인증 방법도 설계 시부터 고려해야 한다."
+      ]
+    },
+    {
+      "section": "제4절 에러처리",
+      "number": 1,
+      "korean_name": "오류 메시지 정보노출",
+      "english_type": "Error_Message_Exposure",
+      "start_page": 125,
+      "end_page": 128,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: import os\n2: import io\n3: import datetime\n4: import threading\n5:\n6: def write_shared_file(filename, content):\n7: # 멀티스레드 환경에서는 다른 사용자들의 작업에 따라 파일이 사라질 수\n8: # 있기 때문에 공유 자원에 대해서는 검사와 사용을 동시에 해야 한다.\n9: if os.path.isfile(filename) is True:\n10: f = open(filename, 'w')\n11: f.seek(0, io.SEEK_END)\n12: f.write(content)\n13: f.close()\n14:\n15: def start():\n16: filename = ‘./temp.txt’\n17: content = f“start time is {datetime.datetime.now()}”\n18: my_thread = threading.Thread(target=write_shared_file, args=(filename, content))\n19: my_thread.start()\n120\n\nPART 제2장 시큐어코딩 가이드 ❘ 제3절 시간 및 상태\n다음은 파일 검사 후 파일이 삭제되거나 변동되는 것을 예방하기 위해 lock을 사용하여 각 쓰레드에서 공유\n자원에 접근하는 것을 통제 하는 예제 코드를 보여 준다. lock을 acquire하면 해당 쓰레드만 공유 데이터에\n접근 할 수 있고 lock을 release 해야만 다른 쓰레드에서 공유 데이터에 접근 할 수 있다.",
+          "page": 125,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: import os\n2: import io\n3: import datetime\n4: import threading\n5:\n6: lock = threading.Lock()\n7: def write_shared_file(filename, content):\n8: # lock을 이용하여 여러 사용자가 동시에 파일에 접근하지 못하도록 제한\n9: with lock:\n10: if os.path.isfile(filename) is True:\n11: f = open(filename, 'w')\n12: f.seek(0, io.SEEK_END)\n13: f.write(content)\n14: f.close()\n15:\n16: def start():\n17: filename = ‘./temp.txt’\n18: content = f“start time is {datetime.datetime.now()}”\n19: my_thread = threading.Thread(target=write_shared_file, args=(filename, content))\n20: my_thread.start()\n라. 참고자료\n① CWE-367: Time-of-check Time-of-use (TOCTOU) Race Condition, MITRE,\nhttps://cwe.mitre.org/data/definitions/367.html\n② Thread-based parallelism, Python Software Foundation,\nhttps://docs.python.org/3/library/threading.html\n121\n\nPython 시큐어코딩 가이드\n2. 종료되지 않는 반복문 또는 재귀 함수\n가. 개요\n재귀 함수의 순환 횟수를 제어하지 못해 할당된 메모리나 프로그램 스택 등의 자원을 개발자가 의도한 범위를\n과도하게 초과해 사용하면 위험하다. 대부분의 경우 기본 케이스(Base Case4))가 정의되어 있지 않은 재귀\n함수는 무한 루프에 빠져들게 되고 자원고갈을 유발함으로써 시스템의 정상적인 서비스를 제공할 수 없게 한다.\n파이썬에서는 재귀 함수의 재귀 반복 제한(Recursion Depth Limit)이 적용되어 있어 무한루프가 발생하지\n않으나, setrecursionlimit() 함수를 사용해 임의로 최대 깊이를 변경해 사용하는 경우 재귀 함수 호출 횟수가\n과도하게 많아지지 않도록 주의해야 한다.\n나. 안전한 코딩기법\n모든 재귀 호출 시 호출 횟수를 제한하거나 재귀 함수 종료 조건을 명확히 정의해 호출을 제어해야 한다.\n파이썬의 recursionlimit 제한은 스택 오버플로우 발생을 막기 위한 방법으로, recursionlimit 값을 과도하게\n큰 값으로 설정하지 않아야 한다.\n다. 코드예제\n다음 코드 예시의 factorial 함수는 함수 내부에서 자신을 호출하는 함수로 재귀문을 빠져 나오는 조건을\n정의하고 있지 않아 시스템 장애를 유발할 수 있다.\n4)\u0000기본\u0000케이스(Base\u0000Case)는\u0000재귀\u0000호출을\u0000하지\u0000않고\u0000반환하는\u0000방법을\u0000의미한다.\n122",
+          "page": 127,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "프로세스만 접근 가능하도록 해야 하며 성능에 미치는 영향을 최소화하기 위해 임계영역(critical section) 주변만",
+        "파이썬의 Lock 객체 사용 시 lock.acquire()로 자원을 잠그고 lock.release()로 자원을 해제해야 하며 이",
+        "8: # 있기 때문에 공유 자원에 대해서는 검사와 사용을 동시에 해야 한다.",
+        "접근 할 수 있고 lock을 release 해야만 다른 쓰레드에서 공유 데이터에 접근 할 수 있다.",
+        "과도하게 많아지지 않도록 주의해야 한다."
+      ]
+    },
+    {
+      "section": "제4절 에러처리",
+      "number": 2,
+      "korean_name": "오류상황 대응 부재",
+      "english_type": "Missing_Error_Handling",
+      "start_page": 129,
+      "end_page": 131,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: def factorial(num):\n2: # 재귀함수 탈출조건을 설정하지 않아 동작 중 에러 발생\n3: return num * factorial(num – 1)\n4:\n5: if __name__ == '__main__':\n6: itr = 5\n7: result = factorial(itr)\n8: print(str(itr) + ' 팩토리얼 값은 : ' + str(result))\n특정 조건 또는 횟수에 따라 재귀 코드 실행을 중단해 프로그램이 무한 반복에 빠지지 않도록 한다.",
+          "page": 129,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: def factorial(num):\n2: # 재귀함수 사용 시에는 탈출 조건을 명시해야 한다.\n3: if (num == 0):\n4: return 1\n5: else:\n6: return num * factorial(num - 1)\n7:\n8: if __name__ == '__main__':\n9: itr = 5\n10: result = factorial(itr)\n11: print(str(itr) + ' 팩토리얼 값은 : ' + str(result))\n파이썬의 재귀 반복 제한은 기본이 1000으로 설정되어 있다. Anaconda의 경우는 기본 값이 2000이다.\n이 값을 과도하게 변경하지 않아야 한다.",
+          "page": 129,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: import sys\n2:\n3: sys.setrecursionlimit(1000)\n123\n\nPython 시큐어코딩 가이드\n라. 참고자료\n① CWE-674: Uncontrolled Recursion, MITRE,\nhttps://cwe.mitre.org/data/definitions/674.html\n② CWE-835: Loop with Unreachable Exit Condition ('Infinite Loop'), MITRE,\nhttps://cwe.mitre.org/data/definitions/835.html\n③ sys.setrecursionlimit, Python Software Foundation,\nhttps://docs.python.org/3/library/sys.html#sys.setrecursionlimit\n124\n\nPART 제2장 시큐어코딩 가이드 ❘ 제4절 에러처리\n제4절 에러처리\n에러를 처리하지 않거나 불충분하게 처리하여 에러 정보에 중요정보(시스템 내부정보 등)가 포함될 때 발생\n할 수 있는 보안약점이다.\n1. 오류 메시지 정보노출\n가. 개요\n응용 프로그램이 실행환경, 사용자 등 관련 데이터에 대한 민감한 정보를 포함하는 오류 메시지를 생성해\n외부에 제공하는 경우 공격자의 악성 행위로 이어질 수 있다. 예외발생 시 예외 이름이나 추적 메시지\n(traceback)를 출력하는 경우 프로그램 내부 구조를 쉽게 파악할 수 있기 때문이다.\nDjango 프레임워크와 Flask 프레임워크는 HTTP 오류 코드가 있는 요청을 처리하기 위한 사용자 에러 페이지\n핸들러를 제공한다.\n나. 안전한 코딩기법\n오류 메시지는 정해진 사용자에게 유용한 최소한의 정보만 포함하도록 한다. 소스코드에서 예외 상황은 내부적\n으로 처리하고 사용자에게 시스템 내부 정보 등 민감한 정보를 포함하는 오류를 출력하지 않고 미리 정의된\n메시지를 제공하도록 설정한다.\nDjango 프레임워크에서는 urls.py에 사용자 정의 에러 페이지 핸들러를 정의할 수 있다.\n125",
+          "page": 129,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "2: # 재귀함수 사용 시에는 탈출 조건을 명시해야 한다."
+      ]
+    },
+    {
+      "section": "제4절 에러처리",
+      "number": 3,
+      "korean_name": "부적절한 예외 처리",
+      "english_type": "Improper_Exception_Handling",
+      "start_page": 132,
+      "end_page": 133,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: # config/urls.py\n2: # 별도의 에러 페이지를 선언하지 않아 django의 기본 에러 페이지를 출력한다\n제공되는 에러 페이지 핸들러를 이용해 별도의 에러 페이지를 생성하여 사용자에게 표현하고 서버의 정보노출을\n최소화해야 한다.\n126\n\nPART 제2장 시큐어코딩 가이드 ❘ 제4절 에러처리",
+          "page": 132,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        },
+        {
+          "code": "1: import traceback\n2:\n3: def fetch_url(url, useragent, referer=None, retries=1, dimension=False):\n4: ......\n5: try:\n6: response = requests.get(\n7: url,\n8: stream=True,\n9: timeout=5,\n10: headers={ 'User-Agent': useragent, 'Referer': referer },\n11: )\n12: ......\n13: except IOError:\n14: # 에러메시지를 통해 스택 정보가 노출.\n15: traceback.print_exc()\n127",
+          "page": 132,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: # config/urls.py\n2: from django.conf.urls import handler400, handler403, handler404, handler500\n3:\n4: # 사용자 정의 에러 페이지를 지정하고\n5: # views.py에 사용자 정의 에러 페이지에 대한 코드를 구현하여 사용한다\n6: handler400 = \"blog.views.error400\"\n7: handler403 = \"blog.views.error403\"\n8: handler404 = \"blog.views.error404\"\n9: handler500 = \"blog.views.error500“\n아래는 traceback을 사용하여 에러 스택을 표준 출력으로 표시해 정보가 노출되는 예제를 보여 준다.",
+          "page": 133,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "section": "제5절 코드오류",
+      "number": 1,
+      "korean_name": "Null Pointer 역참조",
+      "english_type": "Null_Pointer_Dereference",
+      "start_page": 134,
+      "end_page": 136,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: import base64\n2: from Crypto.Cipher import AES\n3: from Crypto.Util.Padding import pad\n4:\n5: static_keys=[\n6: {'key' : b'\\xb9J\\xfd\\xa9\\xd2\\xefD\\x0b\\x7f\\xb2\\xbcy\\x9c\\xf7\\x9c',\n7: ‘iv' : b'\\xf1BZ\\x06\\x03TP\\xd1\\x8a\\xad\"\\xdc\\xc3\\x08\\x88\\xda'},\n8: {'key' : b'Z\\x01$.:\\xd4u3~\\xb6TS(\\x08\\xcc\\xfc',\n9: 'iv' : b'\\xa1a=:\\xba\\xfczv]\\xca\\x83\\x9485\\x14\\x17'},\n10: ]\n11:\n12: def encryption(key_id, plain_text):\n13: static_key = {'key':b'0000000000000000', 'iv':b'0000000000000000'}\n14:\n15: try:\n16: static_key = static_keys[key_id]\n17: except IndexError:\n18: # key 선택 중 오류 발생 시 기본으로 설정된 암호화 키인\n19: # ‘0000000000000000’ 으로 암호화가 수행된다.\n20: pass\n21:\n22: cipher_aes = AES.new(static_key['key'],AES.MODE_CBC,static_key['iv'])\n23: encrypted_data = base64.b64encode(cipher_aes.encrypt(pad(plain_text.encode(), 32)))\n24: return encrypted_data.decode('ASCII')\n예외상황 발생 시에 프로그램이 개발자의 의도와 다르게 동작하지 않도록 반드시 예외 처리 구문을 추가해야 한다.\n130",
+          "page": 136,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: import logging\n2:\n3: def fetch_url(url, useragent, referer=None, retries=1, dimension=False):\n4: ......\n5: try:\n6: response = requests.get(url, stream=True, timeout=5, headers={\n7: 'User-Agent': useragent,\n8: 'Referer': referer,\n9: })\n10: \u0000\u0000......\n11: except IOError:\n12: # 에러 코드와 정보를 별도로 정의하고 최소 정보만 로깅\n13: logger.error('ERROR-01:통신에러')\n라. 참고자료\n① CWE-209: Generation of Error Message Containing Sensitive Information, MITRE\nhttps://cwe.mitre.org/data/definitions/209.html\n② Improper Error Handling, OWASP,\nhttps://owasp.org/www-community/Improper_Error_Handling\n③ Errors and Exceptions, Python Software Foundation,\nhttps://docs.python.org/3/tutorial/errors.html\n➃ Django Error views, Django Software Foundation,\nhttps://docs.djangoproject.com/en/3.2/ref/views/#error-views\n➄ Flask Error Handlers, Flask\nhttps://flask.palletsprojects.com/en/2.0.x/errorhandling/#error-handlers\n128\n\nPART 제2장 시큐어코딩 가이드 ❘ 제4절 에러처리\n2. 오류상황 대응 부재\n가. 개요\n오류가 발생할 수 있는 부분을 확인하였으나 이러한 오류에 대해 예외 처리를 하지 않을 경우 공격자는 오류\n상황을 악용해 개발자가 의도하지 않은 방향으로 프로그램이 동작하도록 할 수 있다.\n예외처리는 코드를 견고하게 만들고 프로그램 제어 실패로 인해 의도치 않은 중단으로 이어지는 잠재적인\n오류를 방지하는데 도움이 된다.\n나. 안전한 코딩기법\n오류가 발생할 수 있는 부분에 대하여 제어문(try-except)을 사용해 적절하게 예외 처리한다.\n다. 코드예제\n다음 예제는 try 블록에서 발생하는 오류를 포착(except)하고 있지만 그 오류에 대해서 아무 조치를 하지\n않는 상황을 보여준다. 아무 조치가 없으므로 프로그램이 계속 실행되기 때문에 개발자가 의도하지 않은 방향\n으로 프로그램이 동작할 수 있다.\n129\n\nPython 시큐어코딩 가이드",
+          "page": 134,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "오류가 발생할 수 있는 부분을 확인하였으나 이러한 오류에 대해 예외 처리를 하지 않을 경우 공격자는 오류",
+        "오류를 방지하는데 도움이 된다.",
+        "예외상황 발생 시에 프로그램이 개발자의 의도와 다르게 동작하지 않도록 반드시 예외 처리 구문을 추가해야 한다."
+      ]
+    },
+    {
+      "section": "제5절 코드오류",
+      "number": 2,
+      "korean_name": "부적절한 자원 해제",
+      "english_type": "Improper_Resource_Release",
+      "start_page": 137,
+      "end_page": 139,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: import sys\n2:\n3: def get_content():\n4: try:\n5: f = open('myfile.txt')\n6: s = f.readline()\n7: i = int(s.strip())\n8: # 예외처리를 세분화 할 수 있음에도 광범위하게 사용하여 예기치 않은\n9: # 문제가 발생할 수 있다\n10: except:\n11: print(\"Unexpected error \")\n다음은 발생 가능한 예외를 세분화한 후 예외상황에 따라 적합한 처리한 예시를 보여 준다.\n132\n\nPART 제2장 시큐어코딩 가이드 ❘ 제4절 에러처리",
+          "page": 137,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: import base64\n2: from Crypto.Cipher import AES\n3: from Crypto.Util.Padding import pad\n4:\n5: static_keys=[\n6: {'key' : b'\\xb9J\\xfd\\xa9\\xd2\\xefD\\x0b\\x7f\\xb2\\xbcy\\x9c\\xf7\\x9c',\n7: ‘iv' : b'\\xf1BZ\\x06\\x03TP\\xd1\\x8a\\xad\"\\xdc\\xc3\\x08\\x88\\xda'},\n8: {'key' : b'Z\\x01$.:\\xd4u3~\\xb6TS(\\x08\\xcc\\xfc',\n9: 'iv' : b'\\xa1a=:\\xba\\xfczv]\\xca\\x83\\x9485\\x14\\x17'},\n10: ]\n11:\n12: def encryption(key_id, plain_text):\n13: static_key = {'key':b'0000000000000000', 'iv':b'0000000000000000'}\n14:\n15: try:\n16: static_key = static_keys[key_id]\n17: except IndexError:\n18: # key 선택 중 오류 발생 시 랜덤으로 암호화 키를 생성하도록 설정\n19: static_key = {'key': secrets.token_bytes(16), 'iv': secrets.token_bytes(16)}\n20: static_keys.append(static_key)\n21:\n22: cipher_aes = AES.new(static_key['key'],AES.MODE_CBC,static_key['iv'])\n23: encrypted_data = base64.b64encode(cipher_aes.encrypt(pad(plain_text.encode(), 32)))\n24: return encrypted_data.decode('ASCII')\n라. 참고자료\n① CWE-390: Detection of Error Condition Without Action, MITRE,\nhttps://cwe.mitre.org/data/definitions/390.html\n② Errors and Exceptions, Python Software Foundation,\nhttps://docs.python.org/3/tutorial/errors.html\n➂ Built-in Exceptions, Python Software Foundation,\nhttps://docs.python.org/3/library/exceptions.html\n131\n\nPython 시큐어코딩 가이드\n3. 부적절한 예외 처리\n가. 개요\n프로그램 수행 중에 함수의 결과 값에 대한 적절한 처리 또는 예외 상황에 대한 조건을 적절하게 검사 하지\n않을 경우 예기치 않은 문제를 야기할 수 있다.\n나. 안전한 코딩기법\n값을 반환하는 모든 함수의 결과값을 검사해야 한다. 결과값이 개발자가 의도했던 값인지 검사하고 예외 처리를\n사용하는 경우에 광범위한 예외 처리 대신 구체적인 예외 처리를 수행한다.\n다. 코드예제\n다음 예제는 다양한 예외가 발생할 수 있음에도 불구하고 광범위한 예외 처리로 예외상황에 따른 적절한\n조치가 부적절한 사례를 보여 준다.",
+          "page": 137,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: def get_content():\n2: try:\n3: f = open('myfile.txt')\n4: s = f.readline()\n5: i = int(s.strip())\n6:\n7: # 발생할 수 있는 오류의 종류와 순서에 맞춰서 예외 처리 한다.\n8: except FileNotFoundError:\n9: print(\"file is not found\")\n10: except OSError:\n11: print(\"cannot open file\")\n12: except ValueError:\n13: print(\"Could not convert data to an integer.\")\n라. 참고자료\n① CWE-754: Improper Check for Unusual or Exceptional Conditions, MITRE,\nhttps://cwe.mitre.org/data/definitions/754.html\n② Errors and Exceptions, Python Software Foundation,\nhttps://docs.python.org/3/tutorial/errors.html\n➂ Built-in Exceptions, Python Software Foundation,\nhttps://docs.python.org/3/library/exceptions.html\n133",
+          "page": 139,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "값을 반환하는 모든 함수의 결과값을 검사해야 한다. 결과값이 개발자가 의도했던 값인지 검사하고 예외 처리를"
+      ]
+    },
+    {
+      "section": "제5절 코드오류",
+      "number": 3,
+      "korean_name": "신뢰할 수 없는 데이터의 역직렬화",
+      "english_type": "Unsafe_Deserialization",
+      "start_page": 140,
+      "end_page": 142,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: import os\n2: from django.shortcuts import render\n3: from xml.sax import make_parser\n4: from xml.sax.handler import feature_namespaces\n5:\n6: def parse_xml(request):\n7: filename = request.POST.get('filename')\n8: # filename의 None 체크를 하지 않아 에러 발생 가능\n9: if (filename.count('.') > 0):\n10: name, ext = os.path.splitext(filename)\n11: else:\n12: ext = ''\n13:\n14: if ext == \".xml\":\n15: parser = make_parser()\n16: parser.setFeature(feature_namespaces, True)\n17: handler = Handler()\n18: parser.setContentHandler(handler)\n19: parser.parse(filename)\n20: result = handler.root\n21:\n22: return render(request, \"/success.html\", {\"result\": result})\n참조하고자 하는 자원을 호출 시에는 반드시 개체가 None이 아닌지 검증해야 한다.\n135\n\nPython 시큐어코딩 가이드",
+          "page": 141,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: import os\n2: from django.shortcuts import render\n3: from xml.sax import make_parser\n4: from xml.sax.handler import feature_namespaces\n5:\n6: def parse_xml(request):\n7: filename = request.POST.get('filename')\n8: # filename이 None 인지 체크\n9: if filename is None or filename.strip() == \"\":\n10: return render(request, \"/error.html\", {\"error\": \"파일 이름이 없습니다.\"})\n11:\n12: if (filename.count('.') > 0):\n13: name, ext = os.path.splitext(filename)\n14: else:\n15: ext = ''\n16:\n17: if ext == \".xml\":\n18: parser = make_parser()\n19: parser.setFeature(feature_namespaces, True)\n20: handler = Handler()\n21: parser.setContentHandler(handler)\n22: parser.parse(filename)\n23: result = handler.root\n24:\n25: return render(request, \"/success.html\", {\"result\": result})\n라. 참고자료\n① CWE-476: NULL Pointer Dereference, MITRE,\nhttps://cwe.mitre.org/data/definitions/476.html\n② Null Dereference, OWASP,\nhttps://owasp.org/www-community/vulnerabilities/Null_Dereference\n➂ Built-in Constants, Python Software Foundation,\nhttps://docs.python.org/3/library/constants.html?#None\n136",
+          "page": 142,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "참조하고자 하는 자원을 호출 시에는 반드시 개체가 None이 아닌지 검증해야 한다."
+      ]
+    },
+    {
+      "section": "제6절 캡슐화",
+      "number": 1,
+      "korean_name": "잘못된 세션에 의한 데이터 정보 노출",
+      "english_type": "Session_Data_Exposure",
+      "start_page": 143,
+      "end_page": 145,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: def get_config():\n2: lines = None\n3: try:\n4: f = open('config.cfg')\n5: lines = f.readlines()\n6: # 예외 발생 상황 가정\n7: raise Exception(\"Throwing the exception!\")\n8: # try 절에서 할당한 자원이 반환(close)되기 전에\n9: # 예외가 발생하면 할당된 자원이 시스템에 반환되지 않음\n10: f.close()\n11: return lines\n12: except Exception as e:\n13: ...\n14: return ''\n예외 상황이 발생하여 함수가 종료될 때 예외의 발생 여부와 상관없이 항상 실행되는 finally 블록에서 할당\n받은 모든 자원을 반환해야 한다.",
+          "page": 144,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: def get_config():\n2: lines = None\n3: try:\n4: f = open('config.cfg')\n5: lines = f.readlines()\n6: # 예외 발생 상황 가정\n7: raise Exception(\"Throwing the exception!\")\n8: except Exception as e:\n9: ...\n10: finally:\n11: # try 절에서 할당한 자원은\n12: # finally 절에서 시스템에 반환을 해야 한다\n13: f.close()\n14: return lines\n다른 방법은 with 문을 사용해 파일을 처리하는 방법으로 with 문의 블록이 끝날 때 자동으로 파일 자원을\n반환하는 예시다. 이렇게 작성하면 with문 내의 코드에 예외가 발생하더라도 항상 파일 닫기가 보장된다.\n138\n\nPART 제2장 시큐어코딩 가이드 ❘ 제5절 코드오류",
+          "page": 143,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: # with 절을 빠져나갈 때 f를 시스템에 반환\n2: with open('config.cfg') as f:\n3: print(f.read())\n라. 참고자료\n① CWE-404: Improper Resource Shutdown or Release, MITRE,\nhttps://cwe.mitre.org/data/definitions/404.html\n② Unreleased Resource, OWASP,\nhttps://owasp.org/www-community/vulnerabilities/Unreleased_Resource\n➂ The With statement, Python Software Foundation,\nhttps://docs.python.org/3/reference/compound_stmts.html#grammar-token-python-grammar-with_stmt\n139",
+          "page": 145,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "적절히 반환해야 하는데, 프로그램 오류 또는 에러로 사용이 끝난 자원을 반환하지 못하는 경우에 문제가 발생",
+        "받은 모든 자원을 반환해야 한다.",
+        "12: # finally 절에서 시스템에 반환을 해야 한다"
+      ]
+    },
+    {
+      "section": "제6절 캡슐화",
+      "number": 2,
+      "korean_name": "제거되지 않고 남은 디버그 코드",
+      "english_type": "Debug_Code",
+      "start_page": 146,
+      "end_page": 149,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: import pickle\n2: from django.shortcuts import render\n3:\n4: def load_user_object(request):\n5: # 사용자로부터 입력받은 알 수 없는 데이터를 역직렬화\n6: pickled_userinfo = pickle.dump(request.POST.get('userinfo', ''))\n7: # 역직렬화(unpickle)\n8: user_obj = pickle.loads(pickled_userinfo)\n9: return render(request, '/load_user_obj.html', {'obj':user_obj})\n아래 예제는 사용자로부터 전달받은 데이터를 HMAC을 이용하여 안전한 사용자로부터 온 것인지 검증한 후\n역직렬화 하고 있다.\n이 밖에도 역직렬화된 데이터의 특정 부분만 필요로 하는 경우 JSON과 같은 텍스트 형태의 안전한 직렬화\n형식을 사용하는 것이 좋다.\n141\n\nPython 시큐어코딩 가이드",
+          "page": 147,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: import hmac\n2: import hashlib\n3: import pickle\n4: from django.shortcuts import render\n5:\n6: def load_user_object(request):\n7: # 데이터 변조를 확인하기 위한 해시값\n8: hashed_pickle = request.POST.get(\"hashed_pickle\", \"\")\n9:\n10: # 사용자로부터 입력받은 데이터를 직렬화(pickle)\n11: pickled_userinfo = pickle.dumps(request.POST.get(\"userinfo\", \"\"))\n12:\n13: # HMAC 검증을 위한 비밀키는 생성\n14: m = hmac.new(key=\"secret_key\".encode(\"utf-8\"), digestmod=hashlib.sha512)\n15:\n16: # 직렬화된 사용자 입력값을 해싱\n17: m.update(pickled_userinfo)\n18:\n19: # 전달받은 해시값(hashed_pickle)과 직렬화 데이터(userinfo)의 해시값을 비교하여 검증\n20: if hmac.compare_digest(str(m.digest()), hashed_pickle):\n21: user_obj = pickle.loads(pickled_userinfo)\n22: return render(request, \"/load_user_obj.html\", {\"obj\": user_obj})\n23: else:\n24: return render(request, \"/error.html\", {\"error\": \"신뢰할 수 없는 데이터입니다.\"}\n라. 참고자료\n① CWE-502: Deserialization of Untrusted Data, MITRE,\nhttps://cwe.mitre.org/data/definitions/502.html\n② Deserialization Cheat Sheet, OWASP,\nhttps://cheatsheetseries.owasp.org/cheatsheets/Deserialization_Cheat_Sheet.html\n③ Python object serialization, Python Software Foundation,\nhttps://docs.python.org/3/library/pickle.html\n142\n\nPART 제2장 시큐어코딩 가이드 ❘ 제6절 캡슐화\n제6절 캡슐화\n중요한 데이터 또는 기능성을 불충분하게 캡슐화하거나 잘못 사용함으로써 발생하는 보안약점으로 정보노출,\n권한 문제 등이 발생할 수 있다.\n1. 잘못된 세션에 의한 데이터 정보 노출\n가. 개요\n다중 스레드 환경에서는 싱글톤(Singleton) 객체 필드에 경쟁조건(Race Condition)이 발생할 수 있다. 따라서\n다중 스레드 환경에서는 정보를 저장하는 전역 변수가 포함되지 않도록 코드를 작성해 서로 다른 세션에서\n데이터를 공유하지 않도록 해야 한다.\n나. 안전한 코딩기법\n싱글톤 패턴을 사용하는 경우 변수 범위(Scope)에 주의를 기울여야 한다. 특히 다중 스레드 환경에서 클래스\n변수의 값은 하위 메소드와 공유되므로 필요한 경우 인스턴스 변수로 선언하여 사용한다.\n143",
+          "page": 148,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "데이터 변조에 대한 검증 과정이 없기 때문에 임의의 코드를 실행하는 악의적인 pickle 데이터를 구성할 수 있어",
+        "pickle을 사용해 역직렬화 하는 경우 hmac으로 데이터에 서명하거나 json 모듈을 사용하는 것을 고려해야 한다.",
+        "암호화 통신을 적용할 수 없는 경우 최소한 송신 측에서 서명을 추가하고 수신 측에서 서명을 확인하여 데이터의",
+        "무결성을 검증해야 한다. 또는 신뢰할 수 있는 데이터의 식별을 위해 역직렬화 대상의 데이터가 사전에 검증된",
+        "클래스(Class)만을 포함하는지 검증하거나 제한된 실행 권한만으로 역직렬화 코드를 실행해야 한다."
+      ]
+    },
+    {
+      "section": "제6절 캡슐화",
+      "number": 3,
+      "korean_name": "Public 메소드로부터 반환된 Private 배열",
+      "english_type": "Private_Array_Return",
+      "start_page": 150,
+      "end_page": 151,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: from django.shortcuts import render\n2:\n3: class UserDescription:\n4: user_name = ''\n5:\n6: def get_user_profile(self):\n7: result = self.get_user_discription(UserDescription.user_name)\n8: ......\n9: return result\n10:\n11: def show_user_profile(self, request):\n12: # 클래스변수는 다른 세션과 공유되는 값이기 때문에 멀티스레드\n13: # 환경에서 공유되지 않아야 할 자원을 사용하는 경우\n14: # 다른 스레드 세션에 의해 데이터가 노출될 수 있다\n15: UserDescription.user_name = request.POST.get(‘name’, ‘’)\n16: self.user_profile = self.get_user_profile()\n17:\n18: return render(request, 'profile.html', {'profile':self.user_profile})\n공유가 금지된 변수는 인스턴스 변수로 선언하여 세션 간에 공유되지 않도록 한다.\n144\n\nPART 제2장 시큐어코딩 가이드 ❘ 제6절 캡슐화",
+          "page": 150,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: from django.shortcuts import render\n2:\n3: class UserDescription:\n4: def get_user_profile(self):\n5: result = self.get_user_discription(self.user_name)\n6: ......\n7: return result\n8:\n9: def show_user_profile(self, name):\n10: # 인스턴스 변수로 사용해 스레드 간 공유되지 않도록 한다\n11: self.user_name = request.POST.get(‘name’, ‘’)\n12: self.user_profile = self.get_user_profile()\n13:\n14: return render(request, 'profile.html', {'profile':self.user_profile})\n라. 참고자료\n① CWE-488: Exposure of Data Element to Wrong Session, MITRE,\nhttps://cwe.mitre.org/data/definitions/488.html\n② CWE-543: Use of Singleton Pattern Without Synchronization in a Multithreaded Context, MITRE,\nhttps://cwe.mitre.org/data/definitions/543.html\n➂ The global statement, Python Software Foundation,\nhttps://docs.python.org/3/reference/simple_stmts.html#global\n145",
+          "page": 151,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": []
+    },
+    {
+      "section": "제6절 캡슐화",
+      "number": 4,
+      "korean_name": "Private 배열에 Public 데이터 할당",
+      "english_type": "Public_Data_Assignment",
+      "start_page": 152,
+      "end_page": 153,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: from django.urls import reverse_lazy\n2: from django.utils.text import format_lazy\n3:\n4: DEBUG = True\n5:\n6: ROOT_URLCONF = 'test.urls'\n7: SITE_ID = 1\n8:\n9: DATABASES = {\n10: 'default': {\n11: 'ENGINE': 'django.db.backends.sqlite3',\n12: 'NAME': ':memory:',\n13: }\n14: }\n개발이 끝난 소스코드를 배포 및 운영할 경우에는 반드시 DEBUG 옵션을 False로 변경해야 한다.",
+          "page": 153,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: from django.urls import reverse_lazy\n2: from django.utils.text import format_lazy\n3:\n4: DEBUG = False\n5:\n6: ROOT_URLCONF = 'test.urls'\n7: SITE_ID = 1\n8:\n9: DATABASES = {\n10: 'default': {\n11: 'ENGINE': 'django.db.backends.sqlite3',\n12: 'NAME': ':memory:',\n13: }\n14: }\n147",
+          "page": 152,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "디버깅 목적으로 삽입된 코드는 개발이 완료되면 제거해야 한다. 디버그 코드는 설정 등의 민감한 정보 또는",
+        "노출의 위험이 있다. 어플리케이션을 배포 전에 반드시 DEBUG 모드를 비활성화 해야 한다.",
+        "소프트웨어 배포 전 반드시 디버그 코드를 확인 및 삭제한다. Django 프레임워크의 경우 전역 수준에서",
+        "개발이 끝난 소스코드를 배포 및 운영할 경우에는 반드시 DEBUG 옵션을 False로 변경해야 한다."
+      ]
+    },
+    {
+      "section": "제7절 API 오용",
+      "number": 1,
+      "korean_name": "DNS lookup에 의존한 보안결정",
+      "english_type": "DNS_Based_Security",
+      "start_page": 154,
+      "end_page": 155,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: from flask import Flask\n2:\n3: app = Flask(__name__)\n4: # 디버그 모드 설정 방법1\n5: app.debug = True\n6:\n7: @app.route('/')\n8: def hello_world():\n9: return 'Hello World!'\n10:\n11: if __name__ == '__main__':\n12: app.run()\n13: # 디버그 모드 설정 방법2\n14: app.run(debug=True)\n마찬가지로 개발이 끝난 소스코드를 배포 및 운영 시 반드시 debug 옵션을 False로 변경해야 한다.",
+          "page": 154,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: from flask import Flask\n2:\n3: app = Flask(__name__)\n4: app.debug = False\n5:\n6: @app.route('/')\n7: def hello_world():\n8: return 'Hello World!'\n9:\n10: if __name__ == '__main__':\n11: app.run()\n12:\n13: app.run(debug=False)\n148\n\nPART 제2장 시큐어코딩 가이드 ❘ 제6절 캡슐화\n라. 참고자료\n① CWE-489: Active Debug Code, MITRE,\nhttps://cwe.mitre.org/data/definitions/489.html\n② Settings, Django Software Foundation,\nhttps://docs.djangoproject.com/en/3.2/ref/settings/#debug\n➂ Debug Mode, Flask,\nhttps://flask.palletsprojects.com/en/2.0.x/quickstart/#debug-mode\n149",
+          "page": 154,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "마찬가지로 개발이 끝난 소스코드를 배포 및 운영 시 반드시 debug 옵션을 False로 변경해야 한다."
+      ]
+    },
+    {
+      "section": "제7절 API 오용",
+      "number": 2,
+      "korean_name": "취약한 API 사용",
+      "english_type": "Vulnerable_API",
+      "start_page": 156,
+      "end_page": 161,
+      "description": "",
+      "unsafe_codes": [
+        {
+          "code": "1: class UserObj:\n2: __private_variable = []\n3: def __init__(self):\n4: pass\n5:\n6: # private 배열을 리턴하는 public 메소드를 사용하는 경우 취약함\n7: def get_private_member(self):\n8: return self.__private_variable\n아래 예제는 내부와 외부의 배열이 서로 참조되는 것을 예방하기 위해 [:]로 새로운 객체를 생성하여 값을\n반환하고 있다.",
+          "page": 157,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        },
+        {
+          "code": "1: class UserObj:\n2: __private_variable = []\n3: def __init__(self):\n4: pass\n5:\n6: # private 배열에 외부 값을 바로 대입하는 public 메소드를 사용하는\n7: # 경우 취약하다\n8: def set_private_member(self, input_list):\n9: self.__private_variable = input_list\n152\n\nPART 제2장 시큐어코딩 가이드 ❘ 제6절 캡슐화\n아래 예제는 내부와 외부의 배열이 서로 참조되는 것을 예방하기 위해 [:]로 새로운 객체를 생성하여 값을\n대입하고 있다.",
+          "page": 156,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        },
+        {
+          "code": "1: def is_trust(host_domain_name):\n2: trusted = False\n3: trusted_host = \"trust.example.com\"\n4: # 공격자에 의해 실행되는 서버의 DNS가 변경될 수 있으므로\n5: # 안전하지 않다\n6: if trusted_host == host_name:\n7: trusted = True\n8: return trusted\n도메인명을 이용한 비교를 하지 말고 IP 주소를 직접 비교하도록 수정해 코드를 안전하게 만들 수 있다.",
+          "page": 161,
+          "type": "unsafe",
+          "label": "안전하지 않은 코드 예시"
+        }
+      ],
+      "safe_codes": [
+        {
+          "code": "1: class UserObj:\n2: __private_variable = []\n3: def __init__(self):\n4: pass\n5:\n6: # private 배열을 반환하는 경우 [:]를 사용하여 외부와 내부의\n7: # 배열이 서로 참조되지 않도록 해야 한다\n8: def get_private_member(self):\n9: return self.__private_variable[:]\n라. 참고자료\n① CWE-495: Private Data Structure Returned From A Public Method, MITRE,\nhttps://cwe.mitre.org/data/definitions/495.html\n② Do not return references to private mutable class members, CERT,\nhttps://wiki.sei.cmu.edu/confluence/display/java/OBJ05-J.+Do+not+return+references+to+private+mutable\n+class+members\n③ Shallow and deep copy operations, Python Software Foundation,\nhttps://docs.python.org/3/library/copy.html\n151\n\nPython 시큐어코딩 가이드\n4. Private 배열에 Public 데이터 할당\n가. 개요\npublic으로 선언된 메소드의 인자가 private로 선언된 배열에 저장되면 private 배열을 외부에서 접근하여\n배열 수정과 객체 속성 변경이 가능해진다.\n나. 안전한 코딩기법\npublic으로 선언된 메소드의 인자를 private 로 선언된 배열에 저장하지 않도록 한다. 사용자가 전달한 값으로\n클래스 외부에서 private 값을 변경해서는 안 되며, 필요한 경우 별도의 인스턴스 변수로 정의하거나 의도한\n기능이라면 전달된 값의 정상 여부를 검증한 후 적용해야 한다.\n다. 코드예제\n다음 예제는 __를 이용해서 파이썬의 내부 배열을 생성하고 외부 값을 대입하는 public 메소드를 사용하는\n예시를 보여 준다. 이 경우 특정 배열 타입에 따라 외부에서 private 배열을 변조할 수 있는 문제를 내포하고 있다.",
+          "page": 156,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: class UserObj:\n2: def __init__(self):\n3: self.__privateVariable = []\n4:\n5: # private 배열에 외부 값을 바로 대입하는 경우 [:]를 사용하여\n6: # 외부와 내부의 배열이 서로 참조되지 않도록 해야 한다\n7: def set_private_member(self, input_list):\n8: self.__privateVariable = input_list[:]\n라. 참고자료\n① CWE-496: Public Data Assigned to Private Array-Typed Field, MITRE,\nhttps://cwe.mitre.org/data/definitions/496.html\n② Shallow and deep copy operations, Python Software Foundation,\nhttps://docs.python.org/3/library/copy.html\n➂ Private Variables, Python Software Foundation,\nhttps://docs.python.org/3/tutorial/classes.html#private-variables\n153\n\nPython 시큐어코딩 가이드\n제7절 API 오용\n의도된 사용에 반하는 방법으로 API를 사용하거나 보안에 취약한 API를 사용하여 발생할 수 있는 보안약점이다.\n1. DNS lookup에 의존한 보안결정\n가. 개요\n공격자가 DNS 엔트리를 속일 수 있으므로 도메인명에 의존에서 보안결정(인증 및 접근 통제 등)을 하지\n않아야 한다. 만약 로컬 DNS 서버의 캐시가 공격자에 의해 오염된 상황이라면 사용자와 특정 서버 간의 네트워크\n트래픽이 공격자를 경유하도록 할 수도 있다. 또한 공격자가 마치 동일 도메인에 속한 서버인 것처럼 위장 할\n수도 있다.\n나. 안전한 코딩기법\n보안결정에서 도메인명을 이용한 DNS lookup을 하지 않도록 한다.\n154\n\nPART 제2장 시큐어코딩 가이드 ❘ 제7절 API 오용\n다. 코드예제\n다음의 예제는 도메인명을 통해 해당 요청을 신뢰할 수 있는지를 검사하는 예시로, 공격자는 DNS 캐쉬 등을\n조작해서 쉽게 이러한 보안 설정을 우회할 수 있다.",
+          "page": 159,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        },
+        {
+          "code": "1: import socket\n2:\n3: def is_trust(host_domain_name):\n4: trusted = False\n5: trusted_ip = \"192.168.10.7“\n6: # 실제 서버의 IP 주소를 비교하여 DNS 변조에 대응\n7: dns_resolved_ip = socket.gethostbyname(host_domain_name)\n8:\n9: if trusted_ip == dns_resolved_ip:\n10: trusted = True\n11: return trusted\n라. 참고자료\n① CWE-350: Reliance on Reverse DNS Resolution for a Security-Critical Action, MITRE,\nhttps://cwe.mitre.org/data/definitions/350.html\n➁ Socket, Python Software Foundation,\nhttps://docs.python.org/3/library/socket.htm\n155",
+          "page": 156,
+          "type": "safe",
+          "label": "안전한 코드 예시"
+        }
+      ],
+      "recommendations": [
+        "배열과 객체 속성에 대한 의도치 않은 수정을 방지한다. 만약 배열의 원소가 String 타입 등과 같이 변경이",
+        "7: # 배열이 서로 참조되지 않도록 해야 한다",
+        "기능이라면 전달된 값의 정상 여부를 검증한 후 적용해야 한다.",
+        "6: # 외부와 내부의 배열이 서로 참조되지 않도록 해야 한다"
+      ]
+    }
+  ],
+  "metadata": {
+    "total_sections": 0,
+    "total_vulnerabilities": 46
+  }
+}

@@ -1004,14 +1004,34 @@ def display_ai_results(ai_result: Dict):
                     st.write(f"**신뢰도:** {confidence_color} {confidence}")
                     
                     # RAG 근거 (있는 경우)
+                    # display_ai_results 함수의 RAG 근거 표시 부분 수정
+
+                    # RAG 근거 (있는 경우)
                     if vuln.get('evidence'):
                         evidence = vuln['evidence']
                         st.write("**📚 가이드라인 근거:**")
                         with st.container():
+                            # 소스만 표시
                             st.success(f"**{evidence.get('source', 'KISIA 가이드라인')}**")
-                            st.caption(evidence.get('content', '')[:500] + "...")
+                            
+                            # 간단한 정보만 표시
+                            info_parts = []
+                            
+                            # 섹션 제목
+                            if evidence.get('section_title'):
+                                info_parts.append(f"섹션: {evidence['section_title']}")
+                            
+                            # 페이지
                             if evidence.get('page'):
-                                st.caption(f"📄 페이지: {evidence['page']}")
+                                info_parts.append(f"페이지: {evidence['page']}")
+                            
+                            if info_parts:
+                                st.caption(" | ".join(info_parts))
+                            
+                            # 설명만 표시 (코드 제외된 content)
+                            if evidence.get('content'):
+                                # 짧은 설명만 표시
+                                st.caption(evidence['content'][:200] + "..." if len(evidence['content']) > 200 else evidence['content'])
                 
                 with tabs[1]:
                     if vuln.get('exploit_scenario'):
