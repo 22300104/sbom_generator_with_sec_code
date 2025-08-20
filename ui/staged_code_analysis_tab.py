@@ -21,7 +21,7 @@ from core.project_downloader import ProjectDownloader
 
 def render_code_analysis_tab():
     """메인 코드 분석 탭 - 단계별 UI"""
-    st.header("🔍 보안 분석")
+    st.markdown('<h1><span class="material-symbols-outlined">security</span> 보안 분석</h1>', unsafe_allow_html=True)
     
     # 단계 초기화
     if 'analysis_stage' not in st.session_state:
@@ -30,9 +30,6 @@ def render_code_analysis_tab():
     # 디버그 정보 (개발용)
     with st.sidebar:
         st.caption(f"현재 단계: {st.session_state.analysis_stage}")
-        if st.button("🔄 초기화"):
-            reset_analysis_state()
-            st.rerun()
     
     # 단계별 렌더링
     if st.session_state.analysis_stage == 'input':
@@ -61,19 +58,19 @@ def reset_analysis_state():
 
 def render_input_stage():
     """1단계: 입력 선택"""
-    st.subheader("📥 1단계: 소스 코드 입력")
+    st.markdown('<h3><span class="material-symbols-outlined">upload_file</span> 1단계: 소스 코드 입력</h3>', unsafe_allow_html=True)
     
     input_method = st.radio(
         "입력 방법 선택:",
-        ["🔗 GitHub URL", "📦 파일 업로드", "📝 직접 입력"],
+        ["GitHub URL", "파일 업로드", "직접 입력"],
         horizontal=True
     )
     
-    if input_method == "🔗 GitHub URL":
+    if input_method == "GitHub URL":
         handle_github_input()
-    elif input_method == "📦 파일 업로드":
+    elif input_method == "파일 업로드":
         handle_file_upload()
-    elif input_method == "📝 직접 입력":
+    elif input_method == "직접 입력":
         handle_direct_input()
 
 
@@ -94,21 +91,21 @@ def handle_github_input():
     with col2:
         st.write("")
         st.write("")
-        download_btn = st.button("📥 다운로드", type="primary", use_container_width=True)
+        download_btn = st.button("다운로드", type="primary", use_container_width=True)
     
     # 통합된 예제 섹션
     st.divider()
-    st.subheader("📚 보안 테스트용 예제 프로젝트")
+    st.markdown('<h3><span class="material-symbols-outlined">book_2</span> 보안 테스트용 예제 프로젝트</h3>', unsafe_allow_html=True)
     
     # 예제 카테고리
     example_category = st.selectbox(
         "카테고리 선택:",
-        ["🔴 의도적 취약 프로젝트 (교육용)", "🟡 취약점 데모", "🟢 일반 프로젝트"]
+        ["의도적 취약 프로젝트 (교육용)", "취약점 데모", "일반 프로젝트"]
     )
     
     # GitHub 취약 프로젝트 예제들
     vulnerable_projects = {
-        "🔴 의도적 취약 프로젝트 (교육용)": {
+        "의도적 취약 프로젝트 (교육용)": {
             "DVWA-Python": {
                 "url": "https://github.com/anxolerd/dvwa-flask",
                 "description": "Damn Vulnerable Web App - Flask 버전",
@@ -135,7 +132,7 @@ def handle_github_input():
                 "vulnerabilities": "단계별 보안 취약점"
             }
         },
-        "🟡 취약점 데모": {
+        "취약점 데모": {
             "Python Security Examples": {
                 "url": "https://github.com/craigz28/python-security",
                 "description": "Python 보안 취약점 예제 모음",
@@ -152,7 +149,7 @@ def handle_github_input():
                 "vulnerabilities": "웹 보안 취약점 예제"
             }
         },
-        "🟢 일반 프로젝트": {
+        "일반 프로젝트": {
             "Flask": {
                 "url": "https://github.com/pallets/flask",
                 "description": "Flask 웹 프레임워크",
@@ -180,7 +177,7 @@ def handle_github_input():
     selected_projects = vulnerable_projects.get(example_category, {})
     
     if selected_projects:
-        st.info(f"💡 {example_category}의 프로젝트들입니다. 교육 및 테스트 목적으로만 사용하세요.")
+        st.info(f"{example_category}의 프로젝트들입니다. 교육 및 테스트 목적으로만 사용하세요.")
         
         # 경량 스타일 (배지/링크 카드)
         st.markdown(
@@ -219,8 +216,8 @@ def handle_github_input():
                         st.rerun()
     
     # 로컬 취약 예제 (수정된 버전)
-    with st.expander("💾 로컬 취약 예제 (requirements 포함)"):
-        st.warning("⚠️ 이 예제들은 교육 목적으로 만들어진 취약한 코드입니다.")
+    with st.expander("로컬 취약 예제 (requirements 포함)"):
+        st.warning("이 예제들은 교육 목적으로 만들어진 취약한 코드입니다.")
         
         col1, col2, col3 = st.columns(3)
         
@@ -246,17 +243,17 @@ def handle_github_input():
         download_btn = True
     
     if download_btn and github_url:
-        with st.spinner("🔄 GitHub 저장소 다운로드 중..."):
+        with st.spinner("GitHub 저장소 다운로드 중..."):
             success, project_files = download_github_project(github_url)
         
         if success:
-            st.success("✅ 다운로드 완료!")
+            st.success("다운로드 완료!")
             st.session_state.project_files = project_files
             st.session_state.project_name = github_url.split('/')[-1].replace('.git', '')
             st.session_state.analysis_stage = 'files'
             st.rerun()
         else:
-            st.error("❌ 다운로드 실패")
+            st.error("다운로드 실패")
 
 
 def load_local_example(example: Dict):
@@ -384,13 +381,13 @@ def handle_file_upload():
                 success, project_files = extract_archive(uploaded_file)
             
             if success:
-                st.success("✅ 파일 추출 완료!")
+                st.success("파일 추출 완료!")
                 st.session_state.project_files = project_files
                 st.session_state.project_name = uploaded_file.name.split('.')[0]
                 st.session_state.analysis_stage = 'files'
                 st.rerun()
             else:
-                st.error("❌ 압축 해제 실패")
+                st.error("압축 해제 실패")
 
 
 def extract_archive(uploaded_file) -> tuple[bool, List[Dict]]:
@@ -480,7 +477,7 @@ def handle_direct_input():
 
 def render_file_selection_stage():
     """2단계: 파일 선택"""
-    st.subheader("📂 2단계: 분석할 파일 선택")
+    st.markdown('<h3><span class="material-symbols-outlined">folder_open</span> 2단계: 분석할 파일 선택</h3>', unsafe_allow_html=True)
     
     if st.button("← 이전 단계"):
         st.session_state.analysis_stage = 'input'
@@ -504,14 +501,14 @@ def render_file_selection_stage():
     st.divider()
     
     if selected_paths:
-        st.subheader("⚙️ 분석 옵션")
+        st.markdown('<h3><span class="material-symbols-outlined">tune</span> 분석 옵션</h3>', unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns(3)
         
         with col1:
             analysis_mode = st.selectbox(
                 "분석 모드:",
-                ["🔥 전체 분석", "🤖 AI 보안 분석", "⚡ 빠른 분석"],
+                ["전체 분석", "AI 보안 분석", "빠른 분석"],
                 help="• 전체 분석: AI 보안 분석 + SBOM 생성\n• AI 보안 분석: 취약점 탐지\n• 빠른 분석: SBOM만 생성"
             )
             st.session_state.analysis_mode = analysis_mode
@@ -530,17 +527,17 @@ def render_file_selection_stage():
                 st.session_state.use_claude = use_claude
                 
                 if use_claude:
-                    st.caption("🎭 Claude → 🤖 GPT")
+                    st.caption("Claude → GPT")
                 else:
-                    st.caption("🤖 GPT 전용")
+                    st.caption("GPT 전용")
             elif has_claude:
                 # Claude만 있을 때
                 st.session_state.use_claude = True
-                st.caption("🎭 Claude 사용")
+                st.caption("Claude 사용")
             elif has_gpt:
                 # GPT만 있을 때
                 st.session_state.use_claude = False
-                st.caption("🤖 GPT 사용")
+                st.caption("GPT 사용")
             else:
                 # 둘 다 없을 때
                 st.error("AI 엔진 없음")
@@ -556,42 +553,19 @@ def render_file_selection_stage():
             st.session_state.include_sbom = include_sbom
             
             if include_sbom:
-                st.caption("📦 SBOM 생성됨")
+                st.caption("SBOM 생성됨")
             else:
-                st.caption("⏭️ SBOM 건너뜀")
+                st.caption("SBOM 건너뜀")
         
         # 분석 모드 설명
         st.divider()
         
-        if analysis_mode == "🔥 전체 분석":
-            st.success("""
-            ✅ **전체 분석 모드**
-            - AI 기반 보안 취약점 탐지
-            - SBOM (Software Bill of Materials) 생성
-            - 패키지 의존성 분석
-            - 취약점 데이터베이스 검사
-            """)
-        elif analysis_mode == "🤖 AI 보안 분석":
-            if include_sbom:
-                st.info("""
-                ℹ️ **AI 보안 분석 + SBOM**
-                - AI 기반 취약점 탐지
-                - 수정 코드 제안
-                - SBOM 생성 포함
-                """)
-            else:
-                st.warning("""
-                ⚠️ **AI 보안 분석만**
-                - 취약점 탐지에만 집중
-                - SBOM 생성 안 함
-                """)
-        elif analysis_mode == "⚡ 빠른 분석":
-            st.info("""
-            ℹ️ **빠른 SBOM 분석**
-            - SBOM만 빠르게 생성
-            - AI 보안 분석 없음
-            - 의존성 파악용
-            """)
+        if analysis_mode == "전체 분석":
+            st.info("전체 분석 모드")
+        elif analysis_mode == "AI 보안 분석":
+            st.warning("AI 보안 분석만")
+        elif analysis_mode == "빠른 분석":
+            st.info("빠른 분석 모드: SBOM만 생성")
         
         # 분석 시작 버튼
         st.divider()
@@ -610,7 +584,7 @@ def render_file_selection_stage():
             """)
             
             if st.button(
-                "🚀 분석 시작", 
+                "분석 시작", 
                 type="primary", 
                 use_container_width=True,
                 disabled=(selected_count == 0)
@@ -648,7 +622,7 @@ def render_file_selection_stage():
 
 def render_analysis_stage():
     """3단계: 분석 실행"""
-    st.subheader("🔍 3단계: 보안 분석 실행")
+    st.markdown('<h3><span class="material-symbols-outlined">play_circle</span> 3단계: 보안 분석 실행</h3>', unsafe_allow_html=True)
     
     file_list = st.session_state.get('analysis_file_list', [])
     code = st.session_state.get('analysis_code', '')
@@ -662,7 +636,7 @@ def render_analysis_stage():
         results = run_analysis(
             code=code,
             file_list=file_list,
-            mode=st.session_state.get('analysis_mode', '🤖 AI 보안 분석'),
+            mode=st.session_state.get('analysis_mode', 'AI 보안 분석'),
             use_claude=st.session_state.get('use_claude', True),
             include_sbom=st.session_state.get('include_sbom', True)
         )
@@ -674,22 +648,22 @@ def render_analysis_stage():
 
 def render_results_stage():
     """4단계: 결과 표시"""
-    st.subheader("📊 4단계: 분석 결과")
+    st.markdown('<h3><span class="material-symbols-outlined">insights</span> 4단계: 분석 결과</h3>', unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        if st.button("🏠 처음으로"):
+        if st.button("처음으로"):
             reset_analysis_state()
             st.rerun()
     
     with col2:
-        if st.button("📂 파일 다시 선택"):
+        if st.button("파일 다시 선택"):
             st.session_state.analysis_stage = 'files'
             st.rerun()
     
     with col3:
-        if st.button("🔄 다시 분석"):
+        if st.button("다시 분석"):
             st.session_state.analysis_stage = 'analyze'
             st.rerun()
     
@@ -701,7 +675,7 @@ def render_results_stage():
         st.error("분석 결과가 없습니다.")
         return
     
-    st.success(f"✅ 분석 완료 ({results.get('analysis_time', 0):.1f}초)")
+    st.success(f"분석 완료 ({results.get('analysis_time', 0):.1f}초)")
     
     tabs = []
     if 'ai_analysis' in results:
@@ -778,7 +752,7 @@ def run_analysis(code: str, file_list: List[Dict], mode: str, use_claude: bool, 
                 st.error(f"❌ SBOM 분석 오류: {sbom_result['error']}")
         
         # AI 보안 분석
-        if mode in ["🤖 AI 보안 분석", "🔥 전체 분석"]:
+        if mode in ["AI 보안 분석", "전체 분석"]:
             # use_claude 파라미터 명시적 전달
             print(f"🔍 AI 분석 시작 (use_claude={use_claude})")
             ai_analyzer = ImprovedSecurityAnalyzer(use_claude=use_claude)
@@ -816,7 +790,7 @@ def display_ai_results(ai_result: Dict):
 
     # 에러 체크
     if ai_result.get('has_error'):
-        st.error("❌ AI 보안 분석 중 오류 발생")
+        st.error("AI 보안 분석 중 오류 발생")
         
         error_type = ai_result.get('error_type', 'Unknown Error')
         
@@ -862,7 +836,7 @@ def display_ai_results(ai_result: Dict):
             """)
         
         # 디버그 정보 표시 (선택적)
-        with st.expander("🔍 디버그 정보"):
+        with st.expander("디버그 정보"):
             st.json(ai_result)
         
         return
@@ -906,16 +880,16 @@ def display_ai_results(ai_result: Dict):
     vulnerabilities = ai_result.get('vulnerabilities', [])
     
     if vulnerabilities:
-        st.subheader("🔍 발견된 취약점")
+        st.markdown('<h3><span class="material-symbols-outlined">bug_report</span> 발견된 취약점</h3>', unsafe_allow_html=True)
         
         for idx, vuln in enumerate(vulnerabilities, 1):
             severity = vuln.get('severity', 'MEDIUM')
             severity_icon = {
-                'CRITICAL': '🔴',
-                'HIGH': '🟠',
-                'MEDIUM': '🟡',
-                'LOW': '🟢'
-            }.get(severity, '⚪')
+                'CRITICAL': 'CRIT',
+                'HIGH': 'HIGH',
+                'MEDIUM': 'MED',
+                'LOW': 'LOW'
+            }.get(severity, 'NA')
             
             location = vuln.get('location', {})
             title = f"{severity_icon} [{idx}] {vuln.get('type', 'Unknown')}"
@@ -924,50 +898,29 @@ def display_ai_results(ai_result: Dict):
             
             with st.expander(title, expanded=(idx == 1)):  # 첫 번째 취약점은 펼쳐서 표시
                 # 설명
-                st.write("### 📋 설명")
+                st.write("### 설명")
                 st.write(vuln.get('description', ''))
                 
                 # 취약한 코드와 수정 코드를 나란히 표시
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    st.write("#### ❌ 취약한 코드")
+                    st.write("#### 취약한 코드")
                     if vuln.get('vulnerable_code'):
                         st.code(vuln['vulnerable_code'], language='python')
                     else:
                         st.info("원본 코드를 표시할 수 없습니다")
                 
                 with col2:
-                    st.write("#### ✅ 수정된 코드")
+                    st.write("#### 수정된 코드")
                     if vuln.get('fixed_code'):
                         st.code(vuln['fixed_code'], language='python')
-                        
-                        # 복사를 위한 텍스트 영역 표시
-                        if st.button(f"📋 수정 코드 복사", key=f"copy_btn_{idx}"):
-                            st.session_state[f'show_copy_{idx}'] = True
-                        
-                        # 복사용 텍스트 영역 표시
-                        if st.session_state.get(f'show_copy_{idx}', False):
-                            st.info("아래 코드를 전체 선택(Ctrl+A) 후 복사(Ctrl+C)하세요.")
-                            st.text_area(
-                                "복사할 코드:",
-                                value=vuln['fixed_code'],
-                                height=200,
-                                key=f"copy_area_{idx}",
-                                help="전체 선택: Ctrl+A, 복사: Ctrl+C"
-                            )
-                            st.success("수정된 코드를 확인해주세요!")
-                            
-                            # 닫기 버튼
-                            if st.button("닫기", key=f"close_copy_{idx}"):
-                                st.session_state[f'show_copy_{idx}'] = False
-                                st.rerun()
                     else:
                         st.warning("수정 코드를 생성할 수 없습니다")
                 
                 # 수정 설명
                 if vuln.get('fix_explanation'):
-                    st.write("### 💡 수정 설명")
+                    st.write("### 수정 설명")
                     st.info(vuln['fix_explanation'])
                 
                 # 추가 정보들을 탭으로 구성
@@ -976,7 +929,7 @@ def display_ai_results(ai_result: Dict):
                 with tabs[0]:
                     # 위치 정보
                     if location:
-                        st.write("**📍 위치 정보:**")
+                        st.write("**위치 정보:**")
                         loc_col1, loc_col2, loc_col3 = st.columns(3)
                         with loc_col1:
                             st.caption(f"파일: {location.get('file', 'unknown')}")
@@ -986,52 +939,32 @@ def display_ai_results(ai_result: Dict):
                             st.caption(f"함수: {location.get('function', 'unknown')}")
                         
                         if location.get('code_snippet'):
-                            st.write("**📝 문제 코드:**")
+                            st.write("**문제 코드:**")
                             st.code(location['code_snippet'], language='python')
                     
                     # 데이터 흐름
                     if vuln.get('data_flow'):
-                        st.write("**🔄 데이터 흐름:**")
+                        st.write("**데이터 흐름:**")
                         st.code(vuln['data_flow'], language='text')
                     
                     # 신뢰도
                     confidence = vuln.get('confidence', 'MEDIUM')
                     confidence_color = {
-                        'HIGH': '🟢',
-                        'MEDIUM': '🟡', 
-                        'LOW': '🔴'
-                    }.get(confidence, '⚪')
+                        'HIGH': 'LOW',
+                        'MEDIUM': 'MED', 
+                        'LOW': 'CRIT'
+                    }.get(confidence, 'NA')
                     st.write(f"**신뢰도:** {confidence_color} {confidence}")
                     
                     # RAG 근거 (있는 경우)
-                    # display_ai_results 함수의 RAG 근거 표시 부분 수정
-
-                    # RAG 근거 (있는 경우)
                     if vuln.get('evidence'):
                         evidence = vuln['evidence']
-                        st.write("**📚 가이드라인 근거:**")
+                        st.write("**가이드라인 근거:**")
                         with st.container():
-                            # 소스만 표시
-                            st.success(f"**{evidence.get('source', 'KISIA 가이드라인')}**")
-                            
-                            # 간단한 정보만 표시
-                            info_parts = []
-                            
-                            # 섹션 제목
-                            if evidence.get('section_title'):
-                                info_parts.append(f"섹션: {evidence['section_title']}")
-                            
-                            # 페이지
+                            st.success(f"**{evidence.get('source', 'KISA 가이드라인')}**")
+                            st.caption(evidence.get('content', '')[:500] + "...")
                             if evidence.get('page'):
-                                info_parts.append(f"페이지: {evidence['page']}")
-                            
-                            if info_parts:
-                                st.caption(" | ".join(info_parts))
-                            
-                            # 설명만 표시 (코드 제외된 content)
-                            if evidence.get('content'):
-                                # 짧은 설명만 표시
-                                st.caption(evidence['content'][:200] + "..." if len(evidence['content']) > 200 else evidence['content'])
+                                st.caption(f"페이지: {evidence['page']}")
                 
                 with tabs[1]:
                     if vuln.get('exploit_scenario'):
@@ -1055,7 +988,7 @@ def display_ai_results(ai_result: Dict):
         
         # 전체 취약점 요약 통계
         st.divider()
-        st.subheader("📊 취약점 통계")
+        st.markdown('<h3><span class="material-symbols-outlined">leaderboard</span> 취약점 통계</h3>', unsafe_allow_html=True)
         
         # 심각도별 통계
         severity_counts = {}
@@ -1065,7 +998,7 @@ def display_ai_results(ai_result: Dict):
         
         cols = st.columns(4)
         severity_order = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
-        icons = {'CRITICAL': '🔴', 'HIGH': '🟠', 'MEDIUM': '🟡', 'LOW': '🟢'}
+        icons = {'CRITICAL': 'CRIT', 'HIGH': 'HIGH', 'MEDIUM': 'MED', 'LOW': 'LOW'}
         
         for i, sev in enumerate(severity_order):
             with cols[i]:
@@ -1085,9 +1018,9 @@ def display_ai_results(ai_result: Dict):
     
     else:
         # 취약점이 없는 경우
-        st.success("🎉 축하합니다! 발견된 보안 취약점이 없습니다.")
+        st.success("발견된 보안 취약점이 없습니다.")
         
-        with st.expander("💡 추가 보안 권장사항"):
+        with st.expander("추가 보안 권장사항"):
             st.write("""
             취약점이 발견되지 않았지만, 다음 사항들을 추가로 확인해보세요:
             
@@ -1103,7 +1036,7 @@ def display_sbom_results(sbom: Dict):
     """SBOM 결과 표시"""
     import pandas as pd
     
-    st.subheader("📦 Software Bill of Materials")
+    st.markdown('<h3><span class="material-symbols-outlined">deployed_code</span> Software Bill of Materials</h3>', unsafe_allow_html=True)
     
     summary = sbom.get('summary', {})
     
@@ -1155,7 +1088,7 @@ def display_sbom_standards(sbom_formats: Dict):
                 st.caption(f"- 생성일: {creation.get('created', 'N/A')[:19]}")
                 st.caption(f"- 도구: {creation.get('creators', ['N/A'])[0]}")
             
-            with st.expander("📄 전체 JSON 보기"):
+            with st.expander("전체 JSON 보기"):
                 st.json(spdx)
     
     with tab2:
@@ -1175,13 +1108,13 @@ def display_sbom_standards(sbom_formats: Dict):
                 metadata = cyclone.get('metadata', {})
                 st.caption(f"- 타임스탬프: {metadata.get('timestamp', 'N/A')[:19]}")
             
-            with st.expander("📄 전체 JSON 보기"):
+            with st.expander("전체 JSON 보기"):
                 st.json(cyclone)
 
 
 def display_download_options(results: Dict):
     """다운로드 옵션"""
-    st.subheader("💾 다운로드")
+    st.markdown('<h3><span class="material-symbols-outlined">download</span> 다운로드</h3>', unsafe_allow_html=True)
     
     json_str = json.dumps(results, indent=2, default=str, ensure_ascii=False)
     
@@ -1199,7 +1132,7 @@ def display_download_options(results: Dict):
         if 'ai_analysis' in results and results['ai_analysis'].get('vulnerabilities'):
             explanation_report = generate_ai_explanation_report(results)
             st.download_button(
-                "📊 AI 판단 설명 보고서",
+                "AI 판단 설명 보고서",
                 data=explanation_report,
                 file_name=f"ai_explanation_report_{int(time.time())}.md",
                 mime="text/markdown",
@@ -1209,7 +1142,7 @@ def display_download_options(results: Dict):
         if 'ai_analysis' in results:
             report = generate_security_report(results)
             st.download_button(
-                "📄 보안 보고서 (Markdown)",
+                "보안 보고서 (Markdown)",
                 data=report,
                 file_name=f"security_report_{int(time.time())}.md",
                 mime="text/markdown"
@@ -1224,7 +1157,7 @@ def display_download_options(results: Dict):
                     ensure_ascii=False
                 )
                 st.download_button(
-                    "📦 SPDX 2.3 형식",
+                    "SPDX 2.3 형식",
                     data=spdx_json,
                     file_name=f"sbom_spdx_{int(time.time())}.json",
                     mime="application/json"
@@ -1237,7 +1170,7 @@ def display_download_options(results: Dict):
                     ensure_ascii=False
                 )
                 st.download_button(
-                    "📦 CycloneDX 1.4 형식",
+                    "CycloneDX 1.4 형식",
                     data=cyclone_json,
                     file_name=f"sbom_cyclonedx_{int(time.time())}.json",
                     mime="application/json"
@@ -1283,23 +1216,23 @@ def generate_ai_explanation_report(results: Dict) -> str:
     vulns = results['ai_analysis'].get('vulnerabilities', [])
     score = results['ai_analysis'].get('security_score', 100)
     
-    report.append("## 📊 분석 요약\n")
+    report.append("## 분석 요약\n")
     report.append(f"- **보안 점수**: {score}/100\n")
     report.append(f"- **발견된 취약점**: {len(vulns)}개\n")
     report.append(f"- **분석 시간**: {results.get('analysis_time', 0):.1f}초\n")
     report.append(f"- **분석 파일 수**: {results.get('analyzed_files', 0)}개\n\n")
     
     # 판단 프로세스 설명
-    report.append("## 🔄 AI 판단 프로세스\n")
+    report.append("## AI 판단 프로세스\n")
     report.append("```")
     report.append("1. 코드 패턴 분석 → 위험 패턴 탐지")
     report.append("2. LLM 추론 → 취약점 유형 분류 및 심각도 판단")
-    report.append("3. RAG 검증 → KISIA 가이드라인 매칭")
+    report.append("3. RAG 검증 → KISA 가이드라인 매칭")
     report.append("4. 신뢰도 산출 → 최종 판단")
     report.append("```\n")
     
     # 각 취약점별 상세 설명
-    report.append("## 🚨 취약점별 판단 근거\n")
+    report.append("## 취약점별 판단 근거\n")
     
     for i, vuln in enumerate(vulns, 1):
         report.append(f"### {i}. {vuln.get('type', 'Unknown')}\n")
@@ -1313,11 +1246,11 @@ def generate_ai_explanation_report(results: Dict) -> str:
         report.append(f"**위치**: {location.get('file', 'unknown')}:{location.get('line', '?')}\n\n")
         
         # 판단 근거 섹션
-        report.append("#### 📌 왜 이것이 취약점인가?\n")
+        report.append("#### 왜 이것이 취약점인가?\n")
         report.append(f"{vuln.get('description', '설명 없음')}\n\n")
         
         # 판단 과정
-        report.append("#### 🔍 어떻게 판단했는가?\n")
+        report.append("#### 어떻게 판단했는가?\n")
         report.append("1. **패턴 분석**:\n")
         if vuln.get('vulnerable_code'):
             report.append(f"   - 탐지된 위험 코드: `{vuln['vulnerable_code'][:100]}...`\n")
@@ -1331,13 +1264,13 @@ def generate_ai_explanation_report(results: Dict) -> str:
         report.append(f"   - 카테고리: {_get_vulnerability_category(vuln.get('type', ''))}\n")
         
         # 근거
-        report.append("#### 📚 판단 근거\n")
+        report.append("#### 판단 근거\n")
         
         # 가이드라인 근거
         if vuln.get('evidence'):
             evidence = vuln['evidence']
             report.append("**공식 가이드라인**:\n")
-            report.append(f"- 문서: {evidence.get('document', 'KISIA 가이드')}\n")
+            report.append(f"- 문서: {evidence.get('document', 'KISA 가이드')}\n")
             report.append(f"- 페이지: {evidence.get('page', 'N/A')}\n")
             if evidence.get('content'):
                 report.append(f"- 내용: {evidence['content'][:200]}...\n")
@@ -1345,25 +1278,25 @@ def generate_ai_explanation_report(results: Dict) -> str:
             report.append("- AI 자체 판단 (가이드라인 매칭 없음)\n")
         
         # 신뢰도 계산
-        report.append("\n#### 📈 신뢰도 산출\n")
+        report.append("\n#### 신뢰도 산출\n")
         confidence_score = _calculate_confidence_score(vuln)
         report.append(f"```\n{confidence_score['formula']}\n")
         report.append(f"최종 신뢰도: {confidence_score['score']}%\n```\n")
         
         # 공격 시나리오
         if vuln.get('exploit_scenario'):
-            report.append("#### ⚠️ 공격 시나리오\n")
+            report.append("#### 공격 시나리오\n")
             report.append(f"{vuln['exploit_scenario']}\n\n")
         
         # 권장사항
         if vuln.get('recommendation'):
-            report.append("#### ✅ 권장 조치\n")
+            report.append("#### 권장 조치\n")
             report.append(f"{vuln['recommendation']}\n\n")
         
         report.append("---\n")
     
     # 종합 판단
-    report.append("## 📈 종합 판단\n")
+    report.append("## 종합 판단\n")
     
     # 심각도 분포
     severity_dist = {}

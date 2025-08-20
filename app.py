@@ -27,6 +27,15 @@ st.set_page_config(
 st.markdown(
     """
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0');
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  display: inline-block;
+  vertical-align: -0.24em;
+  font-size: 1.25em;
+  margin-right: 0.35rem;
+}
 /* =================================
    글로벌 변수 및 기본 설정
    ================================= */
@@ -591,7 +600,7 @@ def main():
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("**🤖 OpenAI (GPT)**")
+            st.markdown("**OpenAI (GPT)**")
             if has_openai_key:
                 model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
                 st.success("활성화")
@@ -601,7 +610,7 @@ def main():
                 st.caption("API 키 없음")
         
         with col2:
-            st.markdown("**🎭 Anthropic (Claude)**")
+            st.markdown("**Anthropic (Claude)**")
             if has_claude_key:
                 model = os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229")
                 st.success("활성화")
@@ -612,7 +621,7 @@ def main():
         
         # API 키가 하나도 없는 경우에만 설정 섹션 표시
         if not has_openai_key and not has_claude_key:
-            st.error("⚠️ AI 엔진이 모두 비활성화 상태입니다")
+            st.error("AI 엔진이 모두 비활성화 상태입니다")
             st.info("AI 보안 분석을 사용하려면 최소 하나의 API 키가 필요합니다")
             
             with st.expander("API 키 설정"):
@@ -733,7 +742,7 @@ def render_help_tab():
     # 헤더 섹션
     st.markdown("""
     <div style="text-align: center; padding: 1rem 0 2rem 0;">
-        <h2>📖 SBOMiner 사용 가이드</h2>
+        <h2>SBOMiner 사용 가이드</h2>
         <p style="color: var(--gray-600); font-size: 1.1rem;">
             보안 분석 플랫폼 사용 방법
         </p>
@@ -761,13 +770,13 @@ def render_help_tab():
         """)
     
     # 주요 기능 설명
-    st.markdown("## 🎯 주요 기능")
+    st.markdown("## 주요 기능")
     
     col1, col2 = st.columns(2)
     
     with col1:
         st.markdown("""
-        ### 📥 입력 방법
+        ### 입력 방법
         
         **1. GitHub URL**
         - 공개 저장소 URL 입력
@@ -784,24 +793,24 @@ def render_help_tab():
         """)
         
         st.markdown("""
-        ### ⚙️ 분석 모드
+        ### 분석 모드
         
-        **🔥 전체 분석**
+        **전체 분석**
         - AI 보안 분석 + SBOM 생성
         - 가장 완전한 분석
         
-        **🤖 AI 보안 분석**
+        **AI 보안 분석**
         - 취약점 탐지에 집중
         - 수정 코드 제안
         
-        **⚡ 빠른 분석**
+        **빠른 분석**
         - SBOM만 생성
         - 의존성 파악용
         """)
     
     with col2:
         st.markdown("""
-        ### 📂 파일 선택
+        ### 파일 선택
         
         **스마트 선택 도구**
         - 전체 선택: 모든 파일 분석
@@ -815,7 +824,7 @@ def render_help_tab():
         """)
         
         st.markdown("""
-        ### 💾 결과 다운로드
+        ### 결과 다운로드
         
         **다운로드 형식**
         - JSON: 전체 분석 결과
@@ -832,7 +841,7 @@ def render_help_tab():
     st.divider()
     
     # 사용 팁
-    st.markdown("## 💡 사용 팁")
+    st.markdown("## 사용 팁")
     
     tips = {
         "성능 최적화": [
@@ -860,7 +869,7 @@ def render_help_tab():
                 st.caption(f"• {item}")
     
     # 제한사항
-    with st.expander("⚠️ 제한사항 및 주의사항"):
+    with st.expander("제한사항 및 주의사항"):
         st.warning("""
         **제한사항**
         - Private GitHub 저장소 미지원
@@ -875,7 +884,7 @@ def render_help_tab():
         """)
     
     # 문제 해결
-    with st.expander("🔧 문제 해결"):
+    with st.expander("문제 해결"):
         st.markdown("""
         **Q: 분석이 실패합니다**
         - 코드 구문 오류 확인
