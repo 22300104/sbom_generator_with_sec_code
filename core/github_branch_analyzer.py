@@ -14,6 +14,7 @@ import requests
 from datetime import datetime
 import base64
 import urllib.parse
+import urllib.parse
 
 try:
     import git
