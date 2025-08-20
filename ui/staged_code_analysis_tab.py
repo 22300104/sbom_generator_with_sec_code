@@ -162,18 +162,26 @@ def render_input_stage():
         st.markdown('<div class="sa-card sa-fade-up">', unsafe_allow_html=True)
         input_method = st.radio(
             "입력 방법 선택:",
-            ["Github MCP (에이전트)"],
+            ["GitHub MCP (에이전트)", "GitHub MCP", "GitHub URL", "파일 업로드", "직접 입력"],
             horizontal=True
         )
         st.markdown('</div>', unsafe_allow_html=True)
     
-    if input_method == "Github MCP (에이전트)":
+    if input_method == "GitHub MCP (에이전트)":
         handle_github_mcp_agent()
+    elif input_method == "GitHub MCP":
+        handle_github_mcp_input()
+    elif input_method == "GitHub URL":
+        handle_github_input()
+    elif input_method == "파일 업로드":
+        handle_file_upload()
+    elif input_method == "직접 입력":
+        handle_direct_input()
 
 
 def handle_github_mcp_agent():
     """LLM 에이전트: 자연어 → 슬롯 추출(LLM/폴백) → 검증 → 코드 준비 → 분석 이동"""
-    st.markdown("#### Github MCP 에이전트 (챗봇)")
+    st.markdown("#### GitHub MCP 에이전트 (챗봇)")
 
     if 'agent_slots' not in st.session_state:
         st.session_state.agent_slots = {"repo": None, "mcp_url": None, "token": None, "base": None, "compare": None, "scope": "diff"}
@@ -218,7 +226,7 @@ def handle_github_mcp_agent():
     with col1:
         repo = st.text_input("저장소(https://github.com/owner/repo 또는 owner/repo)", value=slots.get("repo") or "")
         mcp_url = st.text_input("MCP 서버 URL(선택)", value=slots.get("mcp_url") or os.getenv("MCP_GITHUB_SERVER_URL", ""))
-        token = st.text_input("Github 토큰(선택; MCP 없을 때 PR/프라이빗 필요)", value=slots.get("token") or os.getenv("GITHUB_TOKEN", ""), type="password")
+        token = st.text_input("GitHub 토큰(선택; MCP 없을 때 PR/프라이빗 필요)", value=slots.get("token") or os.getenv("GITHUB_TOKEN", ""), type="password")
     with col2:
         base = st.text_input("기준 브랜치", value=slots.get("base") or "main")
         compare = st.text_input("비교 브랜치", value=slots.get("compare") or "")
@@ -295,8 +303,8 @@ def handle_github_mcp_agent():
         st.session_state.analysis_stage = 'analyze'
         st.rerun()
 def handle_github_mcp_input():
-    """Github MCP 기반 입력 처리: 저장소/브랜치 선택 → 파일 수집"""
-    st.markdown("#### Github MCP 에이전트")
+    """GitHub MCP 기반 입력 처리: 저장소/브랜치 선택 → 파일 수집"""
+    st.markdown("#### GitHub MCP 에이전트")
 
     if 'mcp_connected' not in st.session_state:
         st.session_state.mcp_connected = None
@@ -309,7 +317,7 @@ def handle_github_mcp_input():
     )
 
     github_url = st.text_input(
-        "Github 저장소 (owner/repo 또는 URL)",
+        "GitHub 저장소 (owner/repo 또는 URL)",
         placeholder="owner/repo 또는 https://github.com/owner/repo",
         key="mcp_repo_input",
     )
@@ -329,7 +337,7 @@ def handle_github_mcp_input():
         if st.session_state.mcp_connected:
             st.success("MCP 서버 연결됨 (필요 시 REST 폴백 사용)")
         else:
-            st.warning("MCP 서버에 연결하지 못했습니다. Github REST 폴백을 사용합니다.")
+            st.warning("MCP 서버에 연결하지 못했습니다. GitHub REST 폴백을 사용합니다.")
 
     if clear_state:
         for key in ['mcp_branches', 'mcp_repo_url', 'mcp_base_branch', 'mcp_compare_branch', 'mcp_branch_files', 'mcp_branch_ctx']:
@@ -446,13 +454,13 @@ def handle_github_mcp_input():
 # handle_github_input() 함수 수정
 
 def handle_github_input():
-    """Github 입력 처리 - 개선된 예제 구조"""
+    """GitHub 입력 처리 - 개선된 예제 구조"""
     
     col1, col2 = st.columns([3, 1])
     
     with col1:
         github_url = st.text_input(
-            "Github 저장소 URL:",
+            "GitHub 저장소 URL:",
             placeholder="https://github.com/owner/repository",
             key="github_url_field"
         )
@@ -485,7 +493,7 @@ def handle_github_input():
     
     if download_btn and st.session_state.get('github_url_field'):
         github_url = st.session_state.get('github_url_field', '')
-        with st.spinner("Github 저장소 다운로드 중..."):
+        with st.spinner("GitHub 저장소 다운로드 중..."):
             success, project_files = download_github_project(github_url)
         
         if success:
@@ -502,7 +510,7 @@ def handle_github_input():
 
 
 def download_github_project(github_url: str) -> tuple[bool, List[Dict]]:
-    """Github 프로젝트 다운로드 및 파일 정보 추출"""
+    """GitHub 프로젝트 다운로드 및 파일 정보 추출"""
     downloader = ProjectDownloader()
     
     try:
@@ -879,7 +887,7 @@ def render_results_stage():
     mcp_ctx = st.session_state.get('mcp_branch_ctx')
     if mcp_ctx:
         st.divider()
-        st.markdown('#### Github PR 생성')
+        st.markdown('#### GitHub PR 생성')
         default_title = f"Security analysis for {mcp_ctx.get('compare_branch')} → {mcp_ctx.get('base_branch')}"
         pr_title = st.text_input('PR 제목', value=default_title, key='mcp_pr_title')
         pr_body = st.text_area('PR 본문 (선택사항)', value='', key='mcp_pr_body')
