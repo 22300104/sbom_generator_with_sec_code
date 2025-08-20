@@ -4,6 +4,7 @@
 각 단계를 명확히 분리하여 상태 관리 개선
 """
 import streamlit as st
+from streamlit_monaco import st_monaco
 import time
 import json
 from pathlib import Path
@@ -442,24 +443,36 @@ def extract_archive(uploaded_file) -> tuple[bool, List[Dict]]:
 
 def handle_direct_input():
     """직접 입력 처리"""
-    code = st.text_area(
-        "Python 코드 입력:",
-        height=400,
-        placeholder="분석할 Python 코드를 입력하세요..."
-    )
-    
-    if code and st.button("다음 단계 →", type="primary"):
-        project_files = [{
-            'path': 'main.py',
-            'content': code,
-            'size': len(code.encode('utf-8')),
-            'lines': len(code.splitlines())
-        }]
-        
-        st.session_state.project_files = project_files
-        st.session_state.project_name = "DirectInput"
-        st.session_state.analysis_stage = 'files'
-        st.rerun()
+    st.markdown("#### Python 코드")
+
+    if 'monaco_code' not in st.session_state:
+        st.session_state.monaco_code = ""
+
+    # 항상 폼 제출 기반(안정) 방식 사용
+    with st.form("direct_input_form"):
+        code = st_monaco(
+            value=st.session_state.monaco_code,
+            height="500px",
+            language="python",
+        )
+        submitted = st.form_submit_button("다음 단계 →")
+
+    if submitted:
+        content = code if code is not None else st.session_state.monaco_code
+        if content:
+            st.session_state.monaco_code = content
+            project_files = [{
+                'path': 'main.py',
+                'content': content,
+                'size': len(content.encode('utf-8')),
+                'lines': len(content.splitlines())
+            }]
+            st.session_state.project_files = project_files
+            st.session_state.project_name = "DirectInput"
+            st.session_state.analysis_stage = 'files'
+            st.rerun()
+        else:
+            st.warning("코드를 입력하세요.")
 
 
 # ui/staged_code_analysis_tab.py
@@ -990,42 +1003,15 @@ def display_ai_results(ai_result: Dict):
                     }.get(confidence, '⚪')
                     st.write(f"**신뢰도:** {confidence_color} {confidence}")
                     
+                    # RAG 근거 (있는 경우)
                     if vuln.get('evidence'):
                         evidence = vuln['evidence']
                         st.write("**📚 가이드라인 근거:**")
-                        
-                        # 문서 정보 카드
                         with st.container():
-                            # 메인 정보
-                            col1, col2, col3 = st.columns([2, 1, 1])
-                            
-                            with col1:
-                                st.success(f"**{evidence.get('source', 'KISIA 가이드라인')}**")
-                                if evidence.get('document'):
-                                    st.caption(f"📄 {evidence['document']}")
-                            
-                            with col2:
-                                if evidence.get('page'):
-                                    st.info(f"**📖 페이지**\n{evidence['page']}")
-                            
-                            with col3:
-                                if evidence.get('section_title'):
-                                    st.info(f"**📑 섹션**\n{evidence['section_title'][:30]}...")
-                            
-                            # 내용 표시
-                            with st.expander("가이드라인 내용 보기", expanded=False):
-                                st.markdown(evidence.get('content', ''))
-                                
-                                # 관련 섹션이 있으면 표시
-                                if evidence.get('related_sections'):
-                                    st.divider()
-                                    st.caption("**📎 관련 섹션:**")
-                                    for related in evidence['related_sections']:
-                                        st.caption(f"• 페이지 {related['page']}: {related.get('keywords', 'N/A')}")
-                            
-                            # 직접 참조 링크 (선택적)
-                            if evidence.get('page_start'):
-                                st.caption(f"💡 상세 내용은 가이드라인 {evidence['page']} 페이지를 참조하세요.")
+                            st.success(f"**{evidence.get('source', 'KISIA 가이드라인')}**")
+                            st.caption(evidence.get('content', '')[:500] + "...")
+                            if evidence.get('page'):
+                                st.caption(f"📄 페이지: {evidence['page']}")
                 
                 with tabs[1]:
                     if vuln.get('exploit_scenario'):
