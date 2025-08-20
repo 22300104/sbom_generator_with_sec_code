@@ -187,9 +187,27 @@ def handle_github_mcp_agent():
         st.session_state.agent_slots = {"repo": None, "mcp_url": None, "token": None, "base": None, "compare": None, "scope": "diff"}
     slots = st.session_state.agent_slots
 
-    # 안내
+    # 안내 + 예시
     with st.chat_message("assistant"):
-        st.write("원하는 저장소/브랜치/범위를 자연어로 입력하세요. 예) 'repo owner/proj, base main, compare feat/x, 변경사항만'")
+        st.markdown(
+            """
+            원하는 설정을 자연어로 알려주세요. 챗봇으로 입력해도 되고, 아래 '직접 입력' 폼에 채워도 됩니다.
+
+            예시:
+            - 공개 저장소 · 기본 브랜치 사용 · 변경사항만 분석
+              repo we45/Vulnerable-Flask-App, base main, compare feature/auth, 변경사항만
+
+            - URL로 저장소 입력 · MCP 서버 URL 함께 지정 · 변경파일 전체 분석
+              repo https://github.com/owner/repo, mcp http://localhost:8888, base develop, compare release/1.2, 전체
+
+            - 프라이빗 저장소 · 토큰 포함 · 변경파일 전체 분석
+              repo myorg/private-repo, token ghp_XXXXXXXXXXXXXXXX, base main, compare hotfix/logging, 변경파일 전체
+
+            - 최소 입력(기본값 보정):
+              repo owner/repo, compare feat/login
+              (기본 브랜치는 자동으로 main 또는 저장소 기본 브랜치를 사용)
+            """
+        )
     user_msg = st.chat_input("요청을 입력하세요")
     if user_msg:
         with st.chat_message("user"):
@@ -203,7 +221,7 @@ def handle_github_mcp_agent():
 
     # 보완 폼
     st.divider()
-    st.markdown("##### 요약 및 보완")
+    st.markdown("##### 직접 입력")
     col1, col2 = st.columns(2)
     with col1:
         repo = st.text_input("저장소(https://github.com/owner/repo 또는 owner/repo)", value=slots.get("repo") or "")
