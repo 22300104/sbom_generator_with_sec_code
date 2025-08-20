@@ -7,7 +7,6 @@ from typing import List, Dict, Tuple
 class PDFStructureExtractor:
     def __init__(self, pdf_path: str):
         self.pdf_path = Path(pdf_path)
-        # 사용자께서 확인해주신 정확한 페이지 오프셋 '6'을 적용합니다.
         self.PAGE_OFFSET = 6
         self.TOC = self._get_table_of_contents()
         self.vulnerability_map = self._create_vulnerability_map()
@@ -61,55 +60,63 @@ class PDFStructureExtractor:
 
     def _parse_section_content(self, text: str) -> Dict:
         content = {}
-        landmarks = ["가. 개요", "나. 안전한 코딩기법", "다. 코드예제", "라. 참고자료"]
+        # [개선] 정규식을 사용하여 텍스트 변형에 유연하게 대응
+        landmarks = [r"가\.\s*개요", r"나\.\s*안전한\s*코딩기법", r"다\.\s*코드\s*예제", r"라\.\s*참고\s*자료"]
         
-        content['description'] = self._extract_text_between(text, landmarks[0], landmarks[1])
-        recommendations_text = self._extract_text_between(text, landmarks[1], landmarks[2])
+        content['description'] = self._extract_text_between_flexible(text, landmarks[0], landmarks[1])
+        recommendations_text = self._extract_text_between_flexible(text, landmarks[1], landmarks[2])
         content['recommendations'] = [line.strip() for line in recommendations_text.split('\n') if line.strip()]
         
-        code_section_text = self._extract_text_between(text, landmarks[2], landmarks[3])
+        code_section_text = self._extract_text_between_flexible(text, landmarks[2], landmarks[3])
         unsafe_codes, safe_codes = self._split_code_examples_robust(code_section_text)
         content['unsafe_codes'] = unsafe_codes
         content['safe_codes'] = safe_codes
         
         return content
 
-    def _extract_text_between(self, full_text: str, start_keyword: str, end_keyword: str) -> str:
-        start_pattern = re.escape(start_keyword)
-        end_pattern = re.escape(end_keyword)
-        match = re.search(f'{start_pattern}([\\s\\S]*?)(?={end_pattern}|$)', full_text, re.DOTALL)
-        return match.group(1).strip() if match else ""
+    def _extract_text_between_flexible(self, full_text: str, start_pattern: str, end_pattern: str) -> str:
+        """유연한 정규식 패턴으로 두 키워드 사이의 텍스트를 추출합니다."""
+        match = re.search(f'({start_pattern})([\\s\\S]*?)(?={end_pattern}|$)', full_text, re.DOTALL)
+        return match.group(2).strip() if match else ""
 
     def _split_code_examples_robust(self, code_section_text: str) -> Tuple[List[Dict], List[Dict]]:
         """
-        '안전/불안전 코드 예시' 키워드로 텍스트를 분할하여 모든 개별 예제를 추출하는 최종 로직
+        [최종 개선 로직] 유연한 키워드 패턴으로 모든 코드 예제를 누락 없이 추출합니다.
         """
         unsafe_codes, safe_codes = [], []
         
-        # '안전한 코드 예시' 키워드를 기준으로 텍스트를 크게 나눔
-        # parts[0]는 안전하지 않은 코드 영역, parts[1:]는 안전한 코드 영역들
-        safe_keyword = '안전한 코드 예시'
-        parts = code_section_text.split(safe_keyword)
+        # [개선] '안전', '코드', '예시' 등 핵심 단어와 공백(\s*)을 조합한 유연한 정규식 패턴
+        keyword_patterns = {
+            '안전하지 않은 코드 예시': r'안전하지\s*않은\s*코드\s*예시',
+            '안전한 코드 예시': r'안전한\s*코드\s*예시'
+        }
         
-        # 1. 안전하지 않은 코드 영역 처리
-        unsafe_area = parts[0]
-        # '안전하지 않은 코드 예시' 키워드로 다시 분할하여 개별 예제를 모두 찾음
-        unsafe_examples = unsafe_area.split('안전하지 않은 코드 예시')
-        for example in unsafe_examples:
-            content = example.strip()
-            if content:
-                unsafe_codes.append({'code': content, 'page': 0, 'label': '안전하지 않은 코드 예시'})
+        found_keywords = []
+        for key, pattern in keyword_patterns.items():
+            for match in re.finditer(pattern, code_section_text):
+                found_keywords.append({'keyword': key, 'start': match.start(), 'end': match.end()})
+        
+        if not found_keywords: return [], []
+        found_keywords.sort(key=lambda x: x['start'])
 
-        # 2. 안전한 코드 영역 처리
-        # '안전한 코드 예시' 뒤에 따라오는 모든 텍스트 블록을 개별 예제로 처리
-        for area in parts[1:]:
-            content = area.strip()
-            if content:
-                safe_codes.append({'code': content, 'page': 0, 'label': safe_keyword})
-                
+        for i, item in enumerate(found_keywords):
+            start_index = item['end']
+            end_index = found_keywords[i+1]['start'] if i + 1 < len(found_keywords) else len(code_section_text)
+            
+            content_block = code_section_text[start_index:end_index].strip()
+            
+            code_match = re.search(r'\d+:\s[\s\S]*', content_block)
+            actual_code = code_match.group(0).strip() if code_match else ""
+
+            if actual_code:
+                code_item = {'code': actual_code, 'page': 0, 'label': item['keyword']}
+                if item['keyword'] == '안전하지 않은 코드 예시':
+                    unsafe_codes.append(code_item)
+                else:
+                    safe_codes.append(code_item)
+                    
         return unsafe_codes, safe_codes
     
-    # _create_vulnerability_map과 _get_table_of_contents는 변경하지 않습니다.
     def _create_vulnerability_map(self) -> Dict:
         return {
             "1. SQL 삽입": "SQL_Injection", "2. 코드 삽입": "Code_Injection",
@@ -188,7 +195,6 @@ class PDFStructureExtractor:
         ]
 
 def save_json(data: Dict, path: str):
-    """데이터를 JSON 파일로 저장합니다."""
     output_file = Path(path)
     output_file.parent.mkdir(parents=True, exist_ok=True)
     with open(output_file, 'w', encoding='utf-8') as f:
@@ -201,5 +207,19 @@ if __name__ == "__main__":
     extractor = PDFStructureExtractor(pdf_file_path)
     final_data = extractor.extract_all_vulnerabilities()
     
-    # 올바른 파일명으로 저장
     save_json(final_data, "data/processed/kisia_structured.json")
+
+    # --- 요청하신 코드 개수 출력 기능 ---
+    total_unsafe = 0
+    total_safe = 0
+    for vuln in final_data['vulnerabilities']:
+        total_unsafe += len(vuln.get('unsafe_codes', []))
+        total_safe += len(vuln.get('safe_codes', []))
+    
+    print("\n" + "="*50)
+    print("📊 코드 예제 추출 결과 요약")
+    print("="*50)
+    print(f"❌ 안전하지 않은 코드 예제: {total_unsafe}개 추출됨")
+    print(f"✅ 안전한 코드 예제: {total_safe}개 추출됨")
+    print(f"🔢 총 코드 예제: {total_unsafe + total_safe}개 추출됨")
+    print("="*50)
