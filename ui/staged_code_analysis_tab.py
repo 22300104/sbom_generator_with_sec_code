@@ -1188,7 +1188,18 @@ def display_download_options(results: Dict):
             file_name=f"analysis_{int(time.time())}.json",
             mime="application/json"
         )
-        
+
+        # AI 판단 설명 보고서 추가
+        if 'ai_analysis' in results and results['ai_analysis'].get('vulnerabilities'):
+            explanation_report = generate_ai_explanation_report(results)
+            st.download_button(
+                "📊 AI 판단 설명 보고서",
+                data=explanation_report,
+                file_name=f"ai_explanation_report_{int(time.time())}.md",
+                mime="text/markdown",
+                key=f"download_explanation_{int(time.time())}"  # unique_id 대신 timestamp 사용
+            )
+            
         if 'ai_analysis' in results:
             report = generate_security_report(results)
             st.download_button(
@@ -1251,3 +1262,191 @@ def generate_security_report(results: Dict) -> str:
                 report.append("\n")
     
     return ''.join(report)
+
+def generate_ai_explanation_report(results: Dict) -> str:
+    """AI 판단 근거 설명 보고서 생성"""
+    report = []
+    
+    # 헤더
+    report.append("# 🔍 AI 보안 판단 근거 보고서\n")
+    report.append(f"**생성 시간**: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+    report.append(f"**분석 엔진**: {results['ai_analysis'].get('analyzed_by', 'AI')}\n")
+    report.append("---\n")
+    
+    # 요약
+    vulns = results['ai_analysis'].get('vulnerabilities', [])
+    score = results['ai_analysis'].get('security_score', 100)
+    
+    report.append("## 📊 분석 요약\n")
+    report.append(f"- **보안 점수**: {score}/100\n")
+    report.append(f"- **발견된 취약점**: {len(vulns)}개\n")
+    report.append(f"- **분석 시간**: {results.get('analysis_time', 0):.1f}초\n")
+    report.append(f"- **분석 파일 수**: {results.get('analyzed_files', 0)}개\n\n")
+    
+    # 판단 프로세스 설명
+    report.append("## 🔄 AI 판단 프로세스\n")
+    report.append("```")
+    report.append("1. 코드 패턴 분석 → 위험 패턴 탐지")
+    report.append("2. LLM 추론 → 취약점 유형 분류 및 심각도 판단")
+    report.append("3. RAG 검증 → KISIA 가이드라인 매칭")
+    report.append("4. 신뢰도 산출 → 최종 판단")
+    report.append("```\n")
+    
+    # 각 취약점별 상세 설명
+    report.append("## 🚨 취약점별 판단 근거\n")
+    
+    for i, vuln in enumerate(vulns, 1):
+        report.append(f"### {i}. {vuln.get('type', 'Unknown')}\n")
+        
+        # 기본 정보
+        severity = vuln.get('severity', 'MEDIUM')
+        confidence = vuln.get('confidence', 'MEDIUM')
+        location = vuln.get('location', {})
+        
+        report.append(f"**심각도**: {severity} | **신뢰도**: {confidence}\n")
+        report.append(f"**위치**: {location.get('file', 'unknown')}:{location.get('line', '?')}\n\n")
+        
+        # 판단 근거 섹션
+        report.append("#### 📌 왜 이것이 취약점인가?\n")
+        report.append(f"{vuln.get('description', '설명 없음')}\n\n")
+        
+        # 판단 과정
+        report.append("#### 🔍 어떻게 판단했는가?\n")
+        report.append("1. **패턴 분석**:\n")
+        if vuln.get('vulnerable_code'):
+            report.append(f"   - 탐지된 위험 코드: `{vuln['vulnerable_code'][:100]}...`\n")
+        report.append(f"2. **AI 추론**:\n")
+        if vuln.get('reasoning'):
+            report.append(f"   - {vuln['reasoning']}\n")
+        elif vuln.get('fix_explanation'):
+            report.append(f"   - {vuln['fix_explanation']}\n")
+        report.append(f"3. **취약점 분류**:\n")
+        report.append(f"   - 타입: {vuln.get('type')}\n")
+        report.append(f"   - 카테고리: {_get_vulnerability_category(vuln.get('type', ''))}\n")
+        
+        # 근거
+        report.append("#### 📚 판단 근거\n")
+        
+        # 가이드라인 근거
+        if vuln.get('evidence'):
+            evidence = vuln['evidence']
+            report.append("**공식 가이드라인**:\n")
+            report.append(f"- 문서: {evidence.get('document', 'KISIA 가이드')}\n")
+            report.append(f"- 페이지: {evidence.get('page', 'N/A')}\n")
+            if evidence.get('content'):
+                report.append(f"- 내용: {evidence['content'][:200]}...\n")
+        else:
+            report.append("- AI 자체 판단 (가이드라인 매칭 없음)\n")
+        
+        # 신뢰도 계산
+        report.append("\n#### 📈 신뢰도 산출\n")
+        confidence_score = _calculate_confidence_score(vuln)
+        report.append(f"```\n{confidence_score['formula']}\n")
+        report.append(f"최종 신뢰도: {confidence_score['score']}%\n```\n")
+        
+        # 공격 시나리오
+        if vuln.get('exploit_scenario'):
+            report.append("#### ⚠️ 공격 시나리오\n")
+            report.append(f"{vuln['exploit_scenario']}\n\n")
+        
+        # 권장사항
+        if vuln.get('recommendation'):
+            report.append("#### ✅ 권장 조치\n")
+            report.append(f"{vuln['recommendation']}\n\n")
+        
+        report.append("---\n")
+    
+    # 종합 판단
+    report.append("## 📈 종합 판단\n")
+    
+    # 심각도 분포
+    severity_dist = {}
+    for vuln in vulns:
+        sev = vuln.get('severity', 'MEDIUM')
+        severity_dist[sev] = severity_dist.get(sev, 0) + 1
+    
+    report.append("### 심각도 분포\n")
+    for sev in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']:
+        if sev in severity_dist:
+            bar = '█' * (severity_dist[sev] * 2)
+            report.append(f"{sev:8} [{severity_dist[sev]:2}] {bar}\n")
+    
+    # 신뢰도 통계
+    report.append("\n### 신뢰도 분석\n")
+    high_conf = sum(1 for v in vulns if v.get('confidence') == 'HIGH')
+    med_conf = sum(1 for v in vulns if v.get('confidence') == 'MEDIUM')
+    low_conf = sum(1 for v in vulns if v.get('confidence') == 'LOW')
+    
+    report.append(f"- HIGH 신뢰도: {high_conf}개 ({high_conf/len(vulns)*100:.1f}%)\n")
+    report.append(f"- MEDIUM 신뢰도: {med_conf}개 ({med_conf/len(vulns)*100:.1f}%)\n")
+    report.append(f"- LOW 신뢰도: {low_conf}개 ({low_conf/len(vulns)*100:.1f}%)\n")
+    
+    # 판단 기준 설명
+    report.append("\n## 📋 판단 기준 설명\n")
+    report.append("### 심각도 기준\n")
+    report.append("- **CRITICAL**: 즉시 시스템 침해 가능, 데이터 유출 위험\n")
+    report.append("- **HIGH**: 인증 우회, 권한 상승 가능\n")
+    report.append("- **MEDIUM**: 제한적 영향, 추가 조건 필요\n")
+    report.append("- **LOW**: 미미한 영향, 정보 노출\n\n")
+    
+    report.append("### 신뢰도 기준\n")
+    report.append("- **HIGH**: 명확한 취약점, 가이드라인 일치\n")
+    report.append("- **MEDIUM**: 상황별 위험, 부분 일치\n")
+    report.append("- **LOW**: 잠재적 위험, 추가 검증 필요\n")
+    
+    return ''.join(report)
+
+def _get_vulnerability_category(vuln_type: str) -> str:
+    """취약점 카테고리 분류"""
+    categories = {
+        'Injection': ['SQL', 'Command', 'LDAP', 'XPath', 'NoSQL', 'OS', 'OGNL'],
+        'Authentication': ['Auth', 'Login', 'Session', 'Password', 'Token'],
+        'Cryptography': ['Crypto', 'Hash', 'Encryption', 'Random'],
+        'Configuration': ['Config', 'Debug', 'Setting', 'Permission'],
+        'Input Validation': ['XSS', 'CSRF', 'Validation', 'Sanitization'],
+    }
+    
+    vuln_type_lower = vuln_type.lower()
+    for category, keywords in categories.items():
+        for keyword in keywords:
+            if keyword.lower() in vuln_type_lower:
+                return category
+    
+    return '기타'
+
+def _calculate_confidence_score(vuln: Dict) -> Dict:
+    """신뢰도 점수 계산 및 공식 반환"""
+    score = 0
+    factors = []
+    
+    # 1. 기본 신뢰도 (30%)
+    base_confidence = vuln.get('confidence', 'MEDIUM')
+    if base_confidence == 'HIGH':
+        score += 30
+        factors.append("기본 신뢰도(HIGH): 30%")
+    elif base_confidence == 'MEDIUM':
+        score += 20
+        factors.append("기본 신뢰도(MEDIUM): 20%")
+    else:
+        score += 10
+        factors.append("기본 신뢰도(LOW): 10%")
+    
+    # 2. 코드 패턴 매칭 (30%)
+    if vuln.get('vulnerable_code'):
+        score += 30
+        factors.append("코드 패턴 매칭: 30%")
+    
+    # 3. 가이드라인 근거 (40%)
+    if vuln.get('evidence'):
+        score += 40
+        factors.append("가이드라인 근거: 40%")
+    elif vuln.get('reasoning'):
+        score += 20
+        factors.append("AI 추론 근거: 20%")
+    
+    formula = " + ".join(factors)
+    
+    return {
+        'score': min(score, 100),
+        'formula': formula
+    }

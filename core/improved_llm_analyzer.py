@@ -598,9 +598,13 @@ class ImprovedSecurityAnalyzer:
                         else:
                             page_info = str(page)
                         
+                        # 메타데이터에서 문서 정보 동적 추출
+                        source_doc = metadata.get('source_document', 'Python_시큐어코딩_가이드(2023년_개정본).pdf')
+                        doc_type = metadata.get('document_type', 'KISIA')
+
                         vuln['evidence'] = {
-                            'source': 'KISIA Python 시큐어코딩 가이드',
-                            'document': 'Python_시큐어코딩_가이드(2023년_개정본).pdf',
+                            'source': f'{doc_type} 가이드라인' if doc_type else '보안 가이드라인',
+                            'document': source_doc,
                             'page': page_info,
                             'page_start': page_start,
                             'page_end': page_end,

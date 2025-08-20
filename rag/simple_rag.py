@@ -155,7 +155,14 @@ class SimpleRAG:
             # RAG 메타데이터가 있으면 상세 출처 표시
             if rag_metadata:
                 footer_parts.append("\n**📚 참고 문서:**")
-                footer_parts.append("*Python_시큐어코딩_가이드(2023년_개정본).pdf*")
+                # 메타데이터에서 문서명 추출
+                used_docs = set()
+                for source in rag_metadata:
+                    doc_name = source.get('source_document', 'Python_시큐어코딩_가이드(2023년_개정본).pdf')
+                    used_docs.add(doc_name)
+
+                for doc in used_docs:
+                    footer_parts.append(f"*{doc}*")
                 
                 for source in rag_metadata:
                     if source['page_range']:
