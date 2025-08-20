@@ -951,13 +951,18 @@ def render_results_stage():
         pr_title = st.text_input('PR 제목', value=default_title, key='mcp_pr_title')
         pr_body = st.text_area('PR 본문 (선택사항)', value='', key='mcp_pr_body')
         draft = st.checkbox('Draft PR로 생성 (자동 머지 방지 권장)', value=True, key='mcp_pr_draft')
-        if st.button('PR 보내기', type='primary'):
+        colp1, colp2 = st.columns(2)
+        with colp1:
+            send_diff = st.button('브랜치 비교로 PR 보내기', type='primary', use_container_width=True)
+        with colp2:
+            send_snapshot = st.button('현재 분석 코드로 PR 보내기(스냅샷)', type='secondary', use_container_width=True)
+
+        if send_diff:
             client = MCPGithubClient()
             owner = mcp_ctx.get('owner')
             repo = mcp_ctx.get('repo')
             base = mcp_ctx.get('base_branch')
             head = mcp_ctx.get('compare_branch')
-            # 변경사항 유효성 체크: ahead_by > 0
             analyzer = GitHubBranchAnalyzer()
             with st.spinner('변경사항 확인 중...'):
                 diff_meta = analyzer.get_branch_diff(mcp_ctx.get('repo_url'), base, head)
@@ -966,14 +971,49 @@ def render_results_stage():
             elif diff_meta.get('ahead_by', 0) <= 0 and diff_meta.get('total_files', 0) <= 0:
                 st.warning('변경사항이 없습니다. PR을 생성할 수 없습니다.')
             else:
-                # Draft일 경우 제목에 [DRAFT] 접두어 추가
                 final_title = pr_title if not draft else (f"[DRAFT] {pr_title}")
                 with st.spinner('PR 생성 중...'):
                     resp = client.create_pull_request(owner, repo, base, head, final_title, pr_body, draft)
-            if resp.get('success'):
-                st.success(f"PR 생성됨: {resp.get('url')}")
+                if resp.get('success'):
+                    st.success(f"PR 생성됨: {resp.get('url')}")
+                else:
+                    st.error(resp.get('error', 'PR 생성 실패'))
+
+        if send_snapshot:
+            client = MCPGithubClient()
+            owner = mcp_ctx.get('owner')
+            repo = mcp_ctx.get('repo')
+            base = mcp_ctx.get('base_branch')
+            code_blob = st.session_state.get('analysis_code', '')
+            files_map = {}
+            if code_blob:
+                parts = code_blob.split('\n# ===== File: ')
+                for part in parts:
+                    if not part.strip():
+                        continue
+                    lines = part.split('\n')
+                    header = lines[0].strip().replace('=====', '').strip()
+                    content = '\n'.join(lines[1:])
+                    path = header if header else f"analysis/{len(files_map)+1}.py"
+                    files_map[path] = content
+            if not files_map:
+                st.warning('현재 분석 코드가 없어 스냅샷 PR을 생성할 수 없습니다.')
             else:
-                st.error(resp.get('error', 'PR 생성 실패'))
+                final_title = pr_title if not draft else (f"[DRAFT] {pr_title}")
+                with st.spinner('스냅샷 브랜치 생성 및 파일 업로드 중...'):
+                    resp = client.create_snapshot_branch_and_pr(
+                        owner=owner,
+                        repo=repo,
+                        base_branch=base,
+                        title=final_title,
+                        body=pr_body,
+                        files=files_map,
+                        draft=draft,
+                    )
+                if resp.get('success'):
+                    st.success(f"스냅샷 PR 생성됨: {resp.get('url')}")
+                else:
+                    st.error(resp.get('error', '스냅샷 PR 생성 실패'))
     
     st.divider()
     
