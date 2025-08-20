@@ -20,6 +20,7 @@ from core.formatter import SBOMFormatter
 from core.project_downloader import ProjectDownloader
 from core.mcp_github_client import MCPGithubClient
 from core.github_branch_analyzer import GitHubBranchAnalyzer
+from core.agent_slot_filler import AgentSlotFiller
 
 
 def _inject_analysis_css():
@@ -161,12 +162,14 @@ def render_input_stage():
         st.markdown('<div class="sa-card sa-fade-up">', unsafe_allow_html=True)
         input_method = st.radio(
             "입력 방법 선택:",
-            ["GitHub MCP", "GitHub URL", "파일 업로드", "직접 입력"],
+            ["GitHub MCP (에이전트)", "GitHub MCP", "GitHub URL", "파일 업로드", "직접 입력"],
             horizontal=True
         )
         st.markdown('</div>', unsafe_allow_html=True)
     
-    if input_method == "GitHub MCP":
+    if input_method == "GitHub MCP (에이전트)":
+        handle_github_mcp_agent()
+    elif input_method == "GitHub MCP":
         handle_github_mcp_input()
     elif input_method == "GitHub URL":
         handle_github_input()
@@ -176,6 +179,111 @@ def render_input_stage():
         handle_direct_input()
 
 
+def handle_github_mcp_agent():
+    """LLM 에이전트: 자연어 → 슬롯 추출(LLM/폴백) → 검증 → 코드 준비 → 분석 이동"""
+    st.markdown("#### GitHub MCP 에이전트 (챗봇)")
+
+    if 'agent_slots' not in st.session_state:
+        st.session_state.agent_slots = {"repo": None, "mcp_url": None, "token": None, "base": None, "compare": None, "scope": "diff"}
+    slots = st.session_state.agent_slots
+
+    # 안내
+    with st.chat_message("assistant"):
+        st.write("원하는 저장소/브랜치/범위를 자연어로 입력하세요. 예) 'repo owner/proj, base main, compare feat/x, 변경사항만'")
+    user_msg = st.chat_input("요청을 입력하세요")
+    if user_msg:
+        with st.chat_message("user"):
+            st.write(user_msg)
+        filler = AgentSlotFiller()
+        parsed = filler.parse_to_slots(user_msg)
+        for k, v in parsed.items():
+            if v:
+                slots[k] = v
+        st.session_state.agent_slots = slots
+
+    # 보완 폼
+    st.divider()
+    st.markdown("##### 요약 및 보완")
+    col1, col2 = st.columns(2)
+    with col1:
+        repo = st.text_input("저장소(https://github.com/owner/repo 또는 owner/repo)", value=slots.get("repo") or "")
+        mcp_url = st.text_input("MCP 서버 URL(선택)", value=slots.get("mcp_url") or os.getenv("MCP_GITHUB_SERVER_URL", ""))
+        token = st.text_input("GitHub 토큰(선택; MCP 없을 때 PR/프라이빗 필요)", value=slots.get("token") or os.getenv("GITHUB_TOKEN", ""), type="password")
+    with col2:
+        base = st.text_input("기준 브랜치", value=slots.get("base") or "main")
+        compare = st.text_input("비교 브랜치", value=slots.get("compare") or "")
+        scope = st.selectbox("분석 범위", ["변경사항만", "변경파일 전체"], index=(0 if (slots.get("scope") in [None, "diff"]) else 1))
+
+    # 업데이트 저장
+    slots.update({
+        "repo": repo if repo else None,
+        "mcp_url": mcp_url if mcp_url else None,
+        "token": token if token else None,
+        "base": base if base else None,
+        "compare": compare if compare else None,
+        "scope": ("full" if scope == "변경파일 전체" else "diff"),
+    })
+    st.session_state.agent_slots = slots
+
+    # 준비 확인
+    ready = all([slots.get("repo"), slots.get("base"), slots.get("compare")])
+    if not ready:
+        st.info("repo, base, compare를 채워주세요.")
+        return
+
+    # URL 정규화
+    repo_url = slots["repo"]
+    if repo_url and '/' in repo_url and not repo_url.startswith('http'):
+        repo_url = f"https://github.com/{repo_url}"
+
+    # MCP/토큰 저장(세션 환경)
+    if slots.get('mcp_url'):
+        os.environ['MCP_GITHUB_SERVER_URL'] = slots['mcp_url']
+    if slots.get('token'):
+        os.environ['GITHUB_TOKEN'] = slots['token']
+
+    analyzer = GitHubBranchAnalyzer()
+    with st.spinner("브랜치 확인 중..."):
+        meta = analyzer.get_branches(repo_url)
+    if not meta.get('success'):
+        st.error(meta.get('error', '브랜치 조회 실패'))
+        return
+
+    st.success(f"저장소 확인: {meta.get('owner')}/{meta.get('repo')}")
+
+    with st.spinner("분석용 코드 준비 중..."):
+        code_diff = analyzer.get_diff_code_only(repo_url, slots["base"], slots["compare"], selected_files=None)
+    if not code_diff.get('success'):
+        st.error(code_diff.get('error', '코드 준비 실패'))
+        return
+
+    code_to_analyze = code_diff.get('combined_added_code', '') if slots.get("scope") == 'diff' else code_diff.get('combined_full_code', '')
+    file_list = []
+    for f in code_diff.get('file_analysis', [])[:100]:
+        file_list.append({
+            'path': f.get('filename', 'unknown.py'),
+            'name': Path(f.get('filename', 'unknown.py')).name,
+            'size': len((f.get('full_content') or f.get('added_code', '') or '').encode('utf-8')),
+            'lines': len(((f.get('full_content') or f.get('added_code', '') or '')).splitlines()),
+        })
+
+    st.session_state.analysis_code = code_to_analyze
+    st.session_state.analysis_file_list = file_list
+    st.session_state.project_name = meta.get('repo', 'Repository')
+    st.session_state.mcp_branch_ctx = {
+        'repo_url': repo_url,
+        'owner': meta.get('owner'),
+        'repo': meta.get('repo'),
+        'base_branch': slots['base'],
+        'compare_branch': slots['compare'],
+        'analyze_scope': ('변경사항만' if slots.get('scope') == 'diff' else '변경파일 전체'),
+        'total_files': len(file_list),
+    }
+
+    st.info(f"분석 준비 완료: {slots['base']}…{slots['compare']} / 범위: {('변경사항만' if slots.get('scope') == 'diff' else '변경파일 전체')}")
+    if st.button("분석 시작", type="primary"):
+        st.session_state.analysis_stage = 'analyze'
+        st.rerun()
 def handle_github_mcp_input():
     """GitHub MCP 기반 입력 처리: 저장소/브랜치 선택 → 파일 수집"""
     st.markdown("#### GitHub MCP 에이전트")
