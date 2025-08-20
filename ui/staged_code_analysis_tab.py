@@ -18,6 +18,8 @@ from core.improved_llm_analyzer import ImprovedSecurityAnalyzer
 from core.analyzer import SBOMAnalyzer
 from core.formatter import SBOMFormatter
 from core.project_downloader import ProjectDownloader
+from core.mcp_github_client import MCPGithubClient
+from core.github_branch_analyzer import GitHubBranchAnalyzer
 
 
 def _inject_analysis_css():
@@ -159,17 +161,167 @@ def render_input_stage():
         st.markdown('<div class="sa-card sa-fade-up">', unsafe_allow_html=True)
         input_method = st.radio(
             "입력 방법 선택:",
-            ["GitHub URL", "파일 업로드", "직접 입력"],
+            ["GitHub MCP", "GitHub URL", "파일 업로드", "직접 입력"],
             horizontal=True
         )
         st.markdown('</div>', unsafe_allow_html=True)
     
-    if input_method == "GitHub URL":
+    if input_method == "GitHub MCP":
+        handle_github_mcp_input()
+    elif input_method == "GitHub URL":
         handle_github_input()
     elif input_method == "파일 업로드":
         handle_file_upload()
     elif input_method == "직접 입력":
         handle_direct_input()
+
+
+def handle_github_mcp_input():
+    """GitHub MCP 기반 입력 처리: 저장소/브랜치 선택 → 파일 수집"""
+    st.markdown("#### GitHub MCP 에이전트")
+
+    if 'mcp_connected' not in st.session_state:
+        st.session_state.mcp_connected = None
+
+    server_url = st.text_input(
+        "MCP 서버 URL (선택)",
+        value=os.getenv("MCP_GITHUB_SERVER_URL", ""),
+        placeholder="http://localhost:8888",
+        key="mcp_server_url",
+    )
+
+    github_url = st.text_input(
+        "GitHub 저장소 (owner/repo 또는 URL)",
+        placeholder="owner/repo 또는 https://github.com/owner/repo",
+        key="mcp_repo_input",
+    )
+
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col1:
+        connect = st.button("MCP 연결", use_container_width=True)
+    with col2:
+        load_branches = st.button("브랜치 불러오기", type="secondary", use_container_width=True)
+    with col3:
+        clear_state = st.button("초기화", use_container_width=True)
+
+    client = MCPGithubClient(server_url=server_url)
+
+    if connect:
+        st.session_state.mcp_connected = client.connect()
+        if st.session_state.mcp_connected:
+            st.success("MCP 서버 연결됨 (필요 시 REST 폴백 사용)")
+        else:
+            st.warning("MCP 서버에 연결하지 못했습니다. GitHub REST 폴백을 사용합니다.")
+
+    if clear_state:
+        for key in ['mcp_branches', 'mcp_repo_url', 'mcp_base_branch', 'mcp_compare_branch', 'mcp_branch_files', 'mcp_branch_ctx']:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.info("상태가 초기화되었습니다.")
+
+    if load_branches and github_url:
+        if github_url and '/' in github_url and not github_url.startswith('http'):
+            repo_url = f"https://github.com/{github_url}"
+        else:
+            repo_url = github_url
+
+        analyzer = GitHubBranchAnalyzer()
+        with st.spinner("브랜치 목록을 불러오는 중..."):
+            meta = analyzer.get_branches(repo_url)
+
+        if not meta.get('success'):
+            st.error(meta.get('error', '브랜치 조회 실패'))
+        else:
+            st.session_state.mcp_branches = meta
+            st.session_state.mcp_repo_url = repo_url
+            st.success(f"{meta.get('repo')} 브랜치 {meta.get('total', 0)}개")
+
+    if st.session_state.get('mcp_branches'):
+        meta = st.session_state['mcp_branches']
+        branches = [b['name'] for b in meta.get('branches', [])]
+        default_branch = meta.get('default_branch') or 'main'
+
+        colb1, colb2, colb3 = st.columns([1, 1, 1])
+        with colb1:
+            base_branch = st.selectbox(
+                "기준 브랜치",
+                options=branches,
+                index=branches.index(default_branch) if default_branch in branches else 0,
+                key="mcp_base_branch_select"
+            )
+        with colb2:
+            compare_branch = st.selectbox(
+                "비교 브랜치",
+                options=branches,
+                index=0 if default_branch not in branches else (1 if len(branches) > 1 else 0),
+                key="mcp_compare_branch_select"
+            )
+        with colb3:
+            analyze_scope = st.radio(
+                "분석 범위",
+                ["변경사항만", "변경파일 전체"],
+                horizontal=False,
+                key="mcp_analyze_scope"
+            )
+
+        if base_branch == compare_branch:
+            st.warning("서로 다른 브랜치를 선택하세요.")
+
+        preview = st.button("변경 파일 미리보기")
+        if preview and base_branch != compare_branch:
+            analyzer = GitHubBranchAnalyzer()
+            with st.spinner("변경 파일을 수집 중..."):
+                diff = analyzer.get_branch_diff(st.session_state['mcp_repo_url'], base_branch, compare_branch)
+            if not diff.get('success'):
+                st.error(diff.get('error', 'diff 수집 실패'))
+            else:
+                st.session_state.mcp_branch_files = diff
+                st.info(f"변경 파일: {diff.get('total_files', 0)}개, +{diff.get('total_additions', 0)}/-{diff.get('total_deletions', 0)}")
+                if diff.get('files_changed'):
+                    for f in diff['files_changed'][:10]:
+                        st.caption(f"- {f['filename']} ({f['status']}, +{f['additions']}/-{f['deletions']})")
+
+        start = st.button("이 브랜치로 분석 시작", type="primary")
+        if start and base_branch != compare_branch:
+            analyzer = GitHubBranchAnalyzer()
+            with st.spinner("분석용 코드 준비 중..."):
+                code_diff = analyzer.get_diff_code_only(
+                    st.session_state['mcp_repo_url'],
+                    base_branch,
+                    compare_branch,
+                    selected_files=None,
+                )
+            if not code_diff.get('success'):
+                st.error(code_diff.get('error', '코드 준비 실패'))
+            else:
+                if st.session_state.get('mcp_analyze_scope') == '변경사항만':
+                    code_to_analyze = code_diff.get('combined_added_code', '')
+                else:
+                    code_to_analyze = code_diff.get('combined_full_code', '')
+
+                file_list = []
+                for f in code_diff.get('file_analysis', [])[:100]:
+                    file_list.append({
+                        'path': f.get('filename', 'unknown.py'),
+                        'name': Path(f.get('filename', 'unknown.py')).name,
+                        'size': len(f.get('added_code', f.get('full_content', '')).encode('utf-8')),
+                        'lines': len((f.get('added_code', f.get('full_content', '')) or '').splitlines()),
+                    })
+
+                st.session_state.analysis_code = code_to_analyze
+                st.session_state.analysis_file_list = file_list
+                st.session_state.project_name = meta.get('repo', 'Repository')
+                st.session_state.mcp_branch_ctx = {
+                    'repo_url': st.session_state['mcp_repo_url'],
+                    'owner': meta.get('owner'),
+                    'repo': meta.get('repo'),
+                    'base_branch': base_branch,
+                    'compare_branch': compare_branch,
+                    'analyze_scope': st.session_state.get('mcp_analyze_scope'),
+                    'total_files': len(file_list),
+                }
+                st.session_state.analysis_stage = 'analyze'
+                st.rerun()
 
 
 # ui/staged_code_analysis_tab.py
@@ -604,6 +756,28 @@ def render_results_stage():
         if st.button("다시 분석"):
             st.session_state.analysis_stage = 'analyze'
             st.rerun()
+
+    # PR 생성 버튼 (MCP 브랜치 컨텍스트가 있을 때만 표시)
+    mcp_ctx = st.session_state.get('mcp_branch_ctx')
+    if mcp_ctx:
+        st.divider()
+        st.markdown('#### GitHub PR 생성')
+        default_title = f"Security analysis for {mcp_ctx.get('compare_branch')} → {mcp_ctx.get('base_branch')}"
+        pr_title = st.text_input('PR 제목', value=default_title, key='mcp_pr_title')
+        pr_body = st.text_area('PR 본문 (선택사항)', value='', key='mcp_pr_body')
+        draft = st.checkbox('Draft PR로 생성', value=False, key='mcp_pr_draft')
+        if st.button('PR 보내기', type='primary'):
+            client = MCPGithubClient()
+            owner = mcp_ctx.get('owner')
+            repo = mcp_ctx.get('repo')
+            base = mcp_ctx.get('base_branch')
+            head = mcp_ctx.get('compare_branch')
+            with st.spinner('PR 생성 중...'):
+                resp = client.create_pull_request(owner, repo, base, head, pr_title, pr_body, draft)
+            if resp.get('success'):
+                st.success(f"PR 생성됨: {resp.get('url')}")
+            else:
+                st.error(resp.get('error', 'PR 생성 실패'))
     
     st.divider()
     
