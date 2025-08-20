@@ -957,82 +957,103 @@ def render_results_stage():
             owner = mcp_ctx.get('owner')
             repo = mcp_ctx.get('repo')
             base = mcp_ctx.get('base_branch')
-            # 1) 원본 파일 맵 구성
+            # 원본 파일 맵(분석 코드) - 경로 추론용
             code_blob = st.session_state.get('analysis_code', '')
-            original_map = {}
+            analysis_map: Dict[str, str] = {}
             if code_blob:
-                # 파일 경계 파싱
                 pattern = r"# ===== File: (.*?) =====\n"
                 parts = re.split(pattern, code_blob)
-                # parts: ['', path1, content1, path2, content2, ...]
                 if len(parts) >= 3:
                     it = iter(parts[1:])
                     for path, content in zip(it, it):
                         p = path.strip()
                         if p:
-                            original_map[p] = content
-            if not original_map:
-                st.warning('현재 분석 코드가 없어 스냅샷 PR을 생성할 수 없습니다.')
-            else:
-                # 2) AI 분석 결과 기반으로 패치 적용
-                ai = st.session_state.get('analysis_results', {}).get('ai_analysis', {})
-                vulns = ai.get('vulnerabilities', []) if isinstance(ai, dict) else []
+                            analysis_map[p] = content
 
-                patched_map = dict(original_map)
+            # AI 취약점 목록
+            ai = st.session_state.get('analysis_results', {}).get('ai_analysis', {})
+            vulns = ai.get('vulnerabilities', []) if isinstance(ai, dict) else []
+            if not vulns:
+                st.warning('적용할 수정 코드가 없습니다.')
+                return
 
-                def _apply_patch_to_content(content: str, old: str, new: str) -> tuple[str, bool]:
-                    if not old or not new:
-                        return content, False
-                    if old in content:
-                        return content.replace(old, new, 1), True
+            analyzer = GitHubBranchAnalyzer()
+            repo_url = mcp_ctx.get('repo_url')
+
+            # 대상 파일 경로 집합 수집
+            candidate_paths: Dict[str, str] = {}  # map of resolved_path -> base content
+
+            def _resolve_path(file_hint: str) -> str:
+                if not file_hint:
+                    return ''
+                # 정확 경로 우선
+                if file_hint in analysis_map:
+                    return file_hint
+                # 파일명 매칭
+                for p in analysis_map.keys():
+                    if p.endswith('/' + file_hint) or os.path.basename(p) == os.path.basename(file_hint):
+                        return p
+                return file_hint  # 마지막 수단: 힌트 그대로
+
+            # 우선 대상 파일 집합 도출
+            for v in vulns:
+                f = (v.get('location') or {}).get('file')
+                if f:
+                    rp = _resolve_path(f)
+                    candidate_paths[rp] = ''
+
+            # 베이스 브랜치의 원본 내용 로드 (실패시 분석 맵 폴백)
+            for rp in list(candidate_paths.keys()):
+                base_content = analyzer._get_file_content(repo_url, base, rp)
+                if not base_content and rp in analysis_map:
+                    base_content = analysis_map[rp]
+                candidate_paths[rp] = base_content or ''
+
+            # 패치 적용: 파일별로 모아 1회만 커밋
+            changed_files: Dict[str, str] = {}
+
+            def _apply_once(content: str, old: str, new: str) -> tuple[str, bool]:
+                if not content or not old or not new:
                     return content, False
+                idx = content.find(old)
+                if idx == -1:
+                    return content, False
+                return content.replace(old, new, 1), True
 
-                for v in vulns:
-                    fixed = v.get('fixed_code')
-                    if not fixed:
-                        continue
-                    loc = v.get('location', {}) or {}
-                    target_file = loc.get('file')
-                    old_snippet = v.get('vulnerable_code') or loc.get('code_snippet')
+            for v in vulns:
+                fixed = v.get('fixed_code')
+                if not fixed:
+                    continue
+                loc = v.get('location') or {}
+                file_hint = loc.get('file')
+                old_snippet = v.get('vulnerable_code') or loc.get('code_snippet')
+                if not file_hint or not old_snippet:
+                    continue
+                rp = _resolve_path(file_hint)
+                original = changed_files.get(rp) or candidate_paths.get(rp, '')
+                new_content, ok = _apply_once(original, old_snippet, fixed)
+                if ok:
+                    changed_files[rp] = new_content
 
-                    candidate_files = []
-                    if target_file and target_file in patched_map:
-                        candidate_files = [target_file]
-                    else:
-                        # 파일 정보가 모호하면 포함 관계로 추정
-                        for p in patched_map.keys():
-                            if target_file and target_file in p:
-                                candidate_files.append(p)
-                        if not candidate_files and old_snippet:
-                            for p, c in patched_map.items():
-                                if old_snippet in c:
-                                    candidate_files.append(p)
+            if not changed_files:
+                st.warning('적용 가능한 수정이 없습니다. 파일 경로나 코드 스니펫을 확인하세요.')
+                return
 
-                    applied = False
-                    for p in candidate_files:
-                        new_content, ok = _apply_patch_to_content(patched_map[p], old_snippet or '', fixed)
-                        if ok:
-                            patched_map[p] = new_content
-                            applied = True
-                            break
-                    # 적용 실패시 무시(다음 취약점 진행)
-
-                # 3) PR 생성(스냅샷 브랜치로 업로드)
-                final_title = pr_title if not draft else (f"[DRAFT] {pr_title}")
-                with st.spinner('스냅샷 브랜치 생성 및 파일 업로드 중...'):
-                    resp = client.create_snapshot_branch_and_pr(
-                        owner=owner,
-                        repo=repo,
-                        base_branch=base,
-                        title=final_title,
-                        body=pr_body,
-                        files=patched_map,
-                        draft=draft,
-                    )
-                if resp.get('success'):
-                    st.success(f"스냅샷 PR 생성됨: {resp.get('url')}")
-                else:
-                    st.error(resp.get('error', '스냅샷 PR 생성 실패'))
+            final_title = pr_title if not draft else (f"[DRAFT] {pr_title}")
+            with st.spinner('스냅샷 브랜치 생성 및 변경 파일 업로드 중...'):
+                resp = client.create_snapshot_branch_and_pr(
+                    owner=owner,
+                    repo=repo,
+                    base_branch=base,
+                    title=final_title,
+                    body=pr_body,
+                    files=changed_files,
+                    draft=draft,
+                )
+            if resp.get('success'):
+                st.success(f"스냅샷 PR 생성됨: {resp.get('url')}")
+            else:
+                st.error(resp.get('error', '스냅샷 PR 생성 실패'))
     
     st.divider()
     
