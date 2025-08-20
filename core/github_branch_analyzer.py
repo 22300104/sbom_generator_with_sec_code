@@ -13,8 +13,6 @@ from pathlib import Path
 import requests
 from datetime import datetime
 import base64
-import urllib.parse
-import urllib.parse
 
 try:
     import git
@@ -133,10 +131,8 @@ class GitHubBranchAnalyzer:
             if not owner or not repo:
                 return {"success": False, "error": "Invalid GitHub URL"}
             
-            # GitHub API로 비교 (브랜치명 URL 인코딩: feature/foo 등 슬래시 포함 케이스 대응)
-            base_enc = urllib.parse.quote(base_branch, safe='')
-            compare_enc = urllib.parse.quote(compare_branch, safe='')
-            api_url = f"{self.api_base}/repos/{owner}/{repo}/compare/{base_enc}...{compare_enc}"
+            # GitHub API로 비교
+            api_url = f"{self.api_base}/repos/{owner}/{repo}/compare/{base_branch}...{compare_branch}"
             
             response = requests.get(api_url, headers=self.headers)
             
@@ -243,11 +239,9 @@ class GitHubBranchAnalyzer:
                 file_data["added_code"] = added_code
                 combined_added_code.append(f"# ===== File: {file_info['filename']} =====\n{added_code}\n")
             
-            # 전체 파일 내용 가져오기 (필요시) - renamed 포함, 실패 시 raw_url 폴백
-            if file_info["status"] in ["added", "modified", "renamed"]:
+            # 전체 파일 내용 가져오기 (필요시)
+            if file_info["status"] in ["added", "modified"]:
                 full_content = self._get_file_content(repo_url, compare_branch, file_info["filename"])
-                if not full_content and file_info.get("raw_url"):
-                    full_content = self._get_file_content_raw(file_info["raw_url"])
                 if full_content:
                     file_data["full_content"] = full_content
                     combined_full_code.append(f"# ===== File: {file_info['filename']} =====\n{full_content}\n")
@@ -423,8 +417,7 @@ class GitHubBranchAnalyzer:
                 return None
             
             # GitHub API로 파일 내용 가져오기
-            encoded_path = urllib.parse.quote(filepath.lstrip('/'), safe='/')
-            api_url = f"{self.api_base}/repos/{owner}/{repo}/contents/{encoded_path}"
+            api_url = f"{self.api_base}/repos/{owner}/{repo}/contents/{filepath}"
             params = {"ref": branch}
             
             response = requests.get(api_url, headers=self.headers, params=params)
@@ -433,35 +426,12 @@ class GitHubBranchAnalyzer:
                 data = response.json()
                 # base64 디코딩
                 if data.get("encoding") == "base64":
-                    content = base64.b64decode(data["content"]).decode('utf-8', errors='ignore')
+                    content = base64.b64decode(data["content"]).decode('utf-8')
                     return content
-                # download_url 폴백
-                download_url = data.get('download_url')
-                if download_url:
-                    raw = self._get_file_content_raw(download_url)
-                    if raw is not None:
-                        return raw
-            else:
-                # 404/403 등일 때 raw 경로 폴백
-                raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{urllib.parse.quote(branch, safe='')}/{encoded_path}"
-                raw = self._get_file_content_raw(raw_url)
-                if raw is not None:
-                    return raw
             
         except Exception as e:
             print(f"파일 내용 가져오기 실패: {e}")
         
-        return None
-
-    def _get_file_content_raw(self, raw_url: str) -> Optional[str]:
-        """raw_url로 파일 내용 가져오기 (대용량/특수 케이스 폴백)"""
-        try:
-            # raw.githubusercontent.com 도메인에서도 Authorization 헤더가 동작하는 경우가 있어 그대로 전달
-            resp = requests.get(raw_url, headers=self.headers)
-            if resp.status_code == 200:
-                return resp.text
-        except Exception as e:
-            print(f"raw_url 콘텐츠 가져오기 실패: {e}")
         return None
     
     def _generate_pr_recommendation(self, security_result: Dict) -> str:

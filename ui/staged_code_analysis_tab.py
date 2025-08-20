@@ -289,12 +289,12 @@ def handle_github_mcp_agent():
 
     code_to_analyze = code_diff.get('combined_added_code', '') if slots.get("scope") == 'diff' else code_diff.get('combined_full_code', '')
     file_list = []
-    for f in code_diff.get('file_analysis', [])[:200]:
+    for f in code_diff.get('file_analysis', [])[:100]:
         file_list.append({
             'path': f.get('filename', 'unknown.py'),
             'name': Path(f.get('filename', 'unknown.py')).name,
-            'size': len((f.get('full_content') or f.get('added_code', '') or '').encode('utf-8')),
-            'lines': len(((f.get('full_content') or f.get('added_code', '') or '')).splitlines()),
+            'size': len(f.get('added_code', f.get('full_content', '')).encode('utf-8')),
+            'lines': len((f.get('added_code', f.get('full_content', '')) or '').splitlines()),
         })
 
     st.session_state.analysis_code = code_to_analyze
@@ -425,7 +425,7 @@ def handle_github_mcp_input():
                 st.session_state.mcp_branch_files = diff
                 st.info(f"변경 파일: {diff.get('total_files', 0)}개, +{diff.get('total_additions', 0)}/-{diff.get('total_deletions', 0)}")
                 if diff.get('files_changed'):
-                    for f in diff['files_changed'][:20]:  # 더 많은 미리보기
+                    for f in diff['files_changed'][:10]:
                         st.caption(f"- {f['filename']} ({f['status']}, +{f['additions']}/-{f['deletions']})")
 
         start = st.button("이 브랜치로 분석 시작", type="primary")
@@ -447,12 +447,12 @@ def handle_github_mcp_input():
                     code_to_analyze = code_diff.get('combined_full_code', '')
 
                 file_list = []
-                for f in code_diff.get('file_analysis', [])[:200]:
+                for f in code_diff.get('file_analysis', [])[:100]:
                     file_list.append({
                         'path': f.get('filename', 'unknown.py'),
                         'name': Path(f.get('filename', 'unknown.py')).name,
-                        'size': len((f.get('full_content') or f.get('added_code', '') or '').encode('utf-8')),
-                        'lines': len(((f.get('full_content') or f.get('added_code', '') or '')).splitlines()),
+                        'size': len(f.get('added_code', f.get('full_content', '')).encode('utf-8')),
+                        'lines': len((f.get('added_code', f.get('full_content', '')) or '').splitlines()),
                     })
 
                 st.session_state.analysis_code = code_to_analyze
