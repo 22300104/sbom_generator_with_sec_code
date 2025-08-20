@@ -1,4 +1,4 @@
- 
+# ui/staged_code_analysis_tab.py
 """
 단계별 코드 분석 탭
 각 단계를 명확히 분리하여 상태 관리 개선
@@ -21,6 +21,7 @@ from core.formatter import SBOMFormatter
 from core.project_downloader import ProjectDownloader
 from core.mcp_github_client import MCPGithubClient
 from core.github_branch_analyzer import GitHubBranchAnalyzer
+from core.agent_slot_filler import AgentSlotFiller
 
 
 def _inject_analysis_css():
@@ -125,6 +126,7 @@ def render_code_analysis_tab():
     if 'analysis_stage' not in st.session_state:
         st.session_state.analysis_stage = 'input'  # input -> files -> analyze -> results
     
+    # 디버그 정보 (개발용)
     with st.sidebar:
         st.caption(f"현재 단계: {st.session_state.analysis_stage}")
     
@@ -161,6 +163,172 @@ def render_input_stage():
     render_pr_selector()
 
 
+def handle_github_mcp_agent():
+    """LLM 에이전트: 자연어 → 슬롯 추출(LLM/폴백) → 검증 → 코드 준비 → 분석 이동"""
+    st.markdown("#### Agent Mode")
+
+    if 'agent_slots' not in st.session_state:
+        st.session_state.agent_slots = {"repo": None, "base": None, "compare": None, "scope": "diff", "analysis": None, "pr_number": None}
+    slots = st.session_state.agent_slots
+
+    # 안내 + 예시
+    with st.chat_message("assistant"):
+        st.markdown(
+            """
+            원하는 분석 방식을 자연어로 알려주세요. (전부 대화형으로 진행)
+
+            먼저 분석 유형을 정해주세요:
+            - 전체 레포지토리 분석: `full repo` 또는 `전체`
+            - 브랜치 비교 분석: `branch compare base main compare feature/x` 또는 `브랜치 비교`
+            - PR 분석: `pr #123` 또는 `PR 123`
+
+            다음으로 저장소를 알려주세요:
+            - `repo owner/repo` 또는 `repo https://github.com/owner/repo`
+
+            브랜치/범위 예시(브랜치 비교 시):
+            - `base main, compare feature/auth, 변경사항만`
+            - `base develop, compare release/1.2, 전체`
+            """
+        )
+    user_msg = st.chat_input("요청을 입력하세요")
+    if user_msg:
+        with st.chat_message("user"):
+            st.write(user_msg)
+        filler = AgentSlotFiller()
+        parsed = filler.parse_to_slots(user_msg)
+        for k, v in parsed.items():
+            if v:
+                slots[k] = v
+        st.session_state.agent_slots = slots
+
+    # 보완(대화형 유지, 최소 입력만 제공)
+    st.divider()
+    st.markdown("##### 직접 입력 (선택)")
+    repo = st.text_input("저장소(https://github.com/owner/repo 또는 owner/repo)", value=slots.get("repo") or "")
+    colb1, colb2, colb3 = st.columns(3)
+    with colb1:
+        analysis_type = st.selectbox("분석 유형", ["자동 감지", "전체", "브랜치 비교", "PR 분석"], index=0)
+    with colb2:
+        base = st.text_input("기준 브랜치", value=slots.get("base") or "")
+    with colb3:
+        compare = st.text_input("비교 브랜치", value=slots.get("compare") or "")
+    scope = st.selectbox("분석 범위(브랜치/PR)", ["변경사항만", "변경파일 전체"], index=(0 if (slots.get("scope") in [None, "diff"]) else 1))
+    pr_num = st.text_input("PR 번호(선택)", value=slots.get("pr_number") or "")
+
+    # 업데이트 저장
+    slots.update({
+        "repo": repo if repo else slots.get("repo"),
+        "base": base if base else slots.get("base"),
+        "compare": compare if compare else slots.get("compare"),
+        "scope": ("full" if scope == "변경파일 전체" else "diff"),
+        "analysis": ({
+            "자동 감지": slots.get("analysis"),
+            "전체": "full",
+            "브랜치 비교": "branch",
+            "PR 분석": "pr",
+        }[analysis_type] if analysis_type else slots.get("analysis")),
+        "pr_number": pr_num or slots.get("pr_number"),
+    })
+    st.session_state.agent_slots = slots
+
+    # 분석 유형 결정 및 입력 검증
+    analysis_kind = slots.get("analysis")
+    if not analysis_kind:
+        # 간단 자동화: base/compare가 있으면 branch, pr_number 있으면 pr, 아니면 full
+        if slots.get("pr_number"):
+            analysis_kind = "pr"
+        elif slots.get("base") and slots.get("compare"):
+            analysis_kind = "branch"
+        else:
+            analysis_kind = "full"
+        slots["analysis"] = analysis_kind
+
+    # 필수값 검증
+    ready = bool(slots.get("repo")) and (
+        (analysis_kind == "full") or
+        (analysis_kind == "branch" and slots.get("base") and slots.get("compare")) or
+        (analysis_kind == "pr" and slots.get("pr_number"))
+    )
+    if not ready:
+        st.info("입력이 부족합니다. repository / (branch: base, compare) / (PR: 번호) 중 필요한 값을 알려주세요.")
+        return
+
+    # URL 정규화
+    repo_url = slots["repo"]
+    if repo_url and '/' in repo_url and not repo_url.startswith('http'):
+        repo_url = f"https://github.com/{repo_url}"
+
+    # 토큰/MCP 서버 URL은 UI에서 입력받지 않습니다 (환경변수 사용)
+
+    analyzer = GitHubBranchAnalyzer()
+    with st.spinner("저장소 확인 중..."):
+        meta = analyzer.get_branches(repo_url)
+    if not meta.get('success'):
+        st.error(meta.get('error', '저장소 조회 실패'))
+        return
+
+    st.success(f"저장소 확인: {meta.get('owner')}/{meta.get('repo')}")
+
+    # 분석 유형별 코드 준비
+    code_to_analyze = ''
+    file_list = []
+    if analysis_kind == 'branch':
+        with st.spinner("브랜치 변경 코드 수집 중..."):
+            code_diff = analyzer.get_diff_code_only(repo_url, slots["base"], slots["compare"], selected_files=None)
+        if not code_diff.get('success'):
+            st.error(code_diff.get('error', '코드 준비 실패'))
+            return
+        code_to_analyze = code_diff.get('combined_added_code', '') if slots.get("scope") == 'diff' else code_diff.get('combined_full_code', '')
+        for f in code_diff.get('file_analysis', [])[:100]:
+            file_list.append({
+                'path': f.get('filename', 'unknown.py'),
+                'name': Path(f.get('filename', 'unknown.py')).name,
+                'size': len((f.get('full_content') or f.get('added_code', '') or '').encode('utf-8')),
+                'lines': len(((f.get('full_content') or f.get('added_code', '') or '')).splitlines()),
+            })
+    elif analysis_kind == 'pr':
+        # PR diff → base/compare 자동 해석이 필요하지만, 간단 버전: GitHub compare API로는 바로 불가.
+        # 여기서는 PR 번호 안내만 하고, 추후 확장(별도 PR API로 files 변경 목록 수집) 여지를 남김.
+        st.warning("PR 분석은 간단 버전입니다. 우선 브랜치 비교로 진행해주세요 (향후 PR files API 연동 예정).")
+        return
+    else:
+        # full repo 분석은 다운로드 후 스마트 분석 로직으로 대체 가능. 현 버전은 브랜치 비교 중심이므로 안내.
+        st.warning("전체 레포 분석은 곧 제공 예정입니다. 우선 브랜치 비교 또는 PR 분석을 사용해주세요.")
+        return
+
+    st.session_state.analysis_code = code_to_analyze
+    st.session_state.analysis_file_list = file_list
+    st.session_state.project_name = meta.get('repo', 'Repository')
+    st.session_state.mcp_branch_ctx = {
+        'repo_url': repo_url,
+        'owner': meta.get('owner'),
+        'repo': meta.get('repo'),
+        'base_branch': slots['base'],
+        'compare_branch': slots['compare'],
+        'analyze_scope': ('변경사항만' if slots.get('scope') == 'diff' else '변경파일 전체'),
+        'total_files': len(file_list),
+    }
+
+    st.info(f"분석 준비 완료: {slots['base']}…{slots['compare']} / 범위: {('변경사항만' if slots.get('scope') == 'diff' else '변경파일 전체')}")
+    if st.button("분석 시작", type="primary"):
+        # 에이전트 플로우 상태 저장 후, 파일 단계로 잠시 전환(시각적 진행)
+        st.session_state.agent_flow = {
+            'pending': True,
+            'code': code_to_analyze,
+            'file_list': file_list,
+            'project_name': st.session_state.get('project_name', meta.get('repo', 'Repository')),
+            'mcp_branch_ctx': {
+                'repo_url': repo_url,
+                'owner': meta.get('owner'),
+                'repo': meta.get('repo'),
+                'base_branch': slots['base'],
+                'compare_branch': slots['compare'],
+                'analyze_scope': ('변경사항만' if slots.get('scope') == 'diff' else '변경파일 전체'),
+                'total_files': len(file_list),
+            }
+        }
+        st.session_state.analysis_stage = 'files'
+        st.rerun()
 
 def render_pr_selector():
     """레포지토리 URL 입력 → 미병합 PR 드롭다운 → 선택 후 분석 단계로 이동"""
@@ -273,7 +441,7 @@ def render_pr_selector():
         st.info("레포지토리 URL을 입력하고 'PR 불러오기'를 클릭하세요. 미병합 PR이 드롭다운으로 표시됩니다.")
 def handle_github_mcp_input():
     """GitHub MCP 기반 입력 처리: 저장소/브랜치 선택 → 파일 수집"""
-    st.markdown("#### PR 선택")
+    st.markdown("#### Agent Mode")
 
     if 'mcp_connected' not in st.session_state:
         st.session_state.mcp_connected = None
@@ -419,7 +587,8 @@ def handle_github_mcp_input():
                 st.rerun()
 
 
- 
+# ui/staged_code_analysis_tab.py
+# handle_github_input() 함수 수정
 
 def handle_github_input():
     """GitHub 입력 처리 - 개선된 예제 구조"""
@@ -438,7 +607,7 @@ def handle_github_input():
         st.write("")
         download_btn = st.button("다운로드", type="primary", use_container_width=True)
     
-    # 예제 드롭다운
+    # 예제 드롭다운 (첫 페이지 예시 최소화: PyGoat, Vulnerable Flask App, Django Vulnerable)
     st.markdown("#### 예제 저장소")
     example_choice = st.selectbox(
         "예제 선택:",
@@ -653,7 +822,8 @@ def handle_direct_input():
             st.warning("코드를 입력하세요.")
 
 
- 
+# ui/staged_code_analysis_tab.py
+# render_file_selection_stage() 함수 전체 교체
 
 def render_file_selection_stage():
     """2단계: 파일 선택"""
@@ -1074,9 +1244,15 @@ def run_analysis(code: str, file_list: List[Dict], mode: str, use_claude: bool, 
         
         # AI 보안 분석
         if mode in ["AI 보안 분석", "전체 분석"]:
+            # use_claude 파라미터 명시적 전달
+            print(f"🔍 AI 분석 시작 (use_claude={use_claude})")
             ai_analyzer = ImprovedSecurityAnalyzer(use_claude=use_claude)
             ai_result = ai_analyzer.analyze_security(code, file_list)
             results['ai_analysis'] = ai_result
+            
+            # 디버그: 발견된 취약점 수 출력
+            vuln_count = len(ai_result.get('vulnerabilities', []))
+            print(f"📊 분석 완료: {vuln_count}개 취약점 발견")
         
     except Exception as e:
         st.error(f"분석 오류: {e}")
@@ -1091,7 +1267,17 @@ def run_analysis(code: str, file_list: List[Dict], mode: str, use_claude: bool, 
 def display_ai_results(ai_result: Dict):
     """AI 분석 결과 표시 - 에러 처리 개선"""
     
+        # 디버그 출력 추가
+    print(f"🔍 UI 받은 데이터: success={ai_result.get('success')}, "
+          f"vulns={len(ai_result.get('vulnerabilities', []))}, "
+          f"has_error={ai_result.get('has_error')}")
+    
     vulnerabilities = ai_result.get('vulnerabilities', [])
+    print(f"🔍 vulnerabilities 타입: {type(vulnerabilities)}, 길이: {len(vulnerabilities)}")
+    
+    if vulnerabilities:
+        for i, vuln in enumerate(vulnerabilities):
+            print(f"  - 취약점 {i+1}: {vuln.get('type', 'Unknown')}")
 
     # 에러 체크
     if ai_result.get('has_error'):

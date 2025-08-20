@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 # 환경 변수 로드
 load_dotenv()
 
-# 페이지 설정
+# 페이지 설정 - 전문적 메타데이터
 st.set_page_config(
     page_title="SBOMiner | 보안 분석 플랫폼",
     page_icon="ui/assets/logo.png",
@@ -23,7 +23,7 @@ st.set_page_config(
     }
 )
 
-# 글로벌 스타일 시스템
+# 전문적인 글로벌 스타일 시스템
 st.markdown(
     """
 <style>
@@ -537,7 +537,7 @@ div[data-testid="stAppViewContainer"] {
     unsafe_allow_html=True,
 )
 
-# UI 모듈
+# UI 모듈 임포트
 from ui.staged_code_analysis_tab import render_code_analysis_tab
 from ui.qa_tab import render_qa_tab
 
@@ -599,7 +599,9 @@ def main():
             st.caption("- PyGoat, Vulnerable Flask, Django Vulnerable 예제로 시작 가능")
             st.caption("- 대형 프로젝트는 핵심 파일만 선택하여 속도 향상")
         
-        # API 키 상태
+# app.py
+# 수정 후 (라인 397-445 근처)
+        # API 키 상태 - 전문적 표시
         has_openai_key = bool(os.getenv("OPENAI_API_KEY"))
         has_claude_key = bool(os.getenv("ANTHROPIC_API_KEY"))
         
@@ -755,6 +757,9 @@ def main():
     else:
         render_code_analysis_tab()
 
+
+# app.py
+# 수정 후 - render_help_tab() 함수 전체 교체
 
 def render_help_tab():
     """전문적인 도움말 탭 - 순수 사용 가이드"""

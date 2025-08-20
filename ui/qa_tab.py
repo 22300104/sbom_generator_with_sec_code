@@ -205,7 +205,8 @@ def render_qa_tab():
         del st.session_state.pending_question
 
 
- 
+# ui/qa_tab.py
+# process_question() 함수의 RAG 검색 부분 제거/수정 (라인 250-300 근처)
 
 def process_question(question: str, rag):
     """전문적인 질문 처리 - AI 중심, RAG 보조"""
@@ -296,7 +297,8 @@ def process_question(question: str, rag):
             progress_bar.empty()
             status_text.empty()
 
- 
+# ui/qa_tab.py
+# generate_answer_with_sources() 함수 수정 (라인 380-420 근처)
 
 def generate_answer_with_sources(question: str, documents: list, sources: list) -> str:
     """근거 기반 답변 생성"""
