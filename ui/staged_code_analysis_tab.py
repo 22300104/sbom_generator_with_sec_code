@@ -30,9 +30,6 @@ def render_code_analysis_tab():
     # 디버그 정보 (개발용)
     with st.sidebar:
         st.caption(f"현재 단계: {st.session_state.analysis_stage}")
-        if st.button("초기화"):
-            reset_analysis_state()
-            st.rerun()
     
     # 단계별 렌더링
     if st.session_state.analysis_stage == 'input':
