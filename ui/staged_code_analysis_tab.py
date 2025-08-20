@@ -298,7 +298,23 @@ def handle_github_mcp_agent():
 
     st.info(f"분석 준비 완료: {slots['base']}…{slots['compare']} / 범위: {('변경사항만' if slots.get('scope') == 'diff' else '변경파일 전체')}")
     if st.button("분석 시작", type="primary"):
-        st.session_state.analysis_stage = 'analyze'
+        # 에이전트 플로우 상태 저장 후, 파일 단계로 잠시 전환(시각적 진행)
+        st.session_state.agent_flow = {
+            'pending': True,
+            'code': code_to_analyze,
+            'file_list': file_list,
+            'project_name': st.session_state.get('project_name', meta.get('repo', 'Repository')),
+            'mcp_branch_ctx': {
+                'repo_url': repo_url,
+                'owner': meta.get('owner'),
+                'repo': meta.get('repo'),
+                'base_branch': slots['base'],
+                'compare_branch': slots['compare'],
+                'analyze_scope': ('변경사항만' if slots.get('scope') == 'diff' else '변경파일 전체'),
+                'total_files': len(file_list),
+            }
+        }
+        st.session_state.analysis_stage = 'files'
         st.rerun()
 def handle_github_mcp_input():
     """GitHub MCP 기반 입력 처리: 저장소/브랜치 선택 → 파일 수집"""
@@ -690,6 +706,24 @@ def render_file_selection_stage():
     """2단계: 파일 선택"""
     st.markdown('<h3 class="sa-fade-up"><span class="material-symbols-outlined">folder_open</span> 2단계: 분석할 파일 선택</h3>', unsafe_allow_html=True)
     
+    # 에이전트 플로우에서 바로 넘어온 경우: 진행 애니메이션 후 자동 전환
+    agent_flow = st.session_state.get('agent_flow')
+    if agent_flow and agent_flow.get('pending'):
+        with st.spinner('에이전트가 파일을 준비 중...'):
+            import time as _t
+            prog = st.progress(0)
+            for p in range(0, 101, 10):
+                prog.progress(p)
+                _t.sleep(0.08)
+        # 준비된 코드/파일 반영 후 분석 단계로 이동
+        st.session_state.analysis_code = agent_flow.get('code', '')
+        st.session_state.analysis_file_list = agent_flow.get('file_list', [])
+        st.session_state.project_name = agent_flow.get('project_name', 'Repository')
+        st.session_state.mcp_branch_ctx = agent_flow.get('mcp_branch_ctx')
+        st.session_state.agent_flow['pending'] = False
+        st.session_state.analysis_stage = 'analyze'
+        st.rerun()
+
     if st.button("← 이전 단계"):
         st.session_state.analysis_stage = 'input'
         st.rerun()
@@ -889,15 +923,26 @@ def render_results_stage():
         default_title = f"Security analysis for {mcp_ctx.get('compare_branch')} → {mcp_ctx.get('base_branch')}"
         pr_title = st.text_input('PR 제목', value=default_title, key='mcp_pr_title')
         pr_body = st.text_area('PR 본문 (선택사항)', value='', key='mcp_pr_body')
-        draft = st.checkbox('Draft PR로 생성', value=False, key='mcp_pr_draft')
+        draft = st.checkbox('Draft PR로 생성 (자동 머지 방지 권장)', value=True, key='mcp_pr_draft')
         if st.button('PR 보내기', type='primary'):
             client = MCPGithubClient()
             owner = mcp_ctx.get('owner')
             repo = mcp_ctx.get('repo')
             base = mcp_ctx.get('base_branch')
             head = mcp_ctx.get('compare_branch')
-            with st.spinner('PR 생성 중...'):
-                resp = client.create_pull_request(owner, repo, base, head, pr_title, pr_body, draft)
+            # 변경사항 유효성 체크: ahead_by > 0
+            analyzer = GitHubBranchAnalyzer()
+            with st.spinner('변경사항 확인 중...'):
+                diff_meta = analyzer.get_branch_diff(mcp_ctx.get('repo_url'), base, head)
+            if not diff_meta.get('success'):
+                st.error(diff_meta.get('error', '브랜치 비교 실패'))
+            elif diff_meta.get('ahead_by', 0) <= 0 and diff_meta.get('total_files', 0) <= 0:
+                st.warning('변경사항이 없습니다. PR을 생성할 수 없습니다.')
+            else:
+                # Draft일 경우 제목에 [DRAFT] 접두어 추가
+                final_title = pr_title if not draft else (f"[DRAFT] {pr_title}")
+                with st.spinner('PR 생성 중...'):
+                    resp = client.create_pull_request(owner, repo, base, head, final_title, pr_body, draft)
             if resp.get('success'):
                 st.success(f"PR 생성됨: {resp.get('url')}")
             else:
