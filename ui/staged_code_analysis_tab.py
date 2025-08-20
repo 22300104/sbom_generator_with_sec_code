@@ -85,7 +85,8 @@ def handle_github_input():
     with col1:
         github_url = st.text_input(
             "GitHub 저장소 URL:",
-            placeholder="https://github.com/owner/repository"
+            placeholder="https://github.com/owner/repository",
+            key="github_url_field"
         )
     
     with col2:
@@ -93,156 +94,29 @@ def handle_github_input():
         st.write("")
         download_btn = st.button("다운로드", type="primary", use_container_width=True)
     
-    # 통합된 예제 섹션
-    st.divider()
-    st.markdown('<h3><span class="material-symbols-outlined">book_2</span> 보안 테스트용 예제 프로젝트</h3>', unsafe_allow_html=True)
-    
-    # 예제 카테고리
-    example_category = st.selectbox(
-        "카테고리 선택:",
-        ["의도적 취약 프로젝트 (교육용)", "취약점 데모", "일반 프로젝트"]
+    # 예제 드롭다운 (첫 페이지 예시 최소화: PyGoat, Vulnerable Flask App, Django Vulnerable)
+    st.markdown("#### 예제 저장소")
+    example_choice = st.selectbox(
+        "예제 선택:",
+        [
+            "선택 안함",
+            "PyGoat (Django)",
+            "Vulnerable Flask App (Flask)",
+            "Django Vulnerable (nVisium)"
+        ],
+        key="example_repo_select"
     )
-    
-    # GitHub 취약 프로젝트 예제들
-    vulnerable_projects = {
-        "의도적 취약 프로젝트 (교육용)": {
-            "DVWA-Python": {
-                "url": "https://github.com/anxolerd/dvwa-flask",
-                "description": "Damn Vulnerable Web App - Flask 버전",
-                "vulnerabilities": "SQL Injection, XSS, CSRF, Command Injection 등"
-            },
-            "PyGoat": {
-                "url": "https://github.com/adeyosemanputra/pygoat",
-                "description": "OWASP PyGoat - 의도적으로 취약한 Python Django 앱",
-                "vulnerabilities": "OWASP Top 10 취약점 포함"
-            },
-            "Vulnerable Flask App": {
-                "url": "https://github.com/we45/Vulnerable-Flask-App",
-                "description": "보안 교육용 취약한 Flask 애플리케이션",
-                "vulnerabilities": "다양한 웹 취약점"
-            },
-            "Django Vulnerable": {
-                "url": "https://github.com/nVisium/django.nV",
-                "description": "의도적으로 취약한 Django 애플리케이션",
-                "vulnerabilities": "인증, 인가, 인젝션 취약점"
-            },
-            "Security Shepherd Python": {
-                "url": "https://github.com/OWASP/SecurityShepherd",
-                "description": "OWASP Security Shepherd - 보안 교육 플랫폼",
-                "vulnerabilities": "단계별 보안 취약점"
-            }
-        },
-        "취약점 데모": {
-            "Python Security Examples": {
-                "url": "https://github.com/craigz28/python-security",
-                "description": "Python 보안 취약점 예제 모음",
-                "vulnerabilities": "일반적인 Python 보안 문제"
-            },
-            "Vulnerable Python": {
-                "url": "https://github.com/anxolerd/vulnerable-python",
-                "description": "Python 취약점 데모 코드",
-                "vulnerabilities": "코드 실행, 역직렬화 등"
-            },
-            "Bad Python": {
-                "url": "https://github.com/mpirnat/lets-be-bad-guys",
-                "description": "Python 웹 앱 보안 워크샵 자료",
-                "vulnerabilities": "웹 보안 취약점 예제"
-            }
-        },
-        "일반 프로젝트": {
-            "Flask": {
-                "url": "https://github.com/pallets/flask",
-                "description": "Flask 웹 프레임워크",
-                "vulnerabilities": "일반 프로젝트 (취약점 최소)"
-            },
-            "Django": {
-                "url": "https://github.com/django/django",
-                "description": "Django 웹 프레임워크",
-                "vulnerabilities": "일반 프로젝트 (보안 강화됨)"
-            },
-            "FastAPI": {
-                "url": "https://github.com/tiangolo/fastapi",
-                "description": "FastAPI 프레임워크",
-                "vulnerabilities": "일반 프로젝트 (현대적 보안)"
-            },
-            "Requests": {
-                "url": "https://github.com/psf/requests",
-                "description": "Python HTTP 라이브러리",
-                "vulnerabilities": "일반 라이브러리"
-            }
-        }
+    example_urls = {
+        "PyGoat (Django)": "https://github.com/adeyosemanputra/pygoat",
+        "Vulnerable Flask App (Flask)": "https://github.com/we45/Vulnerable-Flask-App",
+        "Django Vulnerable (nVisium)": "https://github.com/nVisium/django.nV",
     }
+    if example_choice != "선택 안함":
+        st.session_state.github_url_field = example_urls[example_choice]
+        st.rerun()
     
-    # 선택된 카테고리의 프로젝트 표시
-    selected_projects = vulnerable_projects.get(example_category, {})
-    
-    if selected_projects:
-        st.info(f"{example_category}의 프로젝트들입니다. 교육 및 테스트 목적으로만 사용하세요.")
-        
-        # 경량 스타일 (배지/링크 카드)
-        st.markdown(
-            """
-<style>
-.proj-badges { display:flex; flex-wrap:wrap; gap:.35rem; margin:.25rem 0 .5rem; }
-.proj-badge { background:#f4f6f8; color:#1f2937; border:1px solid #e5e7eb; border-radius:999px; padding:.15rem .55rem; font-size:.85rem; }
-.proj-url { background:#ffffff; border:1px solid #e5e7eb; border-radius:8px; padding:.45rem .6rem; }
-.proj-url a { color:#1e3a5f; text-decoration:none; word-break:break-all; }
-.proj-url a:hover { text-decoration:underline; }
-</style>
-""",
-            unsafe_allow_html=True,
-        )
-        
-        # 프로젝트 카드 형식으로 표시
-        for name, project in selected_projects.items():
-            with st.expander(f"**{name}**"):
-                left, right = st.columns([5, 1])
-                with left:
-                    st.markdown(f"**설명:** {project['description']}")
-                    # 취약점 배지 렌더링
-                    _vtxt = project.get('vulnerabilities', '')
-                    _items = [v.strip() for v in _vtxt.replace('등', '').split(',') if v.strip()]
-                    if _items:
-                        _badges = ' '.join([f"<span class='proj-badge'>{v}</span>" for v in _items])
-                    else:
-                        _badges = f"<span class='proj-badge'>{_vtxt}</span>"
-                    st.markdown(f"<div class='proj-badges'>{_badges}</div>", unsafe_allow_html=True)
-                    # 링크 카드
-                    _url = project['url']
-                    st.markdown(f"<div class='proj-url'><a class='proj-link' href='{_url}' target='_blank'>{_url}</a></div>", unsafe_allow_html=True)
-                with right:
-                    if st.button("분석하기", key=f"analyze_{name}", use_container_width=True):
-                        st.session_state.temp_github_url = project['url']
-                        st.rerun()
-    
-    # 로컬 취약 예제 (수정된 버전)
-    with st.expander("로컬 취약 예제 (requirements 포함)"):
-        st.warning("이 예제들은 교육 목적으로 만들어진 취약한 코드입니다.")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            if st.button("Flask 취약 앱", key="local_flask"):
-                example = get_enhanced_flask_example()
-                load_local_example(example)
-        
-        with col2:
-            if st.button("Django 취약 앱", key="local_django"):
-                example = get_enhanced_django_example()
-                load_local_example(example)
-        
-        with col3:
-            if st.button("FastAPI 취약 앱", key="local_fastapi"):
-                example = get_enhanced_fastapi_example()
-                load_local_example(example)
-    
-    # URL 처리
-    if 'temp_github_url' in st.session_state:
-        github_url = st.session_state.temp_github_url
-        del st.session_state.temp_github_url
-        download_btn = True
-    
-    if download_btn and github_url:
+    if download_btn and st.session_state.get('github_url_field'):
+        github_url = st.session_state.get('github_url_field', '')
         with st.spinner("GitHub 저장소 다운로드 중..."):
             success, project_files = download_github_project(github_url)
         
@@ -256,44 +130,7 @@ def handle_github_input():
             st.error("다운로드 실패")
 
 
-def load_local_example(example: Dict):
-    """로컬 예제 로드 - requirements 처리 포함"""
-    st.session_state.project_files = example['files']
-    st.session_state.project_name = example['name']
-    
-    # requirements.txt 내용 추출 및 세션에 저장
-    req_content = ""
-    for file_info in example['files']:
-        if 'requirements' in file_info['path'].lower():
-            req_content = file_info['content']
-            break
-    
-    if req_content:
-        st.session_state.requirements_content = req_content
-    
-    st.session_state.analysis_stage = 'files'
-    st.rerun()
-
-
-def get_enhanced_flask_example() -> Dict:
-    """개선된 Flask 취약 예제 - requirements 포함"""
-    from ui.vulnerable_examples import get_vulnerable_web_app
-    example = get_vulnerable_web_app()
-    
-    # requirements.txt가 있는지 확인하고 세션에 저장할 수 있도록 수정
-    return example
-
-
-def get_enhanced_django_example() -> Dict:
-    """개선된 Django 취약 예제"""
-    from ui.vulnerable_examples import get_vulnerable_django_app
-    return get_vulnerable_django_app()
-
-
-def get_enhanced_fastapi_example() -> Dict:
-    """개선된 FastAPI 취약 예제"""
-    from ui.vulnerable_examples import get_vulnerable_fastapi_app
-    return get_vulnerable_fastapi_app()
+ 
 
 
 def download_github_project(github_url: str) -> tuple[bool, List[Dict]]:
@@ -676,6 +513,14 @@ def render_results_stage():
         return
     
     st.success(f"분석 완료 ({results.get('analysis_time', 0):.1f}초)")
+    
+    # 분석 이후 Q&A 진입 버튼
+    col_qa1, col_qa2, col_qa3 = st.columns([1, 2, 1])
+    with col_qa2:
+        if st.button("분석한 프로젝트 Q&A로 이동", type="secondary", use_container_width=True):
+            st.session_state.show_qa = True
+            st.session_state.qa_project_name = st.session_state.get('project_name', 'Project')
+            st.rerun()
     
     tabs = []
     if 'ai_analysis' in results:

@@ -387,7 +387,7 @@ section[data-testid="stSidebar"]:hover {
 
 /* 비호버 상태에서도 보이는 세로 핸들 표시 */
 section[data-testid="stSidebar"]::after {
-  content: "System";
+  content: "Guide";
   position: absolute;
   right: 0;
   top: 50%;
@@ -580,13 +580,24 @@ def main():
     with st.sidebar:
         # 브랜드 헤더
         st.markdown("""
-        <div style="text-align: center; padding: 1rem 0 2rem 0;">
-            <h2 style="color: white; margin: 0; font-size: 1.5rem;">SBOMiner 시스템</h2>
-            <p style="color: var(--gray-200); font-size: 0.9rem; margin: 0.5rem 0 0 0;">
-                Security Configuration
+        <div style="text-align: center; padding: 1rem 0 1.2rem 0;">
+            <h2 style="color: white; margin: 0; font-size: 1.4rem;">SBOMiner 가이드</h2>
+            <p style="color: var(--gray-200); font-size: 0.86rem; margin: 0.4rem 0 0 0;">
+                네비게이션 · 시스템
             </p>
         </div>
         """, unsafe_allow_html=True)
+
+        # 간단한 사용 가이드 (네비게이션)
+        st.markdown("### 사용 가이드")
+        with st.expander("빠른 시작 (3단계)", expanded=False):
+            st.caption("1) 1단계 입력: GitHub URL 선택 또는 입력")
+            st.caption("2) 2단계 선택: 분석할 파일 선택")
+            st.caption("3) 3단계 실행: 분석 시작 → 결과 확인")
+
+        with st.expander("팁"):
+            st.caption("- PyGoat, Vulnerable Flask, Django Vulnerable 예제로 시작 가능")
+            st.caption("- 대형 프로젝트는 핵심 파일만 선택하여 속도 향상")
         
 # app.py
 # 수정 후 (라인 397-445 근처)
@@ -682,12 +693,12 @@ def main():
                 ]
             },
             {
-                "title": "Q&A",
+                "title": "Q&A (분석 후)",
                 "items": [
                     "KISA 가이드라인 기반",
                     "RAG 기반 답변",
                     "컨텍스트 인식",
-                    "실시간 질의응답"
+                    "분석 완료 후 버튼으로 진입"
                 ]
             }
         ]
@@ -696,6 +707,14 @@ def main():
             with st.expander(feature['title']):
                 for item in feature['items']:
                     st.markdown(f"• {item}")
+
+        st.divider()
+
+        # 사이드바에서 사용 가이드 바로가기
+        if st.button("사용 가이드 열기", use_container_width=True):
+            st.session_state.show_qa = False
+            st.session_state.show_help = True
+            st.rerun()
         
         st.divider()
         
@@ -716,21 +735,27 @@ def main():
         st.caption("엔진: GPT-4 / Claude-3")
         st.caption("표준: SPDX 2.3, CycloneDX 1.4")
     
-    # 메인 탭
-    tab1, tab2, tab3 = st.tabs([
-        "보안 분석", 
-        "Q&A", 
-        "사용 가이드"
-    ])
-    
-    with tab1:
-        render_code_analysis_tab()
-    
-    with tab2:
+    # 메인 뷰: 분석 우선, Q&A/가이드는 버튼 네비게이션
+    if st.session_state.get('show_qa'):
+        col_back, col_title, _ = st.columns([1, 6, 1])
+        with col_back:
+            if st.button("← 분석 화면", use_container_width=True):
+                st.session_state.show_qa = False
+                st.rerun()
+        with col_title:
+            proj = st.session_state.get('qa_project_name', '')
+            if proj:
+                st.markdown(f"#### 프로젝트 Q&A · {proj}")
         render_qa_tab()
-    
-    with tab3:
+    elif st.session_state.get('show_help'):
+        col_back, _, _ = st.columns([1, 9, 1])
+        with col_back:
+            if st.button("← 분석 화면", use_container_width=True):
+                st.session_state.show_help = False
+                st.rerun()
         render_help_tab()
+    else:
+        render_code_analysis_tab()
 
 
 # app.py
