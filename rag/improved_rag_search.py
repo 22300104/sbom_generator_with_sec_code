@@ -23,78 +23,98 @@ class ImprovedRAGSearch:
             'recommendations': self.client.get_collection("kisia_recommendations")
         }
     
+        # search_vulnerability_evidence 메소드 전체를 아래 코드로 교체
     def search_vulnerability_evidence(self, ai_vuln_type: str, top_k: int = 3) -> Dict:
-        """AI가 발견한 취약점에 대한 KISIA 가이드라인 근거 검색"""
+        """
+        [하이브리드 방식]
+        1. 취약점 타입 매핑을 시도하여 표준 KISIA 타입 획득
+        2. 표준 타입이 있으면 get()으로 정확한 정보 조회 (정확성)
+        3. 표준 타입이 없거나 get() 실패 시 query()로 유사도 검색 수행 (유연성)
+        """
         
-        # 1. AI 취약점 타입을 KISIA 타입으로 변환
+        # 1. AI 취약점 타입을 표준 KISIA 타입으로 변환 시도
         kisia_type = self.mapper.get_kisia_type(ai_vuln_type)
         
-        if not kisia_type:
-            print(f"⚠️ 매핑 실패: {ai_vuln_type} → KISIA 타입 찾을 수 없음")
-            # 텍스트 검색으로 폴백
+        results = None
+
+        # 2. 매핑 성공 시: get()으로 정확한 정보 우선 조회
+        if kisia_type:
+            print(f"✅ 매핑 성공: '{ai_vuln_type}' → '{kisia_type}'. get()으로 직접 조회 시도...")
+            results = self._get_exact_evidence(kisia_type)
+        
+        # 3. 매핑에 실패했거나, get()으로 문서를 찾지 못한 경우: query()로 폴백
+        if not results or not results.get('vulnerability'):
+            if kisia_type:
+                print(f"⚠️ get() 조회 실패. '{ai_vuln_type}' 텍스트로 유사도 검색(query) 실행...")
+            else:
+                print(f"⚠️ 매핑 실패: '{ai_vuln_type}'. 유사도 검색(query) 실행...")
+            
+            # _fallback_text_search가 query를 사용하므로 이를 활용
             return self._fallback_text_search(ai_vuln_type, top_k)
+
+        print(f"✅ '{kisia_type}'에 대한 정확한 가이드라인을 찾았습니다.")
+        return results
+
+    def _get_exact_evidence(self, kisia_type: str) -> Dict:
+        """메타데이터(kisia_type)를 기반으로 get()을 사용해 문서를 직접 조회"""
         
-        print(f"✅ 매핑 성공: {ai_vuln_type} → {kisia_type}")
-        
-        # 2. 메타데이터 필터로 정확한 문서 검색
         results = {
-            'vulnerability': None,
-            'unsafe_codes': [],
-            'safe_codes': [],
-            'recommendations': None,
-            'metadata': {}
+            'vulnerability': None, 'unsafe_codes': [], 'safe_codes': [],
+            'recommendations': None, 'metadata': {}
+        }
+
+        # 취약점 섹션 직접 조회
+        vuln_results = self.collections['vulnerabilities'].get(where={"english_type": kisia_type}, limit=1)
+        if vuln_results['ids']:
+            results['vulnerability'] = {
+                'content': vuln_results['documents'][0],
+                'metadata': vuln_results['metadatas'][0]
+            }
+
+        # 코드 예제 직접 조회
+        code_results = self.collections['code_examples'].get(where={"vulnerability_type": kisia_type}, limit=4)
+        if code_results['ids']:
+            for doc, meta in zip(code_results['documents'], code_results['metadatas']):
+                item = {'code': doc, 'metadata': meta}
+                (results['unsafe_codes'] if meta.get('code_type') == 'unsafe' else results['safe_codes']).append(item)
+
+        # 권장사항 직접 조회
+        rec_results = self.collections['recommendations'].get(where={"vulnerability_type": kisia_type}, limit=1)
+        if rec_results['ids']:
+            results['recommendations'] = {
+                'content': rec_results['documents'][0],
+                'metadata': rec_results['metadatas'][0]
+            }
+        
+        # 메타데이터 추가
+        section_info = self.mapper.get_section_info(kisia_type)
+        if section_info:
+            results['metadata'] = section_info
+
+        return results
+
+    # _fallback_text_search 메소드는 query를 사용하므로 그대로 유지
+    def _fallback_text_search(self, query: str, top_k: int = 3) -> Dict:
+        """텍스트 기반 폴백 검색 (유사도 기반 query 사용)"""
+        # (이 메소드의 코드는 변경할 필요 없습니다)
+        print(f"📝 텍스트 검색 폴백: {query}")
+        
+        results = {
+            'vulnerability': None, 'unsafe_codes': [], 'safe_codes': [],
+            'recommendations': None, 'metadata': {'fallback': True}
         }
         
-        # 취약점 섹션 검색
+        # 텍스트 유사도로 검색
         vuln_results = self.collections['vulnerabilities'].query(
-            query_texts=[ai_vuln_type],
-            where={"english_type": kisia_type},
-            n_results=1
+            query_texts=[query],
+            n_results=top_k
         )
         
-        if vuln_results['documents'][0]:
+        if vuln_results['documents'] and vuln_results['documents'][0]:
             results['vulnerability'] = {
                 'content': vuln_results['documents'][0][0],
                 'metadata': vuln_results['metadatas'][0][0] if vuln_results['metadatas'][0] else {}
             }
-        
-        # 코드 예제 검색
-        code_results = self.collections['code_examples'].query(
-            query_texts=[ai_vuln_type],
-            where={"vulnerability_type": kisia_type},
-            n_results=4
-        )
-        
-        if code_results['documents'][0]:
-            for i, (doc, meta) in enumerate(zip(code_results['documents'][0], code_results['metadatas'][0])):
-                if meta.get('code_type') == 'unsafe':
-                    results['unsafe_codes'].append({
-                        'code': doc,
-                        'metadata': meta
-                    })
-                else:
-                    results['safe_codes'].append({
-                        'code': doc,
-                        'metadata': meta
-                    })
-        
-        # 권장사항 검색
-        rec_results = self.collections['recommendations'].query(
-            query_texts=[ai_vuln_type],
-            where={"vulnerability_type": kisia_type},
-            n_results=1
-        )
-        
-        if rec_results['documents'][0]:
-            results['recommendations'] = {
-                'content': rec_results['documents'][0][0],
-                'metadata': rec_results['metadatas'][0][0] if rec_results['metadatas'][0] else {}
-            }
-        
-        # 섹션 정보 추가
-        section_info = self.mapper.get_section_info(kisia_type)
-        if section_info:
-            results['metadata'] = section_info
         
         return results
     

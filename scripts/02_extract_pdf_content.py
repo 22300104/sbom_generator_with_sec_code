@@ -1,379 +1,205 @@
-# scripts/02_extract_pdf_content.py
-"""
-PDF에서 텍스트와 코드를 구조화하여 추출
-분석 결과를 바탕으로 의미 단위로 추출
-"""
 import pdfplumber
 import json
+import re
 from pathlib import Path
 from typing import List, Dict, Tuple
-import re
-from dataclasses import dataclass, asdict
 
-@dataclass
-class CodeExample:
-    """코드 예제 구조체"""
-    page: int
-    type: str  # 'unsafe' or 'safe'
-    code: str
-    context: str  # 코드 앞뒤 설명
-    vulnerability_type: List[str]
-    label: str
-
-@dataclass
-class VulnerabilitySection:
-    """취약점 섹션 구조체"""
-    title: str
-    description: str
-    unsafe_code: CodeExample
-    safe_code: CodeExample
-    page_range: Tuple[int, int]
-    recommendations: str
-
-class PDFContentExtractor:
-    def __init__(self, pdf_path: str, analysis_path: str = "data/processed/metadata/pdf_analysis_fixed.json"):
+class PDFStructureExtractor:
+    def __init__(self, pdf_path: str):
         self.pdf_path = Path(pdf_path)
-        
-        # 이전 분석 결과 로드
-        with open(analysis_path, 'r', encoding='utf-8') as f:
-            self.analysis = json.load(f)
-        
-        self.content = {
-            "vulnerability_sections": [],
-            "code_examples": [],
-            "chunks": [],
-            "metadata": {
-                "total_pages": self.analysis['total_pages'],
-                "total_sections": 0,
-                "total_chunks": 0
-            }
-        }
-        
-    def extract(self):
-        """PDF 내용 추출"""
-        print(f"📄 PDF 내용 추출 시작: {self.pdf_path.name}")
-        
+        # 사용자께서 확인해주신 정확한 페이지 오프셋 '6'을 적용합니다.
+        self.PAGE_OFFSET = 6
+        self.TOC = self._get_table_of_contents()
+        self.vulnerability_map = self._create_vulnerability_map()
+
+    def extract_all_vulnerabilities(self) -> Dict:
+        print(f"📄 PDF 구조 기반 추출을 시작합니다 (페이지 오프셋: {self.PAGE_OFFSET})")
+        structured_data = {"vulnerabilities": []}
+
         with pdfplumber.open(self.pdf_path) as pdf:
-            # 1. 코드 쌍 기반으로 취약점 섹션 추출
-            self._extract_vulnerability_sections(pdf)
-            
-            # 2. 전체 텍스트를 의미 단위로 청킹
-            self._create_semantic_chunks(pdf)
-            
-            # 3. 메타데이터 업데이트
-            self._update_metadata()
-        
-        print(f"✅ 추출 완료")
-        return self.content
-    
-    def _extract_vulnerability_sections(self, pdf):
-        """취약점 섹션 추출"""
-        print(f"🔍 취약점 섹션 추출 중...")
-        
-        code_pairs = self.analysis.get('code_pairs', [])
-        
-        for pair in code_pairs:
-            unsafe_code = pair['unsafe']
-            safe_code = pair['safe']
-            
-            # 페이지 범위 결정
-            start_page = min(unsafe_code['page'], safe_code['page'])
-            end_page = max(unsafe_code['page'], safe_code['page'])
-            
-            # 해당 페이지들의 텍스트 추출
-            section_text = ""
-            for page_num in range(start_page - 1, min(end_page + 1, len(pdf.pages))):
-                page = pdf.pages[page_num]
-                section_text += page.extract_text() + "\n"
-            
-            # 섹션 제목 찾기
-            title = self._find_section_title(section_text, start_page)
-            
-            # 설명 텍스트 추출
-            description = self._extract_description(section_text, unsafe_code, safe_code)
-            
-            # 권장사항 추출
-            recommendations = self._extract_recommendations(section_text)
-            
-            # VulnerabilitySection 생성
-            vuln_section = {
-                "title": title,
-                "description": description,
-                "unsafe_code": {
-                    "page": unsafe_code['page'],
-                    "code": unsafe_code.get('code', ''),
-                    "label": unsafe_code.get('label', '안전하지 않은 코드 예시')
-                },
-                "safe_code": {
-                    "page": safe_code['page'],
-                    "code": safe_code.get('code', ''),
-                    "label": safe_code.get('label', '안전한 코드 예시')
-                },
-                "page_range": [start_page, end_page],
-                "recommendations": recommendations,
-                "vulnerability_types": pair.get('vulnerability_type', ['General'])
-            }
-            
-            self.content["vulnerability_sections"].append(vuln_section)
-        
-        print(f"  ✓ {len(self.content['vulnerability_sections'])}개 취약점 섹션 추출")
-    
-    def _create_semantic_chunks(self, pdf):
-        """의미 단위로 텍스트 청킹"""
-        print(f"📝 의미 단위 청킹 중...")
-        
-        for page_num, page in enumerate(pdf.pages, 1):
-            if page_num % 30 == 0:
-                print(f"  처리 중... {page_num}/{len(pdf.pages)} 페이지")
-            
-            text = page.extract_text()
-            if not text:
-                continue
-            
-            # 페이지를 의미 단위로 분할
-            chunks = self._split_into_chunks(text, page_num)
-            
-            for chunk in chunks:
-                # 청크 분류
-                chunk_type = self._classify_chunk(chunk['text'])
+            for i, current_section in enumerate(self.TOC):
+                start_page = current_section['page']
+                next_page_in_toc = self.TOC[i + 1]['page'] if i + 1 < len(self.TOC) else (len(pdf.pages) - self.PAGE_OFFSET + 1)
+                end_page = next_page_in_toc - 1
+
+                print(f"  -> '{current_section['title']}' 추출 중 (목차 페이지: {start_page}-{end_page})")
                 
-                self.content["chunks"].append({
-                    "page": page_num,
-                    "text": chunk['text'],
-                    "type": chunk_type,
-                    "metadata": {
-                        "char_count": len(chunk['text']),
-                        "has_code": self._has_code(chunk['text']),
-                        "keywords": self._extract_keywords(chunk['text'])
-                    }
+                section_text = self._get_text_in_range(pdf, start_page, end_page)
+                parsed_content = self._parse_section_content(section_text)
+
+                structured_data["vulnerabilities"].append({
+                    "section": current_section['section'],
+                    "number": int(re.match(r'^\d+', current_section['title']).group(0)),
+                    "korean_name": re.sub(r'^\d+\.\s*', '', current_section['title']),
+                    "english_type": self.vulnerability_map.get(current_section['title'], "Unknown"),
+                    "start_page": start_page,
+                    "end_page": end_page,
+                    "description": parsed_content['description'],
+                    "unsafe_codes": parsed_content['unsafe_codes'],
+                    "safe_codes": parsed_content['safe_codes'],
+                    "recommendations": parsed_content['recommendations']
                 })
+
+        print(f"✅ 총 {len(structured_data['vulnerabilities'])}개 취약점 추출 완료.")
+        return structured_data
+
+    def _get_text_in_range(self, pdf, start_toc_page: int, end_toc_page: int) -> str:
+        text = ""
+        start_index = start_toc_page + self.PAGE_OFFSET - 1
+        end_index = end_toc_page + self.PAGE_OFFSET - 1
+
+        for i in range(start_index, end_index + 1):
+            if i < len(pdf.pages):
+                page = pdf.pages[i]
+                page_text = page.extract_text(x_tolerance=2, layout=False)
+                if page_text:
+                    cleaned_text = re.sub(r'^\s*\d+\s*$', '', page_text, flags=re.MULTILINE)
+                    cleaned_text = re.sub(r'\n(Python\s)?시큐어코딩\s가이드\s*.*', '', cleaned_text)
+                    cleaned_text = re.sub(r'PART\s+제\d장[\s\S]+?$', '', cleaned_text)
+                    text += cleaned_text + "\n"
+        return text.strip()
+
+    def _parse_section_content(self, text: str) -> Dict:
+        content = {}
+        landmarks = ["가. 개요", "나. 안전한 코딩기법", "다. 코드예제", "라. 참고자료"]
         
-        print(f"  ✓ {len(self.content['chunks'])}개 청크 생성")
-    
-    def _split_into_chunks(self, text: str, page_num: int, 
-                          chunk_size: int = 800, 
-                          overlap: int = 200) -> List[Dict]:
-        """텍스트를 청크로 분할"""
-        chunks = []
+        content['description'] = self._extract_text_between(text, landmarks[0], landmarks[1])
+        recommendations_text = self._extract_text_between(text, landmarks[1], landmarks[2])
+        content['recommendations'] = [line.strip() for line in recommendations_text.split('\n') if line.strip()]
         
-        # 단락 단위로 먼저 분할
-        paragraphs = text.split('\n\n')
+        code_section_text = self._extract_text_between(text, landmarks[2], landmarks[3])
+        unsafe_codes, safe_codes = self._split_code_examples_robust(code_section_text)
+        content['unsafe_codes'] = unsafe_codes
+        content['safe_codes'] = safe_codes
         
-        current_chunk = ""
-        for para in paragraphs:
-            # 청크 크기 확인
-            if len(current_chunk) + len(para) < chunk_size:
-                current_chunk += para + "\n\n"
-            else:
-                if current_chunk:
-                    chunks.append({
-                        'text': current_chunk.strip(),
-                        'page': page_num
-                    })
+        return content
+
+    def _extract_text_between(self, full_text: str, start_keyword: str, end_keyword: str) -> str:
+        start_pattern = re.escape(start_keyword)
+        end_pattern = re.escape(end_keyword)
+        match = re.search(f'{start_pattern}([\\s\\S]*?)(?={end_pattern}|$)', full_text, re.DOTALL)
+        return match.group(1).strip() if match else ""
+
+    def _split_code_examples_robust(self, code_section_text: str) -> Tuple[List[Dict], List[Dict]]:
+        """
+        '안전/불안전 코드 예시' 키워드로 텍스트를 분할하여 모든 개별 예제를 추출하는 최종 로직
+        """
+        unsafe_codes, safe_codes = [], []
+        
+        # '안전한 코드 예시' 키워드를 기준으로 텍스트를 크게 나눔
+        # parts[0]는 안전하지 않은 코드 영역, parts[1:]는 안전한 코드 영역들
+        safe_keyword = '안전한 코드 예시'
+        parts = code_section_text.split(safe_keyword)
+        
+        # 1. 안전하지 않은 코드 영역 처리
+        unsafe_area = parts[0]
+        # '안전하지 않은 코드 예시' 키워드로 다시 분할하여 개별 예제를 모두 찾음
+        unsafe_examples = unsafe_area.split('안전하지 않은 코드 예시')
+        for example in unsafe_examples:
+            content = example.strip()
+            if content:
+                unsafe_codes.append({'code': content, 'page': 0, 'label': '안전하지 않은 코드 예시'})
+
+        # 2. 안전한 코드 영역 처리
+        # '안전한 코드 예시' 뒤에 따라오는 모든 텍스트 블록을 개별 예제로 처리
+        for area in parts[1:]:
+            content = area.strip()
+            if content:
+                safe_codes.append({'code': content, 'page': 0, 'label': safe_keyword})
                 
-                # 오버랩 처리
-                if len(current_chunk) > overlap:
-                    overlap_text = current_chunk[-overlap:]
-                    current_chunk = overlap_text + para + "\n\n"
-                else:
-                    current_chunk = para + "\n\n"
-        
-        # 마지막 청크
-        if current_chunk.strip():
-            chunks.append({
-                'text': current_chunk.strip(),
-                'page': page_num
-            })
-        
-        return chunks
+        return unsafe_codes, safe_codes
     
-    def _classify_chunk(self, text: str) -> str:
-        """청크 분류"""
-        text_lower = text.lower()
-        
-        # 코드 청크
-        if any(pattern in text for pattern in ['def ', 'class ', 'import ', 'if __name__']):
-            return 'code'
-        
-        # 취약점 설명
-        if any(word in text_lower for word in ['취약점', '공격', 'injection', 'xss', 'csrf']):
-            return 'vulnerability'
-        
-        # 권장사항
-        if any(word in text_lower for word in ['권장', '해야', '주의', '방지', '보안']):
-            return 'recommendation'
-        
-        # 일반 설명
-        return 'general'
-    
-    def _has_code(self, text: str) -> bool:
-        """코드 포함 여부 확인"""
-        code_patterns = [
-            r'def \w+\(',
-            r'class \w+',
-            r'import \w+',
-            r'\w+\.\w+\(',
-            r'if .+:',
-            r'for .+ in .+:',
+    # _create_vulnerability_map과 _get_table_of_contents는 변경하지 않습니다.
+    def _create_vulnerability_map(self) -> Dict:
+        return {
+            "1. SQL 삽입": "SQL_Injection", "2. 코드 삽입": "Code_Injection",
+            "3. 경로 조작 및 자원 삽입": "Path_Traversal", "4. 크로스사이트 스크립트(XSS)": "XSS",
+            "5. 운영체제 명령어 삽입": "Command_Injection", "6. 위험한 형식 파일 업로드": "File_Upload",
+            "7. 신뢰되지 않은 URL주소로 자동접속 연결": "Open_Redirect", "8. 부적절한 XML 외부 개체 참조": "XXE",
+            "9. XML 삽입": "XML_Injection", "10. LDAP 삽입": "LDAP_Injection",
+            "11. 크로스사이트 요청 위조(CSRF)": "CSRF", "12. 서버사이드 요청 위조": "SSRF",
+            "13. HTTP 응답분할": "HTTP_Response_Splitting", "14. 정수형 오버플로우": "Integer_Overflow",
+            "15. 보안기능 결정에 사용되는 부적절한 입력값": "Input_Validation", "16. 포맷 스트링 삽입": "Format_String",
+            "1. 적절한 인증 없는 중요 기능 허용": "Missing_Authentication", "2. 부적절한 인가": "Improper_Authorization",
+            "3. 중요한 자원에 대한 잘못된 권한 설정": "Incorrect_Permission", "4. 취약한 암호화 알고리즘 사용": "Weak_Cryptography",
+            "5. 암호화되지 않은 중요정보": "Unencrypted_Data", "6. 하드코드된 중요정보": "Hardcoded_Secrets",
+            "7. 충분하지 않은 키 길이 사용": "Insufficient_Key_Length", "8. 적절하지 않은 난수 값 사용": "Weak_Random",
+            "9. 취약한 패스워드 허용": "Weak_Password", "10. 부적절한 전자서명 확인": "Improper_Signature_Verification",
+            "11. 부적절한 인증서 유효성 검증": "Improper_Certificate_Validation", "12. 사용자 하드디스크에 저장되는 쿠키를 통한 정보 노출": "Cookie_Exposure",
+            "13. 주석문 안에 포함된 시스템 주요정보": "Information_in_Comments", "14. 솔트 없이 일방향 해시 함수 사용": "Missing_Salt",
+            "15. 무결성 검사없는 코드 다운로드": "Unverified_Download", "16. 반복된 인증시도 제한 기능 부재": "Missing_Brute_Force_Protection",
+            "1. 경쟁조건: 검사시점과 사용시점(TOCTOU)": "TOCTOU", "2. 종료되지 않는 반복문 또는 재귀 함수": "Infinite_Loop",
+            "1. 오류 메시지 정보노출": "Error_Message_Exposure", "2. 오류상황 대응 부재": "Missing_Error_Handling",
+            "3. 부적절한 예외 처리": "Improper_Exception_Handling", "1. Null Pointer 역참조": "Null_Pointer_Dereference",
+            "2. 부적절한 자원 해제": "Improper_Resource_Release", "3. 신뢰할 수 없는 데이터의 역직렬화": "Unsafe_Deserialization",
+            "1. 잘못된 세션에 의한 데이터 정보 노출": "Session_Data_Exposure", "2. 제거되지 않고 남은 디버그 코드": "Debug_Code",
+            "3. Public 메소드로부터 반환된 Private 배열": "Private_Array_Return", "4. Private 배열에 Public 데이터 할당": "Public_Data_Assignment",
+            "1. DNS lookup에 의존한 보안결정": "DNS_Based_Security", "2. 취약한 API 사용": "Vulnerable_API"
+        }
+
+    def _get_table_of_contents(self) -> List[Dict]:
+        return [
+            {'section': '제1절 입력데이터 검증 및 표현', 'title': '1. SQL 삽입', 'page': 8},
+            {'section': '제1절 입력데이터 검증 및 표현', 'title': '2. 코드 삽입', 'page': 14},
+            {'section': '제1절 입력데이터 검증 및 표현', 'title': '3. 경로 조작 및 자원 삽입', 'page': 18},
+            {'section': '제1절 입력데이터 검증 및 표현', 'title': '4. 크로스사이트 스크립트(XSS)', 'page': 22},
+            {'section': '제1절 입력데이터 검증 및 표현', 'title': '5. 운영체제 명령어 삽입', 'page': 29},
+            {'section': '제1절 입력데이터 검증 및 표현', 'title': '6. 위험한 형식 파일 업로드', 'page': 33},
+            {'section': '제1절 입력데이터 검증 및 표현', 'title': '7. 신뢰되지 않은 URL주소로 자동접속 연결', 'page': 36},
+            {'section': '제1절 입력데이터 검증 및 표현', 'title': '8. 부적절한 XML 외부 개체 참조', 'page': 39},
+            {'section': '제1절 입력데이터 검증 및 표현', 'title': '9. XML 삽입', 'page': 42},
+            {'section': '제1절 입력데이터 검증 및 표현', 'title': '10. LDAP 삽입', 'page': 44},
+            {'section': '제1절 입력데이터 검증 및 표현', 'title': '11. 크로스사이트 요청 위조(CSRF)', 'page': 48},
+            {'section': '제1절 입력데이터 검증 및 표현', 'title': '12. 서버사이드 요청 위조', 'page': 55},
+            {'section': '제1절 입력데이터 검증 및 표현', 'title': '13. HTTP 응답분할', 'page': 58},
+            {'section': '제1절 입력데이터 검증 및 표현', 'title': '14. 정수형 오버플로우', 'page': 61},
+            {'section': '제1절 입력데이터 검증 및 표현', 'title': '15. 보안기능 결정에 사용되는 부적절한 입력값', 'page': 64},
+            {'section': '제1절 입력데이터 검증 및 표현', 'title': '16. 포맷 스트링 삽입', 'page': 67},
+            {'section': '제2절 보안기능', 'title': '1. 적절한 인증 없는 중요 기능 허용', 'page': 69},
+            {'section': '제2절 보안기능', 'title': '2. 부적절한 인가', 'page': 72},
+            {'section': '제2절 보안기능', 'title': '3. 중요한 자원에 대한 잘못된 권한 설정', 'page': 75},
+            {'section': '제2절 보안기능', 'title': '4. 취약한 암호화 알고리즘 사용', 'page': 77},
+            {'section': '제2절 보안기능', 'title': '5. 암호화되지 않은 중요정보', 'page': 81},
+            {'section': '제2절 보안기능', 'title': '6. 하드코드된 중요정보', 'page': 85},
+            {'section': '제2절 보안기능', 'title': '7. 충분하지 않은 키 길이 사용', 'page': 88},
+            {'section': '제2절 보안기능', 'title': '8. 적절하지 않은 난수 값 사용', 'page': 91},
+            {'section': '제2절 보안기능', 'title': '9. 취약한 패스워드 허용', 'page': 94},
+            {'section': '제2절 보안기능', 'title': '10. 부적절한 전자서명 확인', 'page': 98},
+            {'section': '제2절 보안기능', 'title': '11. 부적절한 인증서 유효성 검증', 'page': 102},
+            {'section': '제2절 보안기능', 'title': '12. 사용자 하드디스크에 저장되는 쿠키를 통한 정보 노출', 'page': 106},
+            {'section': '제2절 보안기능', 'title': '13. 주석문 안에 포함된 시스템 주요정보', 'page': 109},
+            {'section': '제2절 보안기능', 'title': '14. 솔트 없이 일방향 해시 함수 사용', 'page': 111},
+            {'section': '제2절 보안기능', 'title': '15. 무결성 검사없는 코드 다운로드', 'page': 113},
+            {'section': '제2절 보안기능', 'title': '16. 반복된 인증시도 제한 기능 부재', 'page': 116},
+            {'section': '제3절 시간 및 상태', 'title': '1. 경쟁조건: 검사시점과 사용시점(TOCTOU)', 'page': 119},
+            {'section': '제3절 시간 및 상태', 'title': '2. 종료되지 않는 반복문 또는 재귀 함수', 'page': 122},
+            {'section': '제4절 에러처리', 'title': '1. 오류 메시지 정보노출', 'page': 125},
+            {'section': '제4절 에러처리', 'title': '2. 오류상황 대응 부재', 'page': 129},
+            {'section': '제4절 에러처리', 'title': '3. 부적절한 예외 처리', 'page': 132},
+            {'section': '제5절 코드오류', 'title': '1. Null Pointer 역참조', 'page': 134},
+            {'section': '제5절 코드오류', 'title': '2. 부적절한 자원 해제', 'page': 137},
+            {'section': '제5절 코드오류', 'title': '3. 신뢰할 수 없는 데이터의 역직렬화', 'page': 140},
+            {'section': '제6절 캡슐화', 'title': '1. 잘못된 세션에 의한 데이터 정보 노출', 'page': 143},
+            {'section': '제6절 캡슐화', 'title': '2. 제거되지 않고 남은 디버그 코드', 'page': 146},
+            {'section': '제6절 캡슐화', 'title': '3. Public 메소드로부터 반환된 Private 배열', 'page': 150},
+            {'section': '제6절 캡슐화', 'title': '4. Private 배열에 Public 데이터 할당', 'page': 152},
+            {'section': '제7절 API 오용', 'title': '1. DNS lookup에 의존한 보안결정', 'page': 154},
+            {'section': '제7절 API 오용', 'title': '2. 취약한 API 사용', 'page': 156}
         ]
-        
-        for pattern in code_patterns:
-            if re.search(pattern, text):
-                return True
-        return False
-    
-    def _extract_keywords(self, text: str) -> List[str]:
-        """키워드 추출"""
-        keywords = []
-        
-        # 보안 관련 키워드
-        security_keywords = [
-            'SQL', 'XSS', 'CSRF', 'injection', '취약점', '보안',
-            '암호화', '인증', '인가', '세션', '쿠키', 'token',
-            'escape', 'sanitize', 'validate', 'filter'
-        ]
-        
-        for keyword in security_keywords:
-            if keyword.lower() in text.lower():
-                keywords.append(keyword)
-        
-        return keywords[:5]  # 최대 5개
-    
-    def _find_section_title(self, text: str, page_num: int) -> str:
-        """섹션 제목 찾기"""
-        lines = text.split('\n')
-        
-        # 제목 패턴
-        title_patterns = [
-            r'^(\d+\.[\d\.]*)\s+(.+)$',  # 1.2.3 제목
-            r'^(제\d+[장절])\s+(.+)$',    # 제1장 제목
-            r'^\[(.+)\]$',                # [제목]
-        ]
-        
-        for line in lines[:20]:  # 처음 20줄만 확인
-            for pattern in title_patterns:
-                match = re.match(pattern, line.strip())
-                if match:
-                    return line.strip()
-        
-        return f"Section (Page {page_num})"
-    
-    def _extract_description(self, text: str, unsafe_code: Dict, safe_code: Dict) -> str:
-        """설명 추출"""
-        # 코드 전후의 텍스트를 설명으로 추출
-        lines = text.split('\n')
-        
-        # "안전하지 않은 코드 예시" 이전 텍스트 찾기
-        description_lines = []
-        for i, line in enumerate(lines):
-            if '안전하지 않은 코드' in line:
-                # 이전 10줄 정도를 설명으로
-                start = max(0, i - 10)
-                description_lines = lines[start:i]
-                break
-        
-        description = '\n'.join(description_lines)
-        
-        # 너무 길면 요약
-        if len(description) > 1000:
-            description = description[:1000] + "..."
-        
-        return description.strip()
-    
-    def _extract_recommendations(self, text: str) -> str:
-        """권장사항 추출"""
-        recommendations = []
-        
-        # 권장사항 키워드
-        rec_keywords = ['권장', '해야', '사용하세요', '주의', '방지', '확인']
-        
-        lines = text.split('\n')
-        for line in lines:
-            if any(keyword in line for keyword in rec_keywords):
-                recommendations.append(line.strip())
-        
-        # 최대 5개 권장사항
-        return '\n'.join(recommendations[:5])
-    
-    def _update_metadata(self):
-        """메타데이터 업데이트"""
-        self.content["metadata"]["total_sections"] = len(self.content["vulnerability_sections"])
-        self.content["metadata"]["total_chunks"] = len(self.content["chunks"])
-        
-        # 청크 타입별 통계
-        chunk_types = {}
-        for chunk in self.content["chunks"]:
-            chunk_type = chunk['type']
-            chunk_types[chunk_type] = chunk_types.get(chunk_type, 0) + 1
-        
-        self.content["metadata"]["chunk_types"] = chunk_types
-    
-    def save_results(self, output_dir: str = "data/processed"):
-        """추출 결과 저장"""
-        output_dir = Path(output_dir)
-        
-        # 취약점 섹션 저장
-        vuln_path = output_dir / "chunks" / "vulnerability_sections.json"
-        vuln_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(vuln_path, 'w', encoding='utf-8') as f:
-            json.dump(self.content["vulnerability_sections"], f, 
-                     ensure_ascii=False, indent=2)
-        print(f"✅ 취약점 섹션 저장: {vuln_path}")
-        
-        # 청크 저장
-        chunks_path = output_dir / "chunks" / "semantic_chunks.json"
-        with open(chunks_path, 'w', encoding='utf-8') as f:
-            json.dump(self.content["chunks"], f, 
-                     ensure_ascii=False, indent=2)
-        print(f"✅ 청크 저장: {chunks_path}")
-        
-        # 메타데이터 저장
-        meta_path = output_dir / "metadata" / "extraction_metadata.json"
-        with open(meta_path, 'w', encoding='utf-8') as f:
-            json.dump(self.content["metadata"], f, 
-                     ensure_ascii=False, indent=2)
-        print(f"✅ 메타데이터 저장: {meta_path}")
-    
-    def print_summary(self):
-        """추출 요약 출력"""
-        print("\n" + "="*60)
-        print("📊 PDF 내용 추출 결과")
-        print("="*60)
-        
-        print(f"\n📄 파일: {self.pdf_path.name}")
-        print(f"📑 총 페이지: {self.content['metadata']['total_pages']}")
-        
-        print(f"\n🎯 취약점 섹션:")
-        print(f"  • 총 섹션: {self.content['metadata']['total_sections']}개")
-        
-        # 취약점 타입별 통계
-        vuln_types = {}
-        for section in self.content["vulnerability_sections"]:
-            for vtype in section.get('vulnerability_types', ['General']):
-                vuln_types[vtype] = vuln_types.get(vtype, 0) + 1
-        
-        print(f"\n  취약점 타입별:")
-        for vtype, count in sorted(vuln_types.items(), key=lambda x: x[1], reverse=True):
-            print(f"    • {vtype}: {count}개")
-        
-        print(f"\n📝 청크 분석:")
-        print(f"  • 총 청크: {self.content['metadata']['total_chunks']}개")
-        
-        if 'chunk_types' in self.content['metadata']:
-            print(f"\n  청크 타입별:")
-            for ctype, count in self.content['metadata']['chunk_types'].items():
-                print(f"    • {ctype}: {count}개")
+
+def save_json(data: Dict, path: str):
+    """데이터를 JSON 파일로 저장합니다."""
+    output_file = Path(path)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    print(f"✅ 추출 결과 저장 완료: {output_file}")
 
 if __name__ == "__main__":
-    # PDF 경로
-    pdf_path = "data/guidelines/Python_시큐어코딩_가이드(2023년_개정본).pdf"
+    pdf_file_path = "data/guidelines/Python_시큐어코딩_가이드(2023년_개정본).pdf"
     
-    # 추출기 생성 및 실행
-    extractor = PDFContentExtractor(pdf_path)
-    content = extractor.extract()
+    extractor = PDFStructureExtractor(pdf_file_path)
+    final_data = extractor.extract_all_vulnerabilities()
     
-    # 결과 저장
-    extractor.save_results()
-    
-    # 요약 출력
-    extractor.print_summary()
+    # 올바른 파일명으로 저장
+    save_json(final_data, "data/processed/kisia_structured.json")
