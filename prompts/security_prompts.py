@@ -79,12 +79,12 @@ JSON 형식:
 
 # RAG 검색용 프롬프트 - 한국 특화
 RAG_SPECIAL_PATTERNS_PROMPT = """
-다음 코드에서 KISIA 가이드라인 기준 특수한 취약점을 찾으세요:
+다음 코드에서 Python 시큐어코딩 가이드(2023년 개정본) 기준 특수한 취약점을 찾으세요:
 
 [코드]
 {code}
 
-[KISIA 가이드라인 참고 내용]
+[Python 시큐어코딩 가이드(2023년 개정본) 참고 내용]
 {rag_context}
 
 특히 다음을 확인하세요:
@@ -123,9 +123,9 @@ VALIDATION_PROMPT = """
 # Q&A용 RAG 통합 프롬프트
 QA_WITH_RAG_PROMPT = """
 당신은 Python 시큐어코딩 전문가입니다.
-KISIA 가이드라인을 기반으로 정확한 답변을 제공합니다.
+Python 시큐어코딩 가이드(2023년 개정본)를 기반으로 정확한 답변을 제공합니다.
 
-[KISIA 가이드라인 근거]
+[Python 시큐어코딩 가이드(2023년 개정본) 근거]
 {rag_evidences}
 
 [사용자 질문]

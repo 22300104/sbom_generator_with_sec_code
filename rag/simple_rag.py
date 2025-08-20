@@ -140,7 +140,7 @@ class SimpleRAG:
                             })
                     
                     rag_context = "\n".join(docs[:2])
-                    rag_note = f"\n\n[KISIA 가이드라인 참고]\n{rag_context}"
+                    rag_note = f"\n\n[Python 시큐어코딩 가이드(2023년 개정본) 참고]\n{rag_context}"
                     
                     # 메타데이터 저장 (나중에 사용)
                     rag_metadata = source_info
@@ -197,7 +197,7 @@ class SimpleRAG:
                             footer_parts.append(f"  - 관련: {source['vulnerability_types']}")
             
             elif rag_note:
-                footer_parts.append("*📚 KISIA 가이드라인 참조*")
+                footer_parts.append("*📚 Python 시큐어코딩 가이드(2023년 개정본) 참조*")
             
             if "이전 대화" in context['conversation_history'] and len(context['conversation_history']) > 50:
                 footer_parts.append("*💬 대화 맥락 유지*")

@@ -152,7 +152,7 @@ class ImprovedRAGSearch:
         # 메타데이터
         if search_results['metadata'] and not search_results['metadata'].get('fallback'):
             meta = search_results['metadata']
-            parts.append(f"[KISIA 가이드라인 - {meta.get('section', '')} {meta.get('korean_name', '')}]")
+            parts.append(f"[Python 시큐어코딩 가이드(2023년 개정본) - {meta.get('section', '')} {meta.get('korean_name', '')}]")
             parts.append(f"페이지: {meta.get('page', 'N/A')}")
         
         # 취약점 설명
@@ -197,7 +197,7 @@ if __name__ == "__main__":
         results = searcher.search_vulnerability_evidence(vuln)
         
         if results['vulnerability']:
-            print(f"✅ KISIA 가이드라인 찾음!")
+            print(f"✅ Python 시큐어코딩 가이드(2023년 개정본) 찾음!")
             print(f"  - 섹션: {results['metadata'].get('section', 'N/A')}")
             print(f"  - 이름: {results['metadata'].get('korean_name', 'N/A')}")
             print(f"  - 페이지: {results['metadata'].get('page', 'N/A')}")

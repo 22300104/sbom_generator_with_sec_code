@@ -650,7 +650,7 @@ class ImprovedSecurityAnalyzer:
                 
                 # evidence 객체 생성
                 vuln['evidence'] = {
-                    'source': 'KISIA 가이드라인',
+                    'source': 'Python 시큐어코딩 가이드(2023년 개정본)',
                     'document': 'Python_시큐어코딩_가이드(2023년_개정본).pdf',
                     'page': page_info,
                     'section_title': metadata.get('korean_name', ''),

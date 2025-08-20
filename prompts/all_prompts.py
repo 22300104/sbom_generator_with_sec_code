@@ -497,12 +497,12 @@ def create_parse_error_response(error_msg: str, response_snippet: str) -> List[D
 # ============================================================================
 
 RAG_SPECIAL_PATTERNS = """
-다음 코드에서 KISIA 가이드라인 기준 특수한 취약점을 찾으세요:
+다음 코드에서 Python 시큐어코딩 가이드(2023년 개정본) 기준 특수한 취약점을 찾으세요:
 
 [코드]
 {code}
 
-[KISIA 가이드라인 참고 내용]
+[Python 시큐어코딩 가이드(2023년 개정본) 참고 내용]
 {rag_context}
 
 특히 다음을 확인하세요:

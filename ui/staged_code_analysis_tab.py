@@ -1041,6 +1041,32 @@ def render_results_stage():
             st.session_state.analysis_stage = 'analyze'
             st.rerun()
 
+    # 분석 결과가 있는 경우 심층 리포트 먼저 생성
+    if st.session_state.get('analysis_results'):
+        st.divider()
+        st.markdown('#### 🔍 심층 분석 리포트')
+        
+        # 심층 리포트 생성
+        deep_report = generate_deep_refactoring_report(st.session_state.analysis_results)
+        
+        # 리포트 표시
+        with st.expander("심층 분석 리포트 보기", expanded=True):
+            st.markdown(deep_report)
+        
+        # 리포트 다운로드 버튼
+        report_filename = f"deep_analysis_report_{time.strftime('%Y%m%d_%H%M%S')}.md"
+        st.download_button(
+            label="📥 심층 분석 리포트 다운로드",
+            data=deep_report,
+            file_name=report_filename,
+            mime="text/markdown",
+            use_container_width=True
+        )
+        
+        # 리포트 다운로드 링크 생성 (PR 코멘트에서 사용)
+        st.session_state.deep_report_filename = report_filename
+        st.session_state.deep_report_content = deep_report
+
     # PR 생성/리뷰 코멘트 영역
     mcp_ctx = st.session_state.get('mcp_branch_ctx')
     pr_ctx = st.session_state.get('selected_pr_context')
@@ -1153,6 +1179,7 @@ def render_results_stage():
                 st.success(f"스냅샷 PR 생성됨: {resp.get('url')}")
             else:
                 st.error(resp.get('error', '스냅샷 PR 생성 실패'))
+    
     # PR 리뷰 코멘트: PR을 선택해 분석했을 때 표시
     if pr_ctx and st.session_state.get('analysis_results'):
         st.divider()
@@ -1163,12 +1190,31 @@ def render_results_stage():
         else:
             owner, repo = None, None
 
-        # 기본 코멘트 본문 자동 생성
+        # 기본 코멘트 본문 자동 생성 (문제 코드와 수정 코드 포함)
         ai = st.session_state['analysis_results'].get('ai_analysis', {})
         vulns = ai.get('vulnerabilities', []) if isinstance(ai, dict) else []
-        pr_number = pr_ctx.get('pr_number')
+        
+        # PR 번호 우선순위: 1) pr_ctx에서, 2) session_state에서, 3) 기본값
+        pr_number = None
+        if pr_ctx and pr_ctx.get('pr_number'):
+            pr_number = pr_ctx.get('pr_number')
+        elif st.session_state.get('selected_pr_number'):
+            pr_number = st.session_state.get('selected_pr_number')
+        
+        # PR 번호가 없거나 유효하지 않으면 기본값 사용
+        if not pr_number or pr_number == 0:
+            # Agent 모드에서 PR 번호가 있는지 확인
+            agent_slots = st.session_state.get('agent_slots', {})
+            if agent_slots and agent_slots.get('pr_number'):
+                pr_number = agent_slots.get('pr_number')
+            else:
+                pr_number = "N/A"
+        
         default_body_lines = []
-        default_body_lines.append(f"PR #{pr_number} 자동 보안 리뷰 요약 (분석 대상 파일 {pr_ctx.get('files', 0)}개)")
+        default_body_lines.append(f"## 🔒 PR #{pr_number} 보안 리뷰 요약")
+        default_body_lines.append(f"분석 대상 파일: {pr_ctx.get('files', 0)}개")
+        default_body_lines.append("")
+        
         if vulns:
             # 통계
             sev_counts = {}
@@ -1176,18 +1222,78 @@ def render_results_stage():
                 sev = v.get('severity', 'MEDIUM')
                 sev_counts[sev] = sev_counts.get(sev, 0) + 1
             stats_str = ", ".join([f"{k}:{v}" for k, v in sorted(sev_counts.items(), key=lambda x: x[0], reverse=True)])
-            default_body_lines.append(f"요약 통계 → {stats_str}")
+            default_body_lines.append(f"**발견된 취약점**: {stats_str}")
             default_body_lines.append("")
-            default_body_lines.append("핵심 이슈(최대 5개):")
-            for v in vulns[:5]:
+            
+            # 각 취약점별 상세 정보 (문제 코드와 수정 코드 포함)
+            default_body_lines.append("## 🚨 주요 보안 이슈")
+            for i, v in enumerate(vulns[:5], 1):  # 상위 5개만
                 f = (v.get('location') or {}).get('file', 'unknown.py')
                 line = (v.get('location') or {}).get('line', '?')
-                default_body_lines.append(f"- [{v.get('severity','MED')}] {v.get('type','Unknown')} — {f}:{line}")
+                severity = v.get('severity', 'MEDIUM')
+                vuln_type = v.get('type', 'Unknown')
+                
+                default_body_lines.append(f"### {i}. {vuln_type} (심각도: {severity})")
+                default_body_lines.append(f"**위치**: `{f}:{line}`")
+                default_body_lines.append(f"**설명**: {v.get('description', '설명 없음')}")
+                default_body_lines.append("")
+                
+                # 문제 코드
+                if v.get('vulnerable_code'):
+                    default_body_lines.append("**🚨 문제 코드:**")
+                    default_body_lines.append("```python")
+                    default_body_lines.append(v['vulnerable_code'])
+                    default_body_lines.append("```")
+                    default_body_lines.append("")
+                
+                # 수정 코드
+                if v.get('fixed_code'):
+                    default_body_lines.append("**✅ 추천 수정 코드:**")
+                    default_body_lines.append("```python")
+                    default_body_lines.append(v['fixed_code'])
+                    default_body_lines.append("```")
+                    default_body_lines.append("")
+                
+                # 사이드 이펙트 분석 추가
+                side_effects = analyze_side_effects(v)
+                if side_effects:
+                    default_body_lines.append("**⚠️ 잠재적 사이드 이펙트:**")
+                    default_body_lines.append(side_effects)
+                    default_body_lines.append("")
+                
+                default_body_lines.append("---")
+                default_body_lines.append("")
         else:
-            default_body_lines.append("특이 보안 이슈 없음")
+            default_body_lines.append("🎉 특이 보안 이슈가 발견되지 않았습니다.")
+            default_body_lines.append("")
+        
+        # 심층 분석 리포트 다운로드 링크 추가 (실제 파일 경로 사용)
+        if st.session_state.get('deep_report_content'):
+            # 리포트를 임시 파일로 저장하고 실제 다운로드 링크 생성
+            report_filename = st.session_state.get('deep_report_filename', 'deep_analysis_report.md')
+            report_path = f"temp/{report_filename}"
+            
+            # temp 디렉토리가 없으면 생성
+            os.makedirs("temp", exist_ok=True)
+            
+            # 리포트 내용을 파일로 저장
+            with open(report_path, 'w', encoding='utf-8') as f:
+                f.write(st.session_state.deep_report_content)
+            
+            default_body_lines.append("## 📋 상세 분석 리포트")
+            default_body_lines.append("심층 분석 리포트를 다운로드하여 전체적인 보안 개선 방안을 확인하세요.")
+            default_body_lines.append("")
+            default_body_lines.append(f"**📥 다운로드 링크**: [심층 분석 리포트]({report_path})")
+            default_body_lines.append("")
+            default_body_lines.append("> 💡 이 리포트에는 다음 내용이 포함됩니다:")
+            default_body_lines.append("> - 보안 요약 및 수정 전략")
+            default_body_lines.append("> - 전이 영향 분석 (TIA)")
+            default_body_lines.append("> - 영향 범위 및 완화책")
+            default_body_lines.append("> - 테스트 계획 및 배포 전략")
+        
         default_body = "\n".join(default_body_lines)
 
-        review_body = st.text_area('리뷰 코멘트 본문', value=default_body, key='pr_review_body')
+        review_body = st.text_area('리뷰 코멘트 본문', value=default_body, key='pr_review_body', height=400)
         send_review = st.button('PR 리뷰로 남기기', type='primary', use_container_width=True)
 
         if send_review and owner and repo and pr_number:
@@ -2088,18 +2194,78 @@ def generate_deep_refactoring_report(results: Dict) -> str:
     lines.append("## 3) Transitive Impact Analysis (TIA)\n")
     if vulns:
         lines.append(f"- 직접 영향 함수/모듈: {', '.join(sorted(set(funcs_impacted)) or ['N/A'])} | 파일: {', '.join(sorted(files_impacted)) or 'N/A'}")
+        
+        # 사이드 이펙트 분석 추가
+        lines.append("\n- **사이드 이펙트 분석**:")
+        for v in vulns[:3]:  # 상위 3개만 상세 분석
+            side_effects = analyze_side_effects(v)
+            if side_effects and side_effects != "사이드 이펙트 분석 정보가 부족합니다.":
+                lines.append(f"  - {v.get('type', 'Unknown')}:")
+                for effect in side_effects.split('\n'):
+                    if effect.strip():
+                        lines.append(f"    {effect}")
+                lines.append("")
     else:
         lines.append("- 직접 영향 없음")
+    
     lines.append("- 전이 영향: 호출자 체인(서비스/핸들러), 캐시 키 규칙, 외부 API 파라미터 검증 경로")
-    lines.append("- 계약 영향: 시그니처/리턴 타입 변경 없음(보장), 예외 메시지 표준화 수준의 변화만 발생\n")
+    lines.append("- 계약 영향: 시그니처/리턴 타입 변경 없음(보장), 예외 메시지 표준화 수준의 변화만 발생")
+    
+    # 호환성 영향 분석 추가
+    if 'analysis_file_list' in st.session_state:
+        project_files = st.session_state.analysis_file_list
+        lines.append("\n- **호환성 영향 분석**:")
+        for v in vulns[:2]:  # 상위 2개만 호환성 분석
+            compatibility = check_compatibility_impact(v, project_files)
+            if compatibility['high_risk_files'] or compatibility['compatibility_issues']:
+                lines.append(f"  - {v.get('type', 'Unknown')}:")
+                if compatibility['high_risk_files']:
+                    lines.append(f"    - HIGH RISK: {len(compatibility['high_risk_files'])}개 파일에 직접 의존성")
+                if compatibility['compatibility_issues']:
+                    for issue in compatibility['compatibility_issues']:
+                        lines.append(f"    - {issue['type']}: {issue['description']}")
+                lines.append("")
 
     # 4) Blast Radius
     lines.append("## 4) Blast Radius\n")
     lines.append(f"- 영향 파일 수: {len(files_impacted)} | 취약점 수: {total_vulns} | 심각도: {sev_counts}")
+    
+    # 사이드 이펙트 영향 요약
+    if vulns:
+        side_effect_types = set()
+        for v in vulns:
+            vuln_type = v.get('type', '').lower()
+            if any(keyword in vuln_type for keyword in ['sql', 'injection', 'api', 'serial']):
+                side_effect_types.add('HIGH')
+            elif any(keyword in vuln_type for keyword in ['path', 'crypto', 'logging']):
+                side_effect_types.add('MEDIUM')
+            else:
+                side_effect_types.add('LOW')
+        
+        if side_effect_types:
+            lines.append(f"- 사이드 이펙트 영향: {', '.join(sorted(side_effect_types, key=lambda x: {'HIGH': 3, 'MEDIUM': 2, 'LOW': 1}[x], reverse=True))}")
+    
     lines.append("- High: 인젝션/역직렬화와 같이 RCE/DB 조작 가능 영역")
     lines.append("- Medium: 입력 검증 미흡, 설정 취약점")
-    lines.append("- Low: 로깅/정보 노출 등\n")
-    lines.append("- 완화책: 안전 래퍼/어댑터, 백워드 호환 계층(기존 엔트리 포인트 보존), Feature Flag\n")
+    lines.append("- Low: 로깅/정보 노출 등")
+    lines.append("- 완화책: 안전 래퍼/어댑터, 백워드 호환 계층(기존 엔트리 포인트 보존), Feature Flag")
+    
+    # 호환성 영향 요약
+    if 'analysis_file_list' in st.session_state:
+        project_files = st.session_state.analysis_file_list
+        total_high_risk = 0
+        total_compatibility_issues = 0
+        
+        for v in vulns[:3]:  # 상위 3개만 집계
+            compatibility = check_compatibility_impact(v, project_files)
+            total_high_risk += len(compatibility['high_risk_files'])
+            total_compatibility_issues += len(compatibility['compatibility_issues'])
+        
+        if total_high_risk > 0 or total_compatibility_issues > 0:
+            lines.append(f"- 호환성 영향: {total_high_risk}개 파일에 직접 의존성, {total_compatibility_issues}개 호환성 이슈")
+            lines.append("- 권장사항: 점진적 배포, 호환성 테스트, 마이그레이션 계획 수립")
+    
+    lines.append("")
 
     # 5) Patch 제안 (Unified diff)
     lines.append("## 5) Patch 제안\n")
@@ -2148,3 +2314,174 @@ def generate_deep_refactoring_report(results: Dict) -> str:
     lines.append("- 증빙: 테스트 결과, 런타임 diff, 로그 샘플, 리포트 첨부\n")
 
     return "\n".join(lines)
+
+
+def analyze_side_effects(vulnerability: Dict) -> str:
+    """취약점 수정 시 발생할 수 있는 사이드 이펙트 분석"""
+    
+    vuln_type = vulnerability.get('type', '').lower()
+    location = vulnerability.get('location', {})
+    file_path = location.get('file', '')
+    function_name = location.get('function', '')
+    
+    side_effects = []
+    
+    # 1. 함수 시그니처 변경 가능성
+    if function_name:
+        side_effects.append(f"• **함수 시그니처**: `{function_name}` 함수의 매개변수나 반환값이 변경될 수 있음")
+    
+    # 2. 입력 검증 추가로 인한 동작 변화
+    if any(keyword in vuln_type for keyword in ['sql', 'injection', 'xss', 'command']):
+        side_effects.append("• **입력 검증**: 이전에 허용되던 입력이 거부될 수 있음")
+        side_effects.append("• **에러 처리**: 검증 실패 시 새로운 예외나 에러 메시지 발생")
+    
+    # 3. 암호화/해싱 변경
+    if any(keyword in vuln_type for keyword in ['crypto', 'hash', 'password', 'secret']):
+        side_effects.append("• **데이터 형식**: 기존 해시값과 새로운 해시값이 호환되지 않을 수 있음")
+        side_effects.append("• **마이그레이션**: 기존 사용자 데이터 업데이트 필요")
+    
+    # 4. 파일 경로/권한 변경
+    if any(keyword in vuln_type for keyword in ['path', 'traversal', 'permission']):
+        side_effects.append("• **파일 접근**: 이전에 접근 가능했던 파일에 접근할 수 없을 수 있음")
+        side_effects.append("• **권한 검증**: 추가적인 권한 확인으로 인한 성능 영향")
+    
+    # 5. 역직렬화/직렬화 변경
+    if any(keyword in vuln_type for keyword in ['deserial', 'pickle', 'yaml', 'json']):
+        side_effects.append("• **데이터 호환성**: 기존 직렬화된 데이터가 새로운 형식과 호환되지 않을 수 있음")
+        side_effects.append("• **파싱 오류**: 이전에 성공하던 파싱이 실패할 수 있음")
+    
+    # 6. 로깅/모니터링 변경
+    if any(keyword in vuln_type for keyword in ['logging', 'monitoring', 'audit']):
+        side_effects.append("• **로그 형식**: 로그 메시지 형식이나 레벨이 변경될 수 있음")
+        side_effects.append("• **모니터링**: 기존 모니터링 시스템과 호환성 문제 발생 가능")
+    
+    # 7. API 호환성
+    if function_name and any(keyword in function_name.lower() for keyword in ['api', 'endpoint', 'route']):
+        side_effects.append("• **API 동작**: 기존 API 호출자의 동작이 변경될 수 있음")
+        side_effects.append("• **응답 형식**: API 응답의 구조나 상태 코드가 달라질 수 있음")
+    
+    # 8. 성능 영향
+    side_effects.append("• **성능**: 추가 검증 로직으로 인한 약간의 성능 저하 가능")
+    
+    # 9. 의존성 변경
+    if file_path and any(keyword in file_path.lower() for keyword in ['requirements', 'dependencies']):
+        side_effects.append("• **의존성**: 새로운 보안 라이브러리 추가로 인한 버전 충돌 가능")
+    
+    # 10. 테스트 영향
+    side_effects.append("• **테스트**: 기존 테스트 케이스가 실패할 수 있음")
+    side_effects.append("• **통합**: 다른 시스템과의 통합 테스트 필요")
+    
+    if not side_effects:
+        return "사이드 이펙트 분석 정보가 부족합니다."
+    
+    return "\n".join(side_effects)
+
+
+def check_compatibility_impact(vulnerability: Dict, project_files: List[Dict]) -> Dict:
+    """호환성 영향 검증 - 다른 파일과의 의존성 분석"""
+    
+    impact_analysis = {
+        'high_risk_files': [],
+        'medium_risk_files': [],
+        'low_risk_files': [],
+        'compatibility_issues': [],
+        'recommendations': []
+    }
+    
+    vuln_type = vulnerability.get('type', '').lower()
+    location = vulnerability.get('location', {})
+    affected_file = location.get('file', '')
+    affected_function = location.get('function', '')
+    
+    if not affected_file or not project_files:
+        return impact_analysis
+    
+    # 1. 직접 import/사용 관계 분석
+    for file_info in project_files:
+        file_path = file_info.get('path', '')
+        if file_path == affected_file:
+            continue
+            
+        file_content = file_info.get('content', '')
+        if not file_content:
+            continue
+        
+        # import 문 확인
+        if f"from {affected_file.replace('.py', '')}" in file_content or f"import {affected_file.replace('.py', '')}" in file_content:
+            impact_analysis['high_risk_files'].append({
+                'file': file_path,
+                'reason': f'직접 import: {affected_file}',
+                'risk': 'HIGH'
+            })
+        
+        # 함수 직접 호출 확인
+        if affected_function and affected_function in file_content:
+            impact_analysis['high_risk_files'].append({
+                'file': file_path,
+                'reason': f'함수 호출: {affected_function}',
+                'risk': 'HIGH'
+            })
+    
+    # 2. 간접 의존성 분석 (파일명 패턴 매칭)
+    for file_info in project_files:
+        file_path = file_info.get('path', '')
+        if file_path == affected_file:
+            continue
+            
+        file_content = file_info.get('content', '')
+        if not file_content:
+            continue
+        
+        # 유사한 기능을 하는 파일들 확인
+        if any(keyword in file_path.lower() for keyword in ['test', 'spec', 'mock', 'fixture']):
+            if affected_file.replace('.py', '') in file_content:
+                impact_analysis['medium_risk_files'].append({
+                    'file': file_path,
+                    'reason': '테스트 파일에서 참조',
+                    'risk': 'MEDIUM'
+                })
+    
+    # 3. 호환성 이슈 식별
+    if vuln_type in ['sql', 'injection']:
+        impact_analysis['compatibility_issues'].append({
+            'type': '데이터베이스 스키마',
+            'description': 'SQL 쿼리 변경으로 인한 데이터베이스 스키마 호환성 문제',
+            'severity': 'HIGH'
+        })
+    
+    elif vuln_type in ['api', 'endpoint']:
+        impact_analysis['compatibility_issues'].append({
+            'type': 'API 계약',
+            'description': 'API 응답 형식이나 상태 코드 변경으로 인한 클라이언트 호환성 문제',
+            'severity': 'HIGH'
+        })
+    
+    elif vuln_type in ['serial', 'deserial']:
+        impact_analysis['compatibility_issues'].append({
+            'type': '데이터 직렬화',
+            'description': '기존 직렬화된 데이터와의 호환성 문제',
+            'severity': 'MEDIUM'
+        })
+    
+    # 4. 권장사항 생성
+    if impact_analysis['high_risk_files']:
+        impact_analysis['recommendations'].append({
+            'priority': 'HIGH',
+            'action': '직접 의존성이 있는 파일들의 테스트 우선 실행',
+            'files': [f['file'] for f in impact_analysis['high_risk_files']]
+        })
+    
+    if impact_analysis['compatibility_issues']:
+        impact_analysis['recommendations'].append({
+            'priority': 'HIGH',
+            'action': '호환성 테스트 및 마이그레이션 계획 수립',
+            'issues': [f['type'] for f in impact_analysis['compatibility_issues']]
+        })
+    
+    impact_analysis['recommendations'].append({
+        'priority': 'MEDIUM',
+        'action': '점진적 배포 및 롤백 계획 수립',
+        'description': 'Feature flag를 활용한 안전한 배포'
+    })
+    
+    return impact_analysis

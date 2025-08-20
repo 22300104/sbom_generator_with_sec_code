@@ -42,16 +42,9 @@ def render_qa_tab():
     rag = st.session_state.rag_system
     stats = rag.get_stats()
     
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric(
-            "지식 베이스",
-            f"{stats['total_documents']}개 문서",
-            help="로드된 보안 가이드라인 문서 수"
-        )
-    
-    with col2:
         api_status = "활성" if os.getenv("OPENAI_API_KEY") else "비활성"
         st.metric(
             "AI 엔진",
@@ -59,8 +52,7 @@ def render_qa_tab():
             help="OpenAI API 연결 상태"
         )
     
-    
-    with col3:
+    with col2:
         # 실제 사용 중인 AI 엔진 확인
         if os.getenv("ANTHROPIC_API_KEY"):
             ai_engine = "Claude"
@@ -81,7 +73,7 @@ def render_qa_tab():
             help=f"{'RAG 검색 + ' if stats['mode'] == 'RAG 모드' else ''}{ai_engine} 생성 모드"
         )
 
-    with col4:
+    with col3:
         session_count = len(st.session_state.get('qa_messages', []))
         st.metric(
             "대화 수",
@@ -175,7 +167,7 @@ def render_qa_tab():
         **보안 전문가 Q&A에 오신 것을 환영합니다!**
         
         위의 카테고리에서 질문을 선택하거나, 아래에 직접 질문을 입력해보세요.
-        KISIA 가이드라인을 기반으로 정확하고 실무적인 답변을 드립니다.
+        Python 시큐어코딩 가이드(2023년 개정본)를 기반으로 정확하고 실무적인 답변을 드립니다.
         """)
     
     # 질문 입력
@@ -270,7 +262,7 @@ def process_question(question: str, rag):
             elif "참고 문서:" in response:
                 # 출처 정보가 있지만 파싱되지 않은 경우
                 with st.expander("가이드라인 참조", expanded=False):
-                    st.info("**KISIA 가이드라인을 참조하여 답변했습니다.**")
+                    st.info("**Python 시큐어코딩 가이드(2023년 개정본)를 참조하여 답변했습니다.**")
                     st.caption("상세 페이지 정보는 답변 하단을 확인하세요.")
             
             # 성능 정보
