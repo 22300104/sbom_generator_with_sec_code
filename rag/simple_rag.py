@@ -55,117 +55,88 @@ class SimpleRAG:
 # rag/simple_rag.py
 # ask() 함수 전체 교체
 
+    # rag/simple_rag.py
+    # ask() 함수 수정
+
     def ask(self, question: str) -> str:
-        """질문에 대한 답변 생성 - AI 메인, RAG 보조"""
+        """질문에 대한 답변 생성 - 완전한 컨텍스트 제공"""
         
         from prompts.all_prompts import RAG_PROMPTS, SYSTEM_PROMPTS
+        import streamlit as st
         import time
         
-        # 1. RAG 검색 시도 (빠르게, 실패해도 OK)
-        rag_context = ""
-        rag_section = ""
-        source_note = ""
+        # 1. 완전한 컨텍스트 수집 (함수명 수정)
+        context = {
+            'analysis_info': self._get_analysis_info(),
+            'vulnerabilities_detail': self._get_vulnerabilities_detail(),
+            'code_context': self._get_code_context(),
+            'sbom_info': self._get_sbom_info(),
+            'conversation_history': self._get_full_conversation_history()
+        }
         
+        # 2. RAG 검색 (선택적, 빠르게)
+        rag_note = ""
         if self.chroma_available:
             try:
-                # 빠른 RAG 검색
                 start_time = time.time()
-                search_results = self.search_similar(question, top_k=3)
+                search_results = self.search_similar(question, top_k=2)
                 
                 if time.time() - start_time < 1.0 and search_results['documents'][0]:
-                    # RAG 문서 발견
-                    documents = search_results['documents'][0]
-                    rag_context = "\n\n".join(documents[:2])  # 상위 2개만
-                    
-                    # RAG 섹션 구성
-                    rag_section = f"\n[참고 자료]\n{rag_context}\n"
-                    source_note = "- KISIA 가이드라인을 참고하여 답변"
-                    print(f"✅ RAG 문서 {len(documents)}개 발견")
-                else:
-                    print("⚠️ RAG 문서 없음 또는 시간 초과")
-                    source_note = "- 일반 보안 지식 기반 답변"
+                    docs = search_results['documents'][0]
+                    rag_context = "\n".join(docs[:2])
+                    rag_note = f"\n\n[KISIA 가이드라인 참고]\n{rag_context}"
+                    print("✅ RAG 문서 발견")
             except Exception as e:
-                print(f"⚠️ RAG 검색 실패 (계속 진행): {e}")
-                source_note = "- 일반 보안 지식 기반 답변"
-        else:
-            source_note = "- 일반 보안 지식 기반 답변"
+                print(f"⚠️ RAG 검색 스킵: {e}")
         
-        # 2. 통합 프롬프트 사용
-        prompt = RAG_PROMPTS["qa_unified"].format(
-            rag_section=rag_section,
+        # 3. 스마트 프롬프트 구성 (모든 정보 포함)
+        prompt = RAG_PROMPTS["qa_smart_context"].format(
+            analysis_info=context['analysis_info'],
+            vulnerabilities_detail=context['vulnerabilities_detail'],
+            code_context=context['code_context'],
+            sbom_info=context['sbom_info'],
+            conversation_history=context['conversation_history'],
             question=question,
-            source_note=source_note
+            rag_note=rag_note
         )
         
-        # 3. AI 답변 생성 (Claude 우선, GPT 폴백)
-        answer = None
+        # 프롬프트 길이 체크
+        prompt_length = len(prompt)
+        if prompt_length > 30000:  # 너무 길면 일부 축소
+            print(f"⚠️ 프롬프트가 너무 김 ({prompt_length}자), 일부 축소")
+            # 코드 컨텍스트를 줄임
+            context['code_context'] = context['code_context'][:5000] + "\n... (생략) ..."
+            prompt = RAG_PROMPTS["qa_smart_context"].format(
+                analysis_info=context['analysis_info'],
+                vulnerabilities_detail=context['vulnerabilities_detail'],
+                code_context=context['code_context'],
+                sbom_info=context['sbom_info'],
+                conversation_history=context['conversation_history'][-5000:],  # 대화도 축소
+                question=question,
+                rag_note=rag_note
+            )
         
-        # Claude 시도
-        if os.getenv("ANTHROPIC_API_KEY"):
-            try:
-                from anthropic import Anthropic
-                claude_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-                model = os.getenv("ANTHROPIC_MODEL")
-                if not model:
-                    model = "claude-3-opus-20240229"
-                    print(f"⚠️ ANTHROPIC_MODEL 미설정, 기본값: {model}")
-                
-                # Claude는 system을 user에 포함
-                system_prompt = SYSTEM_PROMPTS.get("qa_expert", "")
-                full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-                
-                response = claude_client.messages.create(
-                    model=model,
-                    max_tokens=1500,
-                    temperature=0.3,
-                    messages=[{"role": "user", "content": full_prompt}]
-                )
-                
-                answer = response.content[0].text
-                print("✅ Claude 답변 생성 완료")
-                
-            except Exception as e:
-                print(f"⚠️ Claude 실패, GPT로 폴백: {e}")
+        # 4. AI 답변 생성
+        answer = self._generate_ai_answer(prompt)
         
-        # GPT 폴백
-        if not answer and os.getenv("OPENAI_API_KEY"):
-            try:
-                model = os.getenv("OPENAI_MODEL")
-                if not model:
-                    model = "gpt-4-turbo-preview"
-                    print(f"⚠️ OPENAI_MODEL 미설정, 기본값: {model}")
-                
-                response = self.client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {
-                            "role": "system", 
-                            "content": SYSTEM_PROMPTS.get("qa_expert", "Python 보안 전문가입니다.")
-                        },
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.3,
-                    max_tokens=1500
-                )
-                
-                answer = response.choices[0].message.content
-                print("✅ GPT 답변 생성 완료")
-                
-            except Exception as e:
-                print(f"❌ GPT도 실패: {e}")
-                answer = f"오류 발생: {str(e)}"
-        
-        # 4. 최종 답변 구성
+        # 5. 출처 표시 (더 상세하게)
         if answer:
-            # 출처 표시 추가
-            if rag_context:
-                footer = "\n\n---\n*📚 KISIA Python 시큐어코딩 가이드를 참고한 답변입니다.*"
-            else:
-                footer = "\n\n---\n*💡 일반 보안 지식을 기반으로 한 답변입니다.*"
+            footer_parts = ["\n\n---"]
             
-            return answer + footer
+            # 어떤 정보를 활용했는지 표시
+            if "취약점" in context['vulnerabilities_detail'] and "취약점" in answer:
+                footer_parts.append("*🔍 코드 분석 결과 참조*")
+            if rag_note:
+                footer_parts.append("*📚 KISIA 가이드라인 참조*")
+            if "이전 대화" in context['conversation_history'] and len(context['conversation_history']) > 50:
+                footer_parts.append("*💬 대화 맥락 유지*")
+            
+            if len(footer_parts) == 1:  # 특별한 참조 없음
+                footer_parts.append("*💡 일반 보안 지식 기반*")
+            
+            return answer + "\n".join(footer_parts)
         else:
-            return "죄송합니다. AI 서비스를 사용할 수 없습니다.\n\nAPI 키 설정을 확인해주세요."
+            return "죄송합니다. AI 서비스를 사용할 수 없습니다."
     
     def get_stats(self) -> Dict:
         """시스템 상태 정보"""
@@ -183,3 +154,249 @@ class SimpleRAG:
                 "collection_name": "없음",
                 "status": "RAG 없이 작동 중"
             }
+        
+# rag/simple_rag.py
+# 새로운 헬퍼 함수들 추가
+
+    def _gather_complete_context(self) -> dict:
+        """모든 컨텍스트 정보를 완전하게 수집"""
+        import streamlit as st
+        
+        return {
+            'analysis_info': self._get_analysis_info(),
+            'vulnerabilities_detail': self._get_vulnerabilities_detail(),
+            'code_context': self._get_code_context(),
+            'sbom_info': self._get_sbom_info(),
+            'conversation_history': self._get_full_conversation_history()
+        }
+
+    def _get_analysis_info(self) -> str:
+        """분석 메타데이터 정보"""
+        import streamlit as st
+        
+        analysis_results = st.session_state.get('analysis_results', {})
+        if not analysis_results:
+            return "아직 코드 분석을 수행하지 않았습니다."
+        
+        info_parts = []
+        
+        # 기본 정보
+        info_parts.append(f"분석 완료 시간: {analysis_results.get('analysis_time', 0):.1f}초 전")
+        info_parts.append(f"분석한 파일 수: {analysis_results.get('analyzed_files', 0)}개")
+        
+        # 분석 모드
+        mode = st.session_state.get('analysis_mode', '알 수 없음')
+        info_parts.append(f"분석 모드: {mode}")
+        
+        # AI 엔진
+        if 'ai_analysis' in analysis_results:
+            ai_result = analysis_results['ai_analysis']
+            info_parts.append(f"AI 엔진: {ai_result.get('analyzed_by', 'Unknown')}")
+            info_parts.append(f"보안 점수: {ai_result.get('security_score', 100)}/100")
+            info_parts.append(f"발견된 취약점: {len(ai_result.get('vulnerabilities', []))}개")
+        
+        # 파일 목록
+        if 'analysis_file_list' in st.session_state:
+            files = st.session_state.analysis_file_list
+            info_parts.append(f"\n분석한 파일 목록:")
+            for f in files:
+                info_parts.append(f"  - {f['path']} ({f['lines']}줄, {f['size']}바이트)")
+        
+        return "\n".join(info_parts)
+
+    def _get_vulnerabilities_detail(self) -> str:
+        """모든 취약점의 완전한 정보"""
+        import streamlit as st
+        import json
+        
+        analysis_results = st.session_state.get('analysis_results', {})
+        if not analysis_results or 'ai_analysis' not in analysis_results:
+            return "취약점 정보 없음"
+        
+        vulnerabilities = analysis_results['ai_analysis'].get('vulnerabilities', [])
+        if not vulnerabilities:
+            return "발견된 취약점 없음"
+        
+        vuln_details = []
+        
+        for i, vuln in enumerate(vulnerabilities, 1):
+            vuln_details.append(f"\n[취약점 {i}]")
+            vuln_details.append(f"타입: {vuln.get('type', 'Unknown')}")
+            vuln_details.append(f"심각도: {vuln.get('severity', 'UNKNOWN')}")
+            vuln_details.append(f"신뢰도: {vuln.get('confidence', 'UNKNOWN')}")
+            
+            # 위치 정보
+            location = vuln.get('location', {})
+            vuln_details.append(f"파일: {location.get('file', 'unknown')}")
+            vuln_details.append(f"라인: {location.get('line', '?')}")
+            vuln_details.append(f"함수: {location.get('function', 'unknown')}")
+            
+            # 설명
+            vuln_details.append(f"설명: {vuln.get('description', '설명 없음')}")
+            
+            # 취약한 코드
+            if vuln.get('vulnerable_code'):
+                vuln_details.append(f"취약한 코드:\n```python\n{vuln['vulnerable_code']}\n```")
+            
+            # 수정된 코드 (중요!)
+            if vuln.get('fixed_code'):
+                vuln_details.append(f"수정 코드:\n```python\n{vuln['fixed_code']}\n```")
+            
+            # 수정 설명
+            if vuln.get('fix_explanation'):
+                vuln_details.append(f"수정 설명: {vuln['fix_explanation']}")
+            
+            # 권장사항
+            if vuln.get('recommendation'):
+                vuln_details.append(f"권장사항: {vuln['recommendation']}")
+            
+            vuln_details.append("-" * 40)
+        
+        return "\n".join(vuln_details)
+
+    def _get_code_context(self) -> str:
+        """분석한 코드의 일부 제공"""
+        import streamlit as st
+        
+        # 분석한 코드 가져오기
+        analysis_code = st.session_state.get('analysis_code', '')
+        if not analysis_code:
+            return "코드 컨텍스트 없음"
+        
+        # 너무 길면 주요 부분만
+        max_length = 3000
+        if len(analysis_code) > max_length:
+            # 처음 부분과 취약점 관련 부분 포함
+            code_preview = analysis_code[:max_length] + "\n... (코드 생략) ..."
+        else:
+            code_preview = analysis_code
+        
+        # 파일별로 구분된 경우 표시
+        if "# ===== File:" in code_preview:
+            return f"분석한 코드 (일부):\n\n{code_preview}"
+        else:
+            return f"분석한 코드:\n```python\n{code_preview}\n```"
+
+    def _get_sbom_info(self) -> str:
+        """SBOM 정보 제공"""
+        import streamlit as st
+        
+        analysis_results = st.session_state.get('analysis_results', {})
+        if 'sbom' not in analysis_results:
+            return "SBOM 정보 없음"
+        
+        sbom = analysis_results['sbom']
+        packages = sbom.get('packages', [])
+        
+        if not packages:
+            return "발견된 패키지 없음"
+        
+        sbom_parts = []
+        sbom_parts.append(f"총 {len(packages)}개 외부 패키지 사용")
+        sbom_parts.append("\n패키지 목록:")
+        
+        for pkg in packages:
+            name = pkg.get('name', 'unknown')
+            version = pkg.get('version') or pkg.get('actual_version') or '버전 없음'
+            status = pkg.get('status', '')
+            
+            sbom_parts.append(f"  - {name}: {version} {status}")
+            
+            # 종속성 정보
+            if pkg.get('dependencies'):
+                deps_count = pkg.get('dependencies_count', len(pkg['dependencies']))
+                sbom_parts.append(f"    → {deps_count}개 종속성")
+            
+            # 취약점 정보
+            if pkg.get('vulnerabilities'):
+                vuln_count = len(pkg['vulnerabilities'])
+                sbom_parts.append(f"    ⚠️ {vuln_count}개 알려진 취약점")
+        
+        # 간접 종속성
+        indirect = sbom.get('indirect_dependencies', [])
+        if indirect:
+            sbom_parts.append(f"\n간접 종속성: {len(indirect)}개")
+        
+        return "\n".join(sbom_parts)
+
+    def _get_full_conversation_history(self) -> str:
+        """완전한 대화 기록 (잘리지 않음)"""
+        import streamlit as st
+        
+        qa_messages = st.session_state.get('qa_messages', [])
+        if not qa_messages:
+            return "이전 대화 없음"
+        
+        history = []
+        
+        # 모든 대화 포함 (제한 없음)
+        for i, msg in enumerate(qa_messages):
+            if msg["role"] == "user":
+                history.append(f"\n사용자: {msg['content']}")
+            else:
+                # 전체 답변 포함 (잘리지 않음)
+                content = msg['content']
+                # 푸터만 제거
+                if '\n\n---\n' in content:
+                    content = content.split('\n\n---\n')[0]
+                history.append(f"\nAI: {content}")
+        
+        return "\n".join(history) if history else "이전 대화 없음"
+    
+    # rag/simple_rag.py
+# SimpleRAG 클래스 안에 추가 (다른 메서드들 아래에)
+
+    def _generate_ai_answer(self, prompt: str) -> str:
+        """AI 답변 생성 (Claude 우선, GPT 폴백)"""
+        from prompts.all_prompts import SYSTEM_PROMPTS
+        import os
+        
+        answer = None
+        
+        # Claude 시도
+        if os.getenv("ANTHROPIC_API_KEY"):
+            try:
+                from anthropic import Anthropic
+                claude_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+                model = os.getenv("ANTHROPIC_MODEL", "claude-3-opus-20240229")
+                
+                # Claude는 system을 user에 포함
+                system_prompt = SYSTEM_PROMPTS.get("qa_expert", "")
+                full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
+                
+                response = claude_client.messages.create(
+                    model=model,
+                    max_tokens=1500,
+                    temperature=0.3,
+                    messages=[{"role": "user", "content": full_prompt}]
+                )
+                
+                answer = response.content[0].text
+                print("✅ Claude 답변 생성")
+                
+            except Exception as e:
+                print(f"⚠️ Claude 실패, GPT로 폴백: {e}")
+        
+        # GPT 폴백
+        if not answer and os.getenv("OPENAI_API_KEY"):
+            try:
+                model = os.getenv("OPENAI_MODEL", "gpt-4-turbo-preview")
+                
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPTS.get("qa_expert", "Python 보안 전문가입니다.")},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,
+                    max_tokens=1500
+                )
+                
+                answer = response.choices[0].message.content
+                print("✅ GPT 답변 생성")
+                
+            except Exception as e:
+                print(f"❌ GPT도 실패: {e}")
+                answer = None
+        
+        return answer if answer else "AI 서비스를 사용할 수 없습니다."
