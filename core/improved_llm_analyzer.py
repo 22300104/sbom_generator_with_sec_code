@@ -121,7 +121,7 @@ class ImprovedSecurityAnalyzer:
         
         prompt = self._build_discovery_prompt(code, file_list)
         print(f"📝 프롬프트 길이: {len(prompt)} 문자")
-        
+        print(f"📝 프롬프트 처음 500자:\\n{prompt[:500]}\\n")  # 프롬프트 내용 확인
         vulnerabilities = []
         
         # use_claude 설정에 따라 순서 결정
@@ -204,8 +204,67 @@ class ImprovedSecurityAnalyzer:
     def _build_discovery_prompt(self, code: str, file_list: List[Dict] = None) -> str:
         """취약점 발견 프롬프트 - 빌더 함수 활용"""
         
-        # all_prompts.py의 빌더 함수 직접 사용
-        return build_security_analysis_prompt(code, file_list)
+        file_info = ""
+        if file_list:
+            file_info = f"\n분석 대상: {len(file_list)}개 파일\n"
+            for f in file_list[:5]:
+                file_info += f"- {f['path']} ({f['lines']}줄)\n"
+
+                 # 코드 길이 제한
+        max_code_length = 25000  # 프롬프트 공간 확보
+        if len(code) > max_code_length:
+            code = code[:max_code_length] + "\n# ... (코드가 잘렸습니다)"
+        
+        prompt = f"""Python 보안 전문가로서 코드를 분석하고 JSON으로만 응답하세요.
+
+    {file_info}
+
+    분석할 코드:
+    {code}
+
+    다음 JSON 형식으로만 응답하세요. 추가 설명이나 인사말 없이 JSON만 출력하세요:
+
+    {{
+        "vulnerabilities": [
+            {{
+                "type": "영어로_작성_필수",  // MUST BE IN ENGLISH (e.g., "SQL Injection", "XSS", "Command Injection")
+                "severity": "CRITICAL/HIGH/MEDIUM/LOW",
+                "confidence": "HIGH/MEDIUM/LOW",
+                "location": {{
+                    "file": "파일명",
+                    "line": 숫자,
+                    "function": "함수명",
+                    "code_snippet": "문제코드"
+                }},
+                "description": "한국어설명",
+                "vulnerable_code": "취약한코드",
+                "fixed_code": "수정된코드",
+                "fix_explanation": "수정설명",
+                "data_flow": "데이터흐름",
+                "exploit_scenario": "공격시나리오",
+                "recommendation": "권장사항"
+            }}
+        ]
+    }}
+
+    ⚠️ 중요 규칙:
+    - type 필드는 반드시 영어로 작성 (예: "SQL Injection", "XSS", "Path Traversal", "Command Injection", "Hardcoded Secret")
+    - description과 다른 필드는 한국어로 작성
+    - 표준 영어 취약점 명칭 사용:
+      * SQL Injection (SQL 인젝션)
+      * XSS 또는 Cross-Site Scripting (크로스 사이트 스크립팅)  
+      * Command Injection (명령어 삽입)
+      * Path Traversal (경로 조작)
+      * Hardcoded Secret (하드코딩된 시크릿)
+      * Weak Cryptography (약한 암호화)
+      * Insecure Deserialization (안전하지 않은 역직렬화)
+      * Information Disclosure (정보 노출)
+      * Race Condition (경쟁 상태)
+      * 기타 영어 표준 명칭
+
+    주의: JSON만 출력. 다른 텍스트 없음."""
+    
+        return prompt
     
     def _analyze_with_claude(self, prompt: str) -> List[Dict]:
         """Claude로 분석 - Claude 특화 프롬프트"""
@@ -215,13 +274,15 @@ class ImprovedSecurityAnalyzer:
             if not model:
                 model = "claude-3-opus-20240229"
                 print(f"⚠️ ANTHROPIC_MODEL 미설정, 기본값 사용: {model}")
-            
+            print(f"모델: {model}")
+            print(f"API 키 존재: {bool(os.getenv('ANTHROPIC_API_KEY'))}")
             # Claude는 system role이 없으므로 user 메시지에 통합
             claude_prompt = """You are a senior security expert analyzing Python code.
     Respond ONLY with valid JSON. No explanations, no markdown.
 
     """ + prompt
             
+            print(f"최종 프롬프트 길이: {len(claude_prompt)}")
             response = self.claude_client.messages.create(
                 model=model,
                 max_tokens=4000,
@@ -237,6 +298,8 @@ class ImprovedSecurityAnalyzer:
             # Claude 응답 추출 (content[0].text)
             result_text = response.content[0].text
             
+            print(f"📝 Claude 응답 길이: {len(result_text)}")
+            print(f"📝 Claude 응답 처음 500자:\\n{result_text[:500]}\\n")
             # 응답 로깅
             print(f"📝 Claude 응답 길이: {len(result_text)}")
             if len(result_text) < 50:

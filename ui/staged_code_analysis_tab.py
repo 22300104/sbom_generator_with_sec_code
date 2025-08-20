@@ -1312,7 +1312,7 @@ def run_analysis(code: str, file_list: List[Dict], mode: str, use_claude: bool, 
             try:
                 print(f"🔍 AI 분석 시작 (use_claude={use_claude})")
                 ai_analyzer = ImprovedSecurityAnalyzer(use_claude=use_claude)
-                ai_result = ai_analyzer.analyze_security(code, file_list)
+                ai_result = ai_analyzer.analyze_security(code, None)
             except Exception as e:
                 ai_result = {
                     'success': False,
@@ -1336,12 +1336,40 @@ def run_analysis(code: str, file_list: List[Dict], mode: str, use_claude: bool, 
 def display_ai_results(ai_result: Dict):
     """AI 분석 결과 표시 - 에러 처리 개선"""
     
-        # 디버그 출력 추가
+    # 분석한 코드 정보 표시 추가
+    with st.expander("📝 분석한 코드", expanded=False):
+        if 'analysis_code' in st.session_state:
+            code = st.session_state.analysis_code
+            lines = code.splitlines()
+            
+            # 코드 통계
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("코드 크기", f"{len(code):,}자")
+            with col2:
+                st.metric("라인 수", f"{len(lines)}줄")
+            with col3:
+                files_count = code.count("# ===== File:")
+                st.metric("파일 수", f"{files_count}개")
+            
+            # 코드 미리보기
+            st.code(code[:1000] + ("..." if len(code) > 1000 else ""), language='python')
+            
+            # 전체 코드 다운로드 버튼
+            st.download_button(
+                "💾 전체 코드 다운로드",
+                data=code,
+                file_name="analyzed_code.py",
+                mime="text/plain"
+            )
+    
+    # 디버그 출력 추가
     print(f"🔍 UI 받은 데이터: success={ai_result.get('success')}, "
           f"vulns={len(ai_result.get('vulnerabilities', []))}, "
           f"has_error={ai_result.get('has_error')}")
     
     vulnerabilities = ai_result.get('vulnerabilities', [])
+    print(f"🔍 vulnerabilities 타입: {type(vulnerabilities)}, 길이: {len(vulnerabilities)}")
     print(f"🔍 vulnerabilities 타입: {type(vulnerabilities)}, 길이: {len(vulnerabilities)}")
     
     if vulnerabilities:
