@@ -1188,24 +1188,15 @@ def render_results_stage():
         default_body = "\n".join(default_body_lines)
 
         review_body = st.text_area('리뷰 코멘트 본문', value=default_body, key='pr_review_body')
-        colr1, colr2 = st.columns([1,1])
-        with colr1:
-            send_review = st.button('PR 리뷰로 남기기', type='primary', use_container_width=True)
-        with colr2:
-            send_comment = st.button('PR 일반 코멘트로 남기기', use_container_width=True)
-
-        if (send_review or send_comment) and owner and repo and pr_number:
-            client = MCPGithubClient()
-            if send_review:
+        if st.button('PR 리뷰로 남기기', type='primary', use_container_width=True):
+            if owner and repo and pr_number:
+                client = MCPGithubClient()
                 with st.spinner('PR 리뷰 작성 중...'):
                     resp = client.create_pull_request_review(owner, repo, int(pr_number), review_body, event="COMMENT")
-            else:
-                with st.spinner('PR 코멘트 작성 중...'):
-                    resp = client.post_issue_comment(owner, repo, int(pr_number), review_body)
-            if resp.get('success'):
-                st.success(f"작성됨: {resp.get('url') or '성공'}")
-            else:
-                st.error(resp.get('error', '작성 실패'))
+                if resp.get('success'):
+                    st.success(f"작성됨: {resp.get('url') or '성공'}")
+                else:
+                    st.error(resp.get('error', '작성 실패'))
 
     st.divider()
     
