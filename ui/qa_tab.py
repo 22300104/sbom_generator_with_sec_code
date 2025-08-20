@@ -246,9 +246,10 @@ def process_question(question: str, rag):
                     if "Python_시큐어코딩_가이드" in line:
                         # 다음 줄들에서 페이지 정보 수집
                         j = i + 1
-                        while j < len(lines) and lines[j].startswith('•'):
-                            page_info = lines[j].strip('• ')
-                            source_docs.append(page_info)
+                        while j < len(lines) and (lines[j].startswith('•') or lines[j].startswith('  -')):
+                            page_info = lines[j].strip('• -')
+                            if page_info and page_info != "p.?":
+                                source_docs.append(page_info)
                             j += 1
 
             # 완료
@@ -264,8 +265,14 @@ def process_question(question: str, rag):
                 with st.expander("가이드라인 출처 상세", expanded=False):
                     st.info("**Python_시큐어코딩_가이드(2023년_개정본).pdf**")
                     for doc in source_docs:
-                        st.caption(f"• {doc}")
-
+                        if doc and doc != "p.?":
+                            st.caption(f"• {doc}")
+            elif "참고 문서:" in response:
+                # 출처 정보가 있지만 파싱되지 않은 경우
+                with st.expander("가이드라인 참조", expanded=False):
+                    st.info("**KISIA 가이드라인을 참조하여 답변했습니다.**")
+                    st.caption("상세 페이지 정보는 답변 하단을 확인하세요.")
+            
             # 성능 정보
             col1, col2, col3 = st.columns(3)
             with col1:

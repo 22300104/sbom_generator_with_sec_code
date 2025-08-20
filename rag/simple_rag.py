@@ -110,20 +110,33 @@ class SimpleRAG:
                     source_info = []
                     for i, (doc, meta) in enumerate(zip(docs[:2], metadatas[:2])):
                         if meta:
-                            page = meta.get('page', '?')
-                            page_start = meta.get('page_start', page)
-                            page_end = meta.get('page_end', page)
+                            # 실제 벡터 DB 구조에 맞게 페이지 정보 추출
+                            page_start = meta.get('pdf_start_page', '?')
+                            page_end = meta.get('pdf_end_page', '?')
                             
-                            if page_start and page_end and page_start != page_end:
-                                page_range = f"p.{page_start}-{page_end}"
+                            if page_start != '?' and page_end != '?':
+                                if page_start == page_end:
+                                    page_range = f"p.{page_start}"
+                                else:
+                                    page_range = f"p.{page_start}-{page_end}"
                             else:
-                                page_range = f"p.{page}"
+                                page_range = "p.?"
+                            
+                            # 섹션 정보 추가
+                            section = meta.get('section', '')
+                            section_number = meta.get('section_number', '')
+                            section_info = f"{section_number}. {section}" if section_number and section else section
+                            
+                            # 취약점 타입 정보
+                            vuln_type = meta.get('vulnerability_type', meta.get('english_type', ''))
                             
                             source_info.append({
                                 'page_range': page_range,
-                                'title': meta.get('title', ''),
-                                'type': meta.get('type', ''),
-                                'vulnerability_types': meta.get('vulnerability_types', '')
+                                'title': section_info,
+                                'type': vuln_type,
+                                'vulnerability_types': vuln_type,
+                                'section': section,
+                                'section_number': section_number
                             })
                     
                     rag_context = "\n".join(docs[:2])
@@ -173,17 +186,10 @@ class SimpleRAG:
             # RAG 메타데이터가 있으면 상세 출처 표시
             if rag_metadata:
                 footer_parts.append("\n**📚 참고 문서:**")
-                # 메타데이터에서 문서명 추출
-                used_docs = set()
-                for source in rag_metadata:
-                    doc_name = source.get('source_document', 'Python_시큐어코딩_가이드(2023년_개정본).pdf')
-                    used_docs.add(doc_name)
-
-                for doc in used_docs:
-                    footer_parts.append(f"*{doc}*")
+                footer_parts.append("*Python_시큐어코딩_가이드(2023년_개정본).pdf*")
                 
                 for source in rag_metadata:
-                    if source['page_range']:
+                    if source['page_range'] and source['page_range'] != "p.?":
                         footer_parts.append(f"• {source['page_range']}")
                         if source['title']:
                             footer_parts.append(f"  - {source['title']}")
