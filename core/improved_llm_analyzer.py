@@ -10,6 +10,7 @@ import re
 from typing import Dict, List, Optional, Tuple
 from openai import OpenAI
 from anthropic import Anthropic
+from prompts.all_prompts import build_security_analysis_prompt
 
 class ImprovedSecurityAnalyzer:
     """AI 기반 보안 분석기 - Claude 우선"""
@@ -197,70 +198,14 @@ class ImprovedSecurityAnalyzer:
         return vulnerabilities
     
     
-    def _build_discovery_prompt(self, code: str, file_list: List[Dict] = None) -> str:
-        """취약점 발견 프롬프트 - JSON 응답 강제"""
-        
-        file_info = ""
-        if file_list:
-            file_info = f"\n분석 대상: {len(file_list)}개 파일\n"
-            for f in file_list[:5]:
-                file_info += f"- {f['path']} ({f['lines']}줄)\n"
-        
-        # 코드 길이 제한
-        max_code_length = 25000  # 프롬프트 공간 확보
-        if len(code) > max_code_length:
-            code = code[:max_code_length] + "\n# ... (코드가 잘렸습니다)"
-        
-        prompt = f"""Python 보안 전문가로서 코드를 분석하고 JSON으로만 응답하세요.
-
-    {file_info}
-
-    분석할 코드:
-    {code}
-
-    다음 JSON 형식으로만 응답하세요. 추가 설명이나 인사말 없이 JSON만 출력하세요:
-
-    {{
-        "vulnerabilities": [
-            {{
-                "type": "영어로_작성_필수",  // MUST BE IN ENGLISH (e.g., "SQL Injection", "XSS", "Command Injection")
-                "severity": "CRITICAL/HIGH/MEDIUM/LOW",
-                "confidence": "HIGH/MEDIUM/LOW",
-                "location": {{
-                    "file": "파일명",
-                    "line": 숫자,
-                    "function": "함수명",
-                    "code_snippet": "문제코드"
-                }},
-                "description": "한국어설명",
-                "vulnerable_code": "취약한코드",
-                "fixed_code": "수정된코드",
-                "fix_explanation": "수정설명",
-                "data_flow": "데이터흐름",
-                "exploit_scenario": "공격시나리오",
-                "recommendation": "권장사항"
-            }}
-        ]
-    }}
-
-    ⚠️ 중요 규칙:
-    - type 필드는 반드시 영어로 작성 (예: "SQL Injection", "XSS", "Path Traversal", "Command Injection", "Hardcoded Secret")
-    - description과 다른 필드는 한국어로 작성
-    - 표준 영어 취약점 명칭 사용:
-      * SQL Injection (SQL 인젝션)
-      * XSS 또는 Cross-Site Scripting (크로스 사이트 스크립팅)  
-      * Command Injection (명령어 삽입)
-      * Path Traversal (경로 조작)
-      * Hardcoded Secret (하드코딩된 시크릿)
-      * Weak Cryptography (약한 암호화)
-      * Insecure Deserialization (안전하지 않은 역직렬화)
-      * Information Disclosure (정보 노출)
-      * Race Condition (경쟁 상태)
-      * 기타 영어 표준 명칭
-
-    주의: JSON만 출력. 다른 텍스트 없음."""
+    # core/improved_llm_analyzer.py 수정
     
-        return prompt
+
+    def _build_discovery_prompt(self, code: str, file_list: List[Dict] = None) -> str:
+        """취약점 발견 프롬프트 - 빌더 함수 활용"""
+        
+        # all_prompts.py의 빌더 함수 직접 사용
+        return build_security_analysis_prompt(code, file_list)
     
     def _analyze_with_claude(self, prompt: str) -> List[Dict]:
         """Claude로 분석 - Claude 특화 프롬프트"""

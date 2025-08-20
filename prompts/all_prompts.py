@@ -82,8 +82,8 @@ SECURITY_PROMPTS = {
             "vulnerable_code": "취약한코드",
             "fixed_code": "수정된코드",
             "fix_explanation": "수정설명",
-            "exploit_scenario": "공격시나리오",
-            "recommendation": "권장사항"
+            "exploit_scenario": "공격시나리오(단계별 시나리오와 함께 PoC 코드를 작성하세요)",
+            "recommendation": "권장사항(종합적인 분석을 작성하세요)"
         }}
     ]
 }}""",
@@ -177,85 +177,85 @@ SECURITY_PROMPTS = {
 70. Memory Leak - 메모리 누수
 
 이전에 발견하지 못한 취약점이 있다면 모두 추가로 보고하세요.
-각 취약점에 대해 실제 코드에서 해당 패턴을 찾아 보고하세요.""",
+각 취약점에 대해 실제 코드에서 해당 패턴을 찾아 보고하세요.""" #,
 
-    "vulnerability_discovery": """Python 보안 전문가로서 코드를 분석하고 JSON으로만 응답하세요.
+#     "vulnerability_discovery": """Python 보안 전문가로서 코드를 분석하고 JSON으로만 응답하세요.
 
-{file_info}
+# {file_info}
 
-분석할 코드:
-{code}
+# 분석할 코드:
+# {code}
 
-모든 보안 취약점을 찾아 JSON 형식으로 보고하세요.
-창의적으로 분석하되, 일반적인 취약점도 놓치지 마세요.
+# 모든 보안 취약점을 찾아 JSON 형식으로 보고하세요.
+# 창의적으로 분석하되, 일반적인 취약점도 놓치지 마세요.
 
-{{
-    "vulnerabilities": [
-        {{
-            "type": "MUST BE IN ENGLISH (e.g., "SQL Injection", "XSS", "Command Injection")", 
-            "severity": "CRITICAL/HIGH/MEDIUM/LOW",
-            "confidence": "HIGH/MEDIUM/LOW",
-            "location": {{
-                "file": "파일명",
-                "line": 숫자,
-                "function": "함수명",
-                "code_snippet": "문제코드"
-            }},
-            "description": "한국어설명",
-            "vulnerable_code": "취약한코드",
-            "fixed_code": "수정된코드",
-            "fix_explanation": "수정설명",
-            "data_flow": "데이터흐름",
-            "exploit_scenario": "공격시나리오",
-            "recommendation": "권장사항"
-        }}
-    ]
-}}""",
+# {{
+#     "vulnerabilities": [
+#         {{
+#             "type": "MUST BE IN ENGLISH (e.g., "SQL Injection", "XSS", "Command Injection")", 
+#             "severity": "CRITICAL/HIGH/MEDIUM/LOW",
+#             "confidence": "HIGH/MEDIUM/LOW",
+#             "location": {{
+#                 "file": "파일명",
+#                 "line": 숫자,
+#                 "function": "함수명",
+#                 "code_snippet": "문제코드"
+#             }},
+#             "description": "한국어설명",
+#             "vulnerable_code": "취약한코드",
+#             "fixed_code": "수정된코드",
+#             "fix_explanation": "수정설명",
+#             "data_flow": "데이터흐름",
+#             "exploit_scenario": "공격시나리오",
+#             "recommendation": "권장사항"
+#         }}
+#     ]
+# }}""",
 
-    "validation": """
-다음 취약점 판단이 맞는지 검증하세요:
+#     "validation": """
+# 다음 취약점 판단이 맞는지 검증하세요:
 
-[코드]
-{code}
+# [코드]
+# {code}
 
-[판단된 취약점]
-- 종류: {vuln_type}
-- 이유: {reasoning}
+# [판단된 취약점]
+# - 종류: {vuln_type}
+# - 이유: {reasoning}
 
-[검증 질문]
-1. 이 코드에 실제 안전장치가 있는가?
-2. 정말로 공격 가능한가?
-3. 오탐(False Positive)은 아닌가?
+# [검증 질문]
+# 1. 이 코드에 실제 안전장치가 있는가?
+# 2. 정말로 공격 가능한가?
+# 3. 오탐(False Positive)은 아닌가?
 
-검증 결과:
-{{
-    "is_valid": true/false,
-    "reason": "설명",
-    "actual_risk_level": "HIGH/MEDIUM/LOW/NONE"
-}}
+# 검증 결과:
+# {{
+#     "is_valid": true/false,
+#     "reason": "설명",
+#     "actual_risk_level": "HIGH/MEDIUM/LOW/NONE"
+# }}
 
 
-⚠️ 중요 규칙:
-- type 필드는 반드시 영어로 작성 (예: "SQL Injection", "XSS", "Path Traversal", "Command Injection", "Hardcoded Secret")
-- description과 다른 필드는 한국어로 작성
-- 표준 영어 취약점 명칭 사용:
-  * SQL Injection (SQL 인젝션)
-  * XSS 또는 Cross-Site Scripting (크로스 사이트 스크립팅)  
-  * Command Injection (명령어 삽입)
-  * Path Traversal (경로 조작)
-  * Hardcoded Secret (하드코딩된 시크릿)
-  * Weak Cryptography (약한 암호화)
-  * Insecure Deserialization (안전하지 않은 역직렬화)
-  * Information Disclosure (정보 노출)
-  * Race Condition (경쟁 상태)
-  * CSRF (Cross-Site Request Forgery)
-  * XXE (XML External Entity)
-  * SSRF (Server-Side Request Forgery)
-  * 기타 영어 표준 명칭
+# ⚠️ 중요 규칙:
+# - type 필드는 반드시 영어로 작성 (예: "SQL Injection", "XSS", "Path Traversal", "Command Injection", "Hardcoded Secret")
+# - description과 다른 필드는 한국어로 작성
+# - 표준 영어 취약점 명칭 사용:
+#   * SQL Injection (SQL 인젝션)
+#   * XSS 또는 Cross-Site Scripting (크로스 사이트 스크립팅)  
+#   * Command Injection (명령어 삽입)
+#   * Path Traversal (경로 조작)
+#   * Hardcoded Secret (하드코딩된 시크릿)
+#   * Weak Cryptography (약한 암호화)
+#   * Insecure Deserialization (안전하지 않은 역직렬화)
+#   * Information Disclosure (정보 노출)
+#   * Race Condition (경쟁 상태)
+#   * CSRF (Cross-Site Request Forgery)
+#   * XXE (XML External Entity)
+#   * SSRF (Server-Side Request Forgery)
+#   * 기타 영어 표준 명칭
 
-주의: JSON만 출력. 다른 텍스트 없음.
+# 주의: JSON만 출력. 다른 텍스트 없음.
 
-"""
+# """
 }
 
 # ============================================================================
