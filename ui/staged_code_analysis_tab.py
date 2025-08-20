@@ -21,7 +21,7 @@ from core.project_downloader import ProjectDownloader
 
 def render_code_analysis_tab():
     """메인 코드 분석 탭 - 단계별 UI"""
-    st.markdown("<h2><span class=\"material-icons mi\">security</span> 보안 분석</h2>", unsafe_allow_html=True)
+    st.header("🔍 보안 분석")
     
     # 단계 초기화
     if 'analysis_stage' not in st.session_state:
@@ -61,19 +61,19 @@ def reset_analysis_state():
 
 def render_input_stage():
     """1단계: 입력 선택"""
-    st.subheader("1단계: 소스 코드 입력")
+    st.subheader("📥 1단계: 소스 코드 입력")
     
     input_method = st.radio(
         "입력 방법 선택:",
-        ["GitHub URL", "파일 업로드", "직접 입력"],
+        ["🔗 GitHub URL", "📦 파일 업로드", "📝 직접 입력"],
         horizontal=True
     )
     
-    if input_method == "GitHub URL":
+    if input_method == "🔗 GitHub URL":
         handle_github_input()
-    elif input_method == "파일 업로드":
+    elif input_method == "📦 파일 업로드":
         handle_file_upload()
-    elif input_method == "직접 입력":
+    elif input_method == "📝 직접 입력":
         handle_direct_input()
 
 
@@ -94,21 +94,21 @@ def handle_github_input():
     with col2:
         st.write("")
         st.write("")
-        download_btn = st.button("다운로드", type="primary", use_container_width=True)
+        download_btn = st.button("📥 다운로드", type="primary", use_container_width=True)
     
     # 통합된 예제 섹션
     st.divider()
-    st.subheader("보안 테스트용 예제 프로젝트")
+    st.subheader("📚 보안 테스트용 예제 프로젝트")
     
     # 예제 카테고리
     example_category = st.selectbox(
         "카테고리 선택:",
-        ["의도적 취약 프로젝트 (교육용)", "취약점 데모", "일반 프로젝트"]
+        ["🔴 의도적 취약 프로젝트 (교육용)", "🟡 취약점 데모", "🟢 일반 프로젝트"]
     )
     
     # GitHub 취약 프로젝트 예제들
     vulnerable_projects = {
-        "의도적 취약 프로젝트 (교육용)": {
+        "🔴 의도적 취약 프로젝트 (교육용)": {
             "DVWA-Python": {
                 "url": "https://github.com/anxolerd/dvwa-flask",
                 "description": "Damn Vulnerable Web App - Flask 버전",
@@ -135,7 +135,7 @@ def handle_github_input():
                 "vulnerabilities": "단계별 보안 취약점"
             }
         },
-        "취약점 데모": {
+        "🟡 취약점 데모": {
             "Python Security Examples": {
                 "url": "https://github.com/craigz28/python-security",
                 "description": "Python 보안 취약점 예제 모음",
@@ -152,7 +152,7 @@ def handle_github_input():
                 "vulnerabilities": "웹 보안 취약점 예제"
             }
         },
-        "일반 프로젝트": {
+        "🟢 일반 프로젝트": {
             "Flask": {
                 "url": "https://github.com/pallets/flask",
                 "description": "Flask 웹 프레임워크",
@@ -180,7 +180,7 @@ def handle_github_input():
     selected_projects = vulnerable_projects.get(example_category, {})
     
     if selected_projects:
-        st.info(f"{example_category}의 프로젝트들입니다. 교육 및 테스트 목적으로만 사용하세요.")
+        st.info(f"💡 {example_category}의 프로젝트들입니다. 교육 및 테스트 목적으로만 사용하세요.")
         
         # 경량 스타일 (배지/링크 카드)
         st.markdown(
@@ -219,8 +219,8 @@ def handle_github_input():
                         st.rerun()
     
     # 로컬 취약 예제 (수정된 버전)
-    with st.expander("로컬 취약 예제 (requirements 포함)"):
-        st.warning("이 예제들은 교육 목적으로 만들어진 취약한 코드입니다.")
+    with st.expander("💾 로컬 취약 예제 (requirements 포함)"):
+        st.warning("⚠️ 이 예제들은 교육 목적으로 만들어진 취약한 코드입니다.")
         
         col1, col2, col3 = st.columns(3)
         
@@ -246,17 +246,17 @@ def handle_github_input():
         download_btn = True
     
     if download_btn and github_url:
-        with st.spinner("GitHub 저장소 다운로드 중..."):
+        with st.spinner("🔄 GitHub 저장소 다운로드 중..."):
             success, project_files = download_github_project(github_url)
         
         if success:
-            st.success("다운로드 완료")
+            st.success("✅ 다운로드 완료!")
             st.session_state.project_files = project_files
             st.session_state.project_name = github_url.split('/')[-1].replace('.git', '')
             st.session_state.analysis_stage = 'files'
             st.rerun()
         else:
-            st.error("다운로드 실패")
+            st.error("❌ 다운로드 실패")
 
 
 def load_local_example(example: Dict):
@@ -480,7 +480,7 @@ def handle_direct_input():
 
 def render_file_selection_stage():
     """2단계: 파일 선택"""
-    st.subheader("2단계: 분석할 파일 선택")
+    st.subheader("📂 2단계: 분석할 파일 선택")
     
     if st.button("← 이전 단계"):
         st.session_state.analysis_stage = 'input'
@@ -504,14 +504,14 @@ def render_file_selection_stage():
     st.divider()
     
     if selected_paths:
-        st.subheader("분석 옵션")
+        st.subheader("⚙️ 분석 옵션")
         
         col1, col2, col3 = st.columns(3)
         
         with col1:
             analysis_mode = st.selectbox(
                 "분석 모드:",
-                ["전체 분석", "AI 보안 분석", "빠른 분석"],
+                ["🔥 전체 분석", "🤖 AI 보안 분석", "⚡ 빠른 분석"],
                 help="• 전체 분석: AI 보안 분석 + SBOM 생성\n• AI 보안 분석: 취약점 탐지\n• 빠른 분석: SBOM만 생성"
             )
             st.session_state.analysis_mode = analysis_mode
@@ -530,17 +530,17 @@ def render_file_selection_stage():
                 st.session_state.use_claude = use_claude
                 
                 if use_claude:
-                    st.caption("Claude → GPT")
+                    st.caption("🎭 Claude → 🤖 GPT")
                 else:
-                    st.caption("GPT 전용")
+                    st.caption("🤖 GPT 전용")
             elif has_claude:
                 # Claude만 있을 때
                 st.session_state.use_claude = True
-                st.caption("Claude 사용")
+                st.caption("🎭 Claude 사용")
             elif has_gpt:
                 # GPT만 있을 때
                 st.session_state.use_claude = False
-                st.caption("GPT 사용")
+                st.caption("🤖 GPT 사용")
             else:
                 # 둘 다 없을 때
                 st.error("AI 엔진 없음")
@@ -556,38 +556,38 @@ def render_file_selection_stage():
             st.session_state.include_sbom = include_sbom
             
             if include_sbom:
-                st.caption("SBOM 생성됨")
+                st.caption("📦 SBOM 생성됨")
             else:
-                st.caption("SBOM 건너뜀")
+                st.caption("⏭️ SBOM 건너뜀")
         
         # 분석 모드 설명
         st.divider()
         
-        if analysis_mode == "전체 분석":
+        if analysis_mode == "🔥 전체 분석":
             st.success("""
-            **전체 분석 모드**
+            ✅ **전체 분석 모드**
             - AI 기반 보안 취약점 탐지
             - SBOM (Software Bill of Materials) 생성
             - 패키지 의존성 분석
             - 취약점 데이터베이스 검사
             """)
-        elif analysis_mode == "AI 보안 분석":
+        elif analysis_mode == "🤖 AI 보안 분석":
             if include_sbom:
                 st.info("""
-                **AI 보안 분석 + SBOM**
+                ℹ️ **AI 보안 분석 + SBOM**
                 - AI 기반 취약점 탐지
                 - 수정 코드 제안
                 - SBOM 생성 포함
                 """)
             else:
                 st.warning("""
-                **AI 보안 분석만**
+                ⚠️ **AI 보안 분석만**
                 - 취약점 탐지에만 집중
                 - SBOM 생성 안 함
                 """)
-        elif analysis_mode == "빠른 분석":
+        elif analysis_mode == "⚡ 빠른 분석":
             st.info("""
-            **빠른 SBOM 분석**
+            ℹ️ **빠른 SBOM 분석**
             - SBOM만 빠르게 생성
             - AI 보안 분석 없음
             - 의존성 파악용
@@ -610,7 +610,7 @@ def render_file_selection_stage():
             """)
             
             if st.button(
-                "분석 시작", 
+                "🚀 분석 시작", 
                 type="primary", 
                 use_container_width=True,
                 disabled=(selected_count == 0)
@@ -628,7 +628,7 @@ def render_file_selection_stage():
         st.warning("분석할 파일을 선택해주세요.")
         
         # 도움말
-        with st.expander("파일 선택 도움말"):
+        with st.expander("💡 파일 선택 도움말"):
             st.markdown("""
             **스마트 선택 도구 사용법:**
             1. **전체 선택**: 모든 Python 파일 분석

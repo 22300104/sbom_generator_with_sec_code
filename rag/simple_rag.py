@@ -19,14 +19,14 @@ class SimpleRAG:
             try:
                 self.collection = self.chroma_client.get_collection("kisia_vulnerabilities")
                 self.chroma_available = True
-                print(f"벡터 DB 로드 완료 (문서 수: {self.collection.count()})")
+                print(f"✅ 벡터 DB 로드 완료 (문서 수: {self.collection.count()})")
             except Exception as e:
-                print(f"ChromaDB Collection 없음: {e}")
+                print(f"⚠️ ChromaDB Collection 없음: {e}")
                 print("RAG 없이 일반 Q&A 모드로 작동합니다.")
         except ImportError:
-            print("ChromaDB가 설치되지 않았습니다. 일반 Q&A 모드로 작동합니다.")
+            print("⚠️ ChromaDB가 설치되지 않았습니다. 일반 Q&A 모드로 작동합니다.")
         except Exception as e:
-            print(f"ChromaDB 초기화 실패: {e}")
+            print(f"⚠️ ChromaDB 초기화 실패: {e}")
         
         # OpenAI 클라이언트 초기화
         api_key = os.getenv("OPENAI_API_KEY")
@@ -114,9 +114,9 @@ class SimpleRAG:
                     # 메타데이터 저장 (나중에 사용)
                     rag_metadata = source_info
                     
-                    print(f"RAG 문서 발견 ({len(docs)}개)")
+                    print(f"✅ RAG 문서 발견 ({len(docs)}개)")
             except Exception as e:
-                print(f"RAG 검색 스킵: {e}")
+                print(f"⚠️ RAG 검색 스킵: {e}")
         
         # 3. 스마트 프롬프트 구성 (모든 정보 포함)
         prompt = RAG_PROMPTS["qa_smart_context"].format(
@@ -132,7 +132,7 @@ class SimpleRAG:
         # 프롬프트 길이 체크
         prompt_length = len(prompt)
         if prompt_length > 30000:  # 너무 길면 일부 축소
-            print(f"프롬프트가 너무 김 ({prompt_length}자), 일부 축소")
+            print(f"⚠️ 프롬프트가 너무 김 ({prompt_length}자), 일부 축소")
             # 코드 컨텍스트를 줄임
             context['code_context'] = context['code_context'][:5000] + "\n... (생략) ..."
             prompt = RAG_PROMPTS["qa_smart_context"].format(
@@ -154,7 +154,7 @@ class SimpleRAG:
             
             # RAG 메타데이터가 있으면 상세 출처 표시
             if rag_metadata:
-                footer_parts.append("\n**참고 문서:**")
+                footer_parts.append("\n**📚 참고 문서:**")
                 # 메타데이터에서 문서명 추출
                 used_docs = set()
                 for source in rag_metadata:
@@ -173,13 +173,13 @@ class SimpleRAG:
                             footer_parts.append(f"  - 관련: {source['vulnerability_types']}")
             
             elif rag_note:
-                footer_parts.append("*KISIA 가이드라인 참조*")
+                footer_parts.append("*📚 KISIA 가이드라인 참조*")
             
             if "이전 대화" in context['conversation_history'] and len(context['conversation_history']) > 50:
-                footer_parts.append("*대화 맥락 유지*")
+                footer_parts.append("*💬 대화 맥락 유지*")
             
             if len(footer_parts) == 1:  # 특별한 참조 없음
-                footer_parts.append("*일반 보안 지식 기반*")
+                footer_parts.append("*💡 일반 보안 지식 기반*")
             
             return answer + "\n".join(footer_parts)
         else:
@@ -440,7 +440,7 @@ class SimpleRAG:
                 )
                 
                 answer = response.choices[0].message.content
-                print("GPT 답변 생성")
+                print("✅ GPT 답변 생성")
                 
             except Exception as e:
                 print(f"❌ GPT도 실패: {e}")
