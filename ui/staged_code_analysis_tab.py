@@ -462,6 +462,9 @@ def handle_direct_input():
         st.rerun()
 
 
+# ui/staged_code_analysis_tab.py
+# render_file_selection_stage() 함수 전체 교체
+
 def render_file_selection_stage():
     """2단계: 파일 선택"""
     st.subheader("📂 2단계: 분석할 파일 선택")
@@ -501,39 +504,133 @@ def render_file_selection_stage():
             st.session_state.analysis_mode = analysis_mode
         
         with col2:
-            use_claude = st.checkbox("Claude 사용", value=True)
-            st.session_state.use_claude = use_claude
+            # Claude 우선 사용 옵션
+            st.markdown("**AI 엔진 설정**")
+            
+            # 사용 가능한 엔진 확인
+            has_claude = bool(os.getenv("ANTHROPIC_API_KEY"))
+            has_gpt = bool(os.getenv("OPENAI_API_KEY"))
+            
+            if has_claude and has_gpt:
+                # 둘 다 있을 때
+                use_claude = st.checkbox("Claude 우선 사용", value=True, help="Claude를 메인으로, GPT를 폴백으로 사용")
+                st.session_state.use_claude = use_claude
+                
+                if use_claude:
+                    st.caption("🎭 Claude → 🤖 GPT")
+                else:
+                    st.caption("🤖 GPT 전용")
+            elif has_claude:
+                # Claude만 있을 때
+                st.session_state.use_claude = True
+                st.caption("🎭 Claude 사용")
+            elif has_gpt:
+                # GPT만 있을 때
+                st.session_state.use_claude = False
+                st.caption("🤖 GPT 사용")
+            else:
+                # 둘 다 없을 때
+                st.error("AI 엔진 없음")
+                st.caption("API 키 설정 필요")
         
         with col3:
+            st.markdown("**SBOM 옵션**")
             include_sbom = st.checkbox(
                 "SBOM 생성", 
                 value=True,
                 help="Software Bill of Materials를 생성합니다.\nSPDX 2.3 및 CycloneDX 1.4 표준 형식 지원"
             )
             st.session_state.include_sbom = include_sbom
+            
+            if include_sbom:
+                st.caption("📦 SBOM 생성됨")
+            else:
+                st.caption("⏭️ SBOM 건너뜀")
+        
+        # 분석 모드 설명
+        st.divider()
         
         if analysis_mode == "🔥 전체 분석":
-            st.success("✅ AI 보안 분석과 SBOM이 모두 생성됩니다.")
+            st.success("""
+            ✅ **전체 분석 모드**
+            - AI 기반 보안 취약점 탐지
+            - SBOM (Software Bill of Materials) 생성
+            - 패키지 의존성 분석
+            - 취약점 데이터베이스 검사
+            """)
         elif analysis_mode == "🤖 AI 보안 분석":
             if include_sbom:
-                st.info("ℹ️ AI 보안 분석과 SBOM이 생성됩니다.")
+                st.info("""
+                ℹ️ **AI 보안 분석 + SBOM**
+                - AI 기반 취약점 탐지
+                - 수정 코드 제안
+                - SBOM 생성 포함
+                """)
             else:
-                st.warning("⚠️ SBOM이 생성되지 않습니다. SBOM을 원하시면 체크박스를 선택하세요.")
+                st.warning("""
+                ⚠️ **AI 보안 분석만**
+                - 취약점 탐지에만 집중
+                - SBOM 생성 안 함
+                """)
         elif analysis_mode == "⚡ 빠른 분석":
-            st.info("ℹ️ SBOM만 빠르게 생성됩니다.")
+            st.info("""
+            ℹ️ **빠른 SBOM 분석**
+            - SBOM만 빠르게 생성
+            - AI 보안 분석 없음
+            - 의존성 파악용
+            """)
         
-        if st.button("🚀 분석 시작", type="primary", use_container_width=True):
-            code, file_list = selector.get_selected_code()
+        # 분석 시작 버튼
+        st.divider()
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            # 선택된 파일 요약
+            selected_count = len(selected_paths)
+            total_size = sum(f['size'] for f in project_files if f['path'] in selected_paths)
             
-            if code:
-                st.session_state.analysis_code = code
-                st.session_state.analysis_file_list = file_list
-                st.session_state.analysis_stage = 'analyze'
-                st.rerun()
-            else:
-                st.error("파일을 선택해주세요.")
+            st.info(f"""
+            **분석 준비 완료**
+            - 선택된 파일: {selected_count}개
+            - 총 크기: {total_size // 1024:.1f}KB
+            - 분석 모드: {analysis_mode}
+            """)
+            
+            if st.button(
+                "🚀 분석 시작", 
+                type="primary", 
+                use_container_width=True,
+                disabled=(selected_count == 0)
+            ):
+                code, file_list = selector.get_selected_code()
+                
+                if code:
+                    st.session_state.analysis_code = code
+                    st.session_state.analysis_file_list = file_list
+                    st.session_state.analysis_stage = 'analyze'
+                    st.rerun()
+                else:
+                    st.error("파일을 선택해주세요.")
     else:
         st.warning("분석할 파일을 선택해주세요.")
+        
+        # 도움말
+        with st.expander("💡 파일 선택 도움말"):
+            st.markdown("""
+            **스마트 선택 도구 사용법:**
+            1. **전체 선택**: 모든 Python 파일 분석
+            2. **주요 파일만**: main.py, app.py, views.py 등 핵심 파일
+            3. **작은 파일만**: 10KB 이하의 작은 파일들
+            4. **전체 해제**: 선택 초기화
+            
+            **개별 선택:**
+            - 디렉토리별로 그룹화되어 표시됩니다
+            - 체크박스로 개별 파일을 선택/해제할 수 있습니다
+            
+            **고급 필터링:**
+            - 파일 크기별 필터
+            - 파일명 패턴 검색
+            """)
 
 
 def render_analysis_stage():

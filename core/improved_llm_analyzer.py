@@ -12,32 +12,36 @@ from openai import OpenAI
 from anthropic import Anthropic
 
 class ImprovedSecurityAnalyzer:
-    """AI 기반 보안 분석기 - 패턴 매칭 없이 자유로운 분석"""
+    """AI 기반 보안 분석기 - Claude 우선"""
     
     def __init__(self, use_claude: bool = True):
         """
         Args:
-            use_claude: Claude를 우선 사용할지 여부
+            use_claude: Claude를 우선 사용할지 여부 (기본값: True)
         """
         self.use_claude = use_claude
         self.claude_client = None
         self.openai_client = None
         
-        # Claude 초기화
-        if use_claude and os.getenv("ANTHROPIC_API_KEY"):
+        # Claude 초기화 (우선순위 1)
+        if os.getenv("ANTHROPIC_API_KEY"):
             try:
                 self.claude_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-                print("✅ Claude API 초기화 성공")
+                print("✅ Claude API 초기화 성공 (메인 엔진)")
             except Exception as e:
                 print(f"⚠️ Claude 초기화 실패: {e}")
         
-        # OpenAI 초기화
+        # OpenAI 초기화 (우선순위 2 - 폴백)
         if os.getenv("OPENAI_API_KEY"):
             try:
                 self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-                print("✅ OpenAI API 초기화 성공")
+                print("✅ OpenAI API 초기화 성공 (폴백 엔진)")
             except Exception as e:
                 print(f"⚠️ OpenAI 초기화 실패: {e}")
+        
+        # API 가용성 확인
+        if not self.claude_client and not self.openai_client:
+            raise ValueError("❌ Claude와 OpenAI API 모두 사용 불가능합니다.")
         
         # RAG 시스템 초기화 (선택적)
         self.rag = None
@@ -110,50 +114,52 @@ class ImprovedSecurityAnalyzer:
         }
     
     def _discover_vulnerabilities(self, code: str, file_list: List[Dict] = None) -> List[Dict]:
-        """AI를 사용하여 취약점 발견 - 상세 로깅"""
+        """AI를 사용하여 취약점 발견 - Claude 우선"""
         
         prompt = self._build_discovery_prompt(code, file_list)
         print(f"📝 프롬프트 길이: {len(prompt)} 문자")
         
         vulnerabilities = []
         
-        # Claude 시도
-        if self.use_claude and self.claude_client:
+        # 1. Claude 우선 시도 (메인)
+        if self.claude_client:
             try:
-                print("🤖 Claude 분석 시작...")
+                print("🎭 Claude 분석 시작 (메인 엔진)...")
                 vulnerabilities = self._analyze_with_claude(prompt)
                 
                 if vulnerabilities and not any(v.get('parse_error') for v in vulnerabilities):
                     print(f"✅ Claude 분석 성공: {len(vulnerabilities)}개 취약점")
                     return vulnerabilities
                 elif vulnerabilities:
-                    print("⚠️ Claude 파싱 오류, GPT로 전환")
+                    print("⚠️ Claude 파싱 오류, GPT로 폴백")
             except Exception as e:
-                print(f"⚠️ Claude 분석 실패: {e}")
+                print(f"⚠️ Claude 분석 실패: {e}, GPT로 폴백")
         
-        # GPT 시도
-        if not vulnerabilities or any(v.get('parse_error') for v in vulnerabilities):
-            if self.openai_client:
-                try:
-                    print("🤖 GPT 분석 시작...")
-                    vulnerabilities = self._analyze_with_gpt(prompt)
-                    
-                    if vulnerabilities and not any(v.get('parse_error') for v in vulnerabilities):
-                        print(f"✅ GPT 분석 성공: {len(vulnerabilities)}개 취약점")
-                except Exception as e:
-                    print(f"❌ GPT 분석도 실패: {e}")
-                    # 최종 실패 시 에러 반환
-                    vulnerabilities = [{
-                        "type": "Analysis Failed",
-                        "severity": "ERROR",
-                        "confidence": "HIGH",
-                        "location": {"file": "unknown", "line": 0, "function": "unknown"},
-                        "description": f"AI 분석 완전 실패: {str(e)[:200]}",
-                        "vulnerable_code": "분석 불가",
-                        "fixed_code": "분석 불가",
-                        "fix_explanation": "AI 서비스 오류. 잠시 후 다시 시도해주세요.",
-                        "parse_error": True
-                    }]
+        # 2. GPT 폴백 (Claude 실패 시)
+        if self.openai_client:
+            try:
+                print("🤖 GPT 분석 시작 (폴백 엔진)...")
+                vulnerabilities = self._analyze_with_gpt(prompt)
+                
+                if vulnerabilities and not any(v.get('parse_error') for v in vulnerabilities):
+                    print(f"✅ GPT 분석 성공: {len(vulnerabilities)}개 취약점")
+                    return vulnerabilities
+            except Exception as e:
+                print(f"❌ GPT 분석도 실패: {e}")
+        
+        # 3. 모두 실패 시
+        if not vulnerabilities:
+            vulnerabilities = [{
+                "type": "Analysis Failed",
+                "severity": "ERROR",
+                "confidence": "HIGH",
+                "location": {"file": "unknown", "line": 0, "function": "unknown"},
+                "description": "AI 분석 실패: Claude와 GPT 모두 응답 불가",
+                "vulnerable_code": "분석 불가",
+                "fixed_code": "분석 불가",
+                "fix_explanation": "API 키와 모델 설정을 확인해주세요.",
+                "parse_error": True
+            }]
         
         return vulnerabilities
     
@@ -249,18 +255,21 @@ class ImprovedSecurityAnalyzer:
             raise
 
     def _analyze_with_gpt(self, prompt: str) -> List[Dict]:
-        """GPT로 분석 - JSON 응답 보장"""
+        """GPT로 분석 - 폴백용"""
         try:
-            # 모델 선택
-            default_model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+            # 환경변수에서 모델명 가져오기
+            model = os.getenv("OPENAI_MODEL")
+            if not model:
+                model = "gpt-4-turbo-preview"  # 기본값
+                print(f"⚠️ OPENAI_MODEL 미설정, 기본값 사용: {model}")
+            
+            # 토큰 길이 체크 (선택적)
             prompt_length = len(prompt)
             estimated_tokens = prompt_length // 4
             
-            if estimated_tokens > 6000:
-                # 긴 컨텍스트용 모델 (환경변수 우선, 없으면 16k 모델)
-                model = os.getenv("OPENAI_MODEL_LONG", "gpt-3.5-turbo-16k")
-            else:
-                model = default_model
+            # 너무 긴 경우 경고만 표시 (모델 변경 안 함)
+            if estimated_tokens > 8000:
+                print(f"⚠️ 프롬프트가 깁니다 ({estimated_tokens} 토큰 예상). 일부 잘릴 수 있습니다.")
             
             response = self.openai_client.chat.completions.create(
                 model=model,
@@ -280,16 +289,11 @@ class ImprovedSecurityAnalyzer:
             )
             
             result_text = response.choices[0].message.content
-            
-            # 응답 로깅
             print(f"📝 GPT 응답 길이: {len(result_text)}")
             
             vulnerabilities = self._parse_json_response(result_text)
             return vulnerabilities
             
-        except json.JSONDecodeError as e:
-            print(f"❌ GPT JSON 파싱 실패: {e}")
-            return self._create_parse_error(str(e), result_text[:500] if 'result_text' in locals() else "")
         except Exception as e:
             print(f"❌ GPT 호출 실패: {e}")
             raise

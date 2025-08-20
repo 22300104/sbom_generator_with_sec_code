@@ -16,26 +16,30 @@ def render_qa_tab():
     <div style="text-align: center; padding: 1rem 0 2rem 0;">
         <h2>Q&A</h2>
         <p style="color: var(--gray-600); font-size: 1.1rem;">
-            KISIA 가이드라인 기반 RAG 시스템
+            Python 보안 전문가 시스템
         </p>
     </div>
     """, unsafe_allow_html=True)
     
     # RAG 시스템 초기화 및 상태 표시
     if 'rag_system' not in st.session_state:
-        with st.spinner("지식 베이스 로딩 중..."):
+        with st.spinner("Q&A 시스템 초기화 중..."):
             try:
                 st.session_state.rag_system = SimpleRAG()
                 stats = st.session_state.rag_system.get_stats()
-                st.success(f"지식 베이스 로드 완료: {stats['total_documents']}개 문서")
+                
+                # 모드에 따른 다른 메시지
+                if stats['mode'] == "RAG 모드":
+                    st.success(f"✅ RAG 모드 활성화: {stats['total_documents']}개 문서 로드")
+                else:
+                    st.info("ℹ️ 일반 Q&A 모드로 작동 중")
+                    st.caption("AI 기반 전문가 답변을 제공합니다.")
             except Exception as e:
-                st.error(f"RAG 시스템 초기화 실패: {e}")
-                st.info("시스템 관리자에게 문의하거나 페이지를 새로고침해보세요.")
+                st.error(f"Q&A 시스템 초기화 실패: {e}")
+                st.info("OpenAI API 키를 확인해주세요.")
                 return
     
     rag = st.session_state.rag_system
-    
-    # 시스템 상태 대시보드
     stats = rag.get_stats()
     
     col1, col2, col3, col4 = st.columns(4)
@@ -302,32 +306,38 @@ def process_question(question: str, rag):
             status_text.empty()
 
 
+# ui/qa_tab.py
+# generate_answer_with_sources() 함수 수정 (라인 380-420 근처)
+
 def generate_answer_with_sources(question: str, documents: list, sources: list) -> str:
     """근거 기반 답변 생성"""
     
     from openai import OpenAI
+    from prompts.all_prompts import RAG_PROMPTS, SYSTEM_PROMPTS
     
     # 문서 컨텍스트 생성
     context = "\n\n".join(documents[:3])  # 상위 3개 문서
     
-    # 프롬프트 생성
-    prompt = get_qa_prompt(question, context)
+    # 중앙 관리 프롬프트 사용
+    prompt = RAG_PROMPTS["qa_with_context"].format(
+        question=question,
+        rag_evidences=context
+    )
     
     try:
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
         
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=model,
             messages=[
                 {
                     "role": "system",
-                    "content": """당신은 KISIA Python 시큐어코딩 가이드 전문가입니다.
-                    반드시 제공된 문서를 근거로 답변하세요.
-                    추측하지 말고, 문서에 없는 내용은 '가이드라인에 명시되지 않음'이라고 하세요."""
+                    "content": SYSTEM_PROMPTS.get("rag_strict", SYSTEM_PROMPTS["rag_assistant"])
                 },
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.3,  # 일관성 있는 답변
+            temperature=0.3,
             max_tokens=1000
         )
         
@@ -341,7 +351,7 @@ def generate_answer_with_sources(question: str, documents: list, sources: list) 
     except Exception as e:
         # GPT 실패 시 RAG 문서 직접 사용
         return f"""
-다음은 KISIA 가이드라인의 관련 내용입니다:
+다음은 관련 가이드라인 내용입니다:
 
 {documents[0][:500]}...
 
