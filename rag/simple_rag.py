@@ -83,14 +83,12 @@ class SimpleRAG:
             try:
                 from anthropic import Anthropic
                 claude_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-                model = os.getenv("ANTHROPIC_MODEL")
+                model = os.getenv("ANTHROPIC_MODEL", "claude-3-opus-20240229")
                 
-                if not model:
-                    model = "claude-3-opus-20240229"
-                    print(f"⚠️ ANTHROPIC_MODEL 미설정, 기본값 사용: {model}")
-                
-                # Claude는 시스템 프롬프트를 사용자 메시지에 포함
-                full_prompt = f"{SYSTEM_PROMPTS.get('qa_expert', 'Python 보안 전문가입니다.')}\n\n{prompt}"
+                # Claude는 system 프롬프트를 user 메시지에 포함
+                full_prompt = f"""{SYSTEM_PROMPTS.get('qa_expert', 'Python 보안 전문가입니다.')}
+
+        {prompt}"""
                 
                 response = claude_client.messages.create(
                     model=model,
@@ -104,9 +102,13 @@ class SimpleRAG:
                     ]
                 )
                 
-                # Claude 응답 추출
-                return response.content[0].text
-                
+                # Claude 응답 형식에 맞게 추출
+                if hasattr(response, 'content') and response.content:
+                    return response.content[0].text
+                else:
+                    print(f"⚠️ Claude 응답 형식 오류: {response}")
+                    raise ValueError("Claude 응답 형식 오류")
+                    
             except Exception as e:
                 print(f"⚠️ Claude 실패, GPT로 폴백: {e}")
         

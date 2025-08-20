@@ -766,9 +766,15 @@ def run_analysis(code: str, file_list: List[Dict], mode: str, use_claude: bool, 
         
         # AI 보안 분석
         if mode in ["🤖 AI 보안 분석", "🔥 전체 분석"]:
+            # use_claude 파라미터 명시적 전달
+            print(f"🔍 AI 분석 시작 (use_claude={use_claude})")
             ai_analyzer = ImprovedSecurityAnalyzer(use_claude=use_claude)
             ai_result = ai_analyzer.analyze_security(code, file_list)
             results['ai_analysis'] = ai_result
+            
+            # 디버그: 발견된 취약점 수 출력
+            vuln_count = len(ai_result.get('vulnerabilities', []))
+            print(f"📊 분석 완료: {vuln_count}개 취약점 발견")
         
     except Exception as e:
         st.error(f"분석 오류: {e}")

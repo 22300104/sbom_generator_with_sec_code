@@ -113,51 +113,84 @@ class ImprovedSecurityAnalyzer:
             'has_error': False
         }
     
+
+
     def _discover_vulnerabilities(self, code: str, file_list: List[Dict] = None) -> List[Dict]:
-        """AI를 사용하여 취약점 발견 - Claude 우선"""
+        """AI를 사용하여 취약점 발견 - use_claude 파라미터 적용"""
         
         prompt = self._build_discovery_prompt(code, file_list)
         print(f"📝 프롬프트 길이: {len(prompt)} 문자")
         
         vulnerabilities = []
         
-        # 1. Claude 우선 시도 (메인)
-        if self.claude_client:
-            try:
-                print("🎭 Claude 분석 시작 (메인 엔진)...")
-                vulnerabilities = self._analyze_with_claude(prompt)
-                
-                if vulnerabilities and not any(v.get('parse_error') for v in vulnerabilities):
-                    print(f"✅ Claude 분석 성공: {len(vulnerabilities)}개 취약점")
-                    return vulnerabilities
-                elif vulnerabilities:
-                    print("⚠️ Claude 파싱 오류, GPT로 폴백")
-            except Exception as e:
-                print(f"⚠️ Claude 분석 실패: {e}, GPT로 폴백")
+        # use_claude 설정에 따라 순서 결정
+        if self.use_claude:
+            # 1. Claude 우선 모드
+            if self.claude_client:
+                try:
+                    print("🎭 Claude 분석 시작 (우선 엔진)...")
+                    vulnerabilities = self._analyze_with_claude(prompt)
+                    
+                    if vulnerabilities and not any(v.get('parse_error') for v in vulnerabilities):
+                        print(f"✅ Claude 분석 성공: {len(vulnerabilities)}개 취약점")
+                        return vulnerabilities
+                    elif vulnerabilities:
+                        print("⚠️ Claude 파싱 오류, GPT로 폴백")
+                except Exception as e:
+                    print(f"⚠️ Claude 분석 실패: {e}, GPT로 폴백")
+            else:
+                print("⚠️ Claude API 없음, GPT로 전환")
+            
+            # Claude 실패 시 GPT 폴백
+            if self.openai_client and not (vulnerabilities and not any(v.get('parse_error') for v in vulnerabilities)):
+                try:
+                    print("🤖 GPT 분석 시작 (폴백)...")
+                    vulnerabilities = self._analyze_with_gpt(prompt)
+                    
+                    if vulnerabilities and not any(v.get('parse_error') for v in vulnerabilities):
+                        print(f"✅ GPT 분석 성공: {len(vulnerabilities)}개 취약점")
+                        return vulnerabilities
+                except Exception as e:
+                    print(f"❌ GPT 분석도 실패: {e}")
         
-        # 2. GPT 폴백 (Claude 실패 시)
-        if self.openai_client:
-            try:
-                print("🤖 GPT 분석 시작 (폴백 엔진)...")
-                vulnerabilities = self._analyze_with_gpt(prompt)
-                
-                if vulnerabilities and not any(v.get('parse_error') for v in vulnerabilities):
-                    print(f"✅ GPT 분석 성공: {len(vulnerabilities)}개 취약점")
-                    return vulnerabilities
-            except Exception as e:
-                print(f"❌ GPT 분석도 실패: {e}")
+        else:
+            # 2. GPT 전용 모드 (use_claude=False)
+            if self.openai_client:
+                try:
+                    print("🤖 GPT 분석 시작 (전용 모드)...")
+                    vulnerabilities = self._analyze_with_gpt(prompt)
+                    
+                    if vulnerabilities and not any(v.get('parse_error') for v in vulnerabilities):
+                        print(f"✅ GPT 분석 성공: {len(vulnerabilities)}개 취약점")
+                        return vulnerabilities
+                except Exception as e:
+                    print(f"❌ GPT 분석 실패: {e}")
+                    # GPT 실패 시 Claude 시도 (있다면)
+                    if self.claude_client:
+                        try:
+                            print("🎭 Claude로 재시도...")
+                            vulnerabilities = self._analyze_with_claude(prompt)
+                            
+                            if vulnerabilities and not any(v.get('parse_error') for v in vulnerabilities):
+                                print(f"✅ Claude 분석 성공: {len(vulnerabilities)}개 취약점")
+                                return vulnerabilities
+                        except Exception as e2:
+                            print(f"❌ Claude도 실패: {e2}")
+            else:
+                print("❌ OpenAI API 없음")
         
-        # 3. 모두 실패 시
+        # 3. 모두 실패 시 에러 반환
         if not vulnerabilities:
             vulnerabilities = [{
                 "type": "Analysis Failed",
                 "severity": "ERROR",
                 "confidence": "HIGH",
                 "location": {"file": "unknown", "line": 0, "function": "unknown"},
-                "description": "AI 분석 실패: Claude와 GPT 모두 응답 불가",
+                "description": "AI 분석 실패: 모든 AI 엔진이 응답하지 않습니다",
                 "vulnerable_code": "분석 불가",
                 "fixed_code": "분석 불가",
                 "fix_explanation": "API 키와 모델 설정을 확인해주세요.",
+                "recommendation": "1. .env 파일 확인\n2. API 크레딧 확인\n3. 네트워크 연결 확인",
                 "parse_error": True
             }]
         
@@ -214,28 +247,34 @@ class ImprovedSecurityAnalyzer:
     
         return prompt
     
-    # core/improved_llm_analyzer.py
-    # _analyze_with_claude() 함수 수정 (라인 246 근처)
     def _analyze_with_claude(self, prompt: str) -> List[Dict]:
-        """Claude로 분석 - JSON 응답 보장"""
+        """Claude로 분석 - Claude 특화 프롬프트"""
         try:
-            model = os.getenv("ANTHROPIC_MODEL", "claude-3-sonnet-20240229")
+            # 환경변수에서 모델명 가져오기
+            model = os.getenv("ANTHROPIC_MODEL")
+            if not model:
+                model = "claude-3-opus-20240229"
+                print(f"⚠️ ANTHROPIC_MODEL 미설정, 기본값 사용: {model}")
+            
+            # Claude는 system role이 없으므로 user 메시지에 통합
+            claude_prompt = """You are a senior security expert analyzing Python code.
+    Respond ONLY with valid JSON. No explanations, no markdown.
 
+    """ + prompt
+            
             response = self.claude_client.messages.create(
+                model=model,
                 max_tokens=4000,
-                temperature=0.2,  # 더 일관된 응답
+                temperature=0.2,
                 messages=[
                     {
                         "role": "user",
-                        "content": "You are a JSON API. Respond only with valid JSON. No explanations."
-                    },
-                    {
-                        "role": "user", 
-                        "content": prompt
+                        "content": claude_prompt
                     }
                 ]
             )
             
+            # Claude 응답 추출 (content[0].text)
             result_text = response.content[0].text
             
             # 응답 로깅
@@ -246,34 +285,39 @@ class ImprovedSecurityAnalyzer:
             vulnerabilities = self._parse_json_response(result_text)
             return vulnerabilities
             
+        except AttributeError as e:
+            # Claude 응답 형식 오류 처리
+            print(f"❌ Claude 응답 형식 오류: {e}")
+            if 'response' in locals():
+                print(f"응답 구조: {type(response)}")
+            raise
         except json.JSONDecodeError as e:
             print(f"❌ Claude JSON 파싱 실패: {e}")
-            # 에러 객체 반환
             return self._create_parse_error(str(e), result_text[:500] if 'result_text' in locals() else "")
         except Exception as e:
             print(f"❌ Claude 호출 실패: {e}")
             raise
 
     def _analyze_with_gpt(self, prompt: str) -> List[Dict]:
-        """GPT로 분석 - 폴백용"""
+        """GPT로 분석 - GPT 특화 설정"""
         try:
             # 환경변수에서 모델명 가져오기
             model = os.getenv("OPENAI_MODEL")
             if not model:
-                model = "gpt-4-turbo-preview"  # 기본값
+                model = "gpt-4-turbo-preview"
                 print(f"⚠️ OPENAI_MODEL 미설정, 기본값 사용: {model}")
             
-            # 토큰 길이 체크 (선택적)
+            # 토큰 길이 체크
             prompt_length = len(prompt)
             estimated_tokens = prompt_length // 4
             
-            # 너무 긴 경우 경고만 표시 (모델 변경 안 함)
             if estimated_tokens > 8000:
-                print(f"⚠️ 프롬프트가 깁니다 ({estimated_tokens} 토큰 예상). 일부 잘릴 수 있습니다.")
+                print(f"⚠️ 프롬프트가 깁니다 ({estimated_tokens} 토큰 예상)")
             
-            response = self.openai_client.chat.completions.create(
-                model=model,
-                messages=[
+            # GPT는 response_format 지원 확인
+            kwargs = {
+                "model": model,
+                "messages": [
                     {
                         "role": "system",
                         "content": "You are a JSON API that analyzes Python code for vulnerabilities. Respond only with valid JSON. No markdown, no explanations."
@@ -283,17 +327,33 @@ class ImprovedSecurityAnalyzer:
                         "content": prompt
                     }
                 ],
-                response_format={"type": "json_object"},  # GPT-4에서 지원
-                temperature=0.2,
-                max_tokens=3000
-            )
+                "temperature": 0.2,
+                "max_tokens": 3000
+            }
             
+            # GPT-4 모델만 response_format 지원
+            if "gpt-4" in model:
+                kwargs["response_format"] = {"type": "json_object"}
+            
+            response = self.openai_client.chat.completions.create(**kwargs)
+            
+            # GPT 응답 추출 (choices[0].message.content)
             result_text = response.choices[0].message.content
+            
             print(f"📝 GPT 응답 길이: {len(result_text)}")
             
             vulnerabilities = self._parse_json_response(result_text)
             return vulnerabilities
             
+        except AttributeError as e:
+            # GPT 응답 형식 오류 처리
+            print(f"❌ GPT 응답 형식 오류: {e}")
+            if 'response' in locals():
+                print(f"응답 구조: {type(response)}")
+            raise
+        except json.JSONDecodeError as e:
+            print(f"❌ GPT JSON 파싱 실패: {e}")
+            return self._create_parse_error(str(e), result_text[:500] if 'result_text' in locals() else "")
         except Exception as e:
             print(f"❌ GPT 호출 실패: {e}")
             raise
