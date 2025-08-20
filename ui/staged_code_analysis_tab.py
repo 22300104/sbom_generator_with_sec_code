@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import tempfile
 import os
+import textwrap
 
 from ui.memory_file_selector import MemoryFileSelector
 from core.improved_llm_analyzer import ImprovedSecurityAnalyzer
@@ -19,11 +20,105 @@ from core.formatter import SBOMFormatter
 from core.project_downloader import ProjectDownloader
 
 
+def _inject_analysis_css():
+    """보안 분석 UI 전용 CSS 주입 (항상)"""
+    st.markdown(
+        """
+<style>
+/* Container alignment to Streamlit block */
+.sa-wrap{margin: 4px 0 10px;}
+
+/* Hero (contained, no overflow) */
+.sa-hero{position:relative;border-radius:12px;padding:16px 18px;background:linear-gradient(135deg,#0f172a,#1f2937); box-shadow: var(--shadow-sm)}
+.sa-hero .sa-hero-title{display:flex; align-items:center; gap:.5rem; color:#e5e7eb; font-size:1.4rem; font-weight:700}
+.sa-hero .material-symbols-outlined{font-size:1.7rem; color:#93c5fd; margin-right:.1rem}
+.sa-hero .sa-hero-sub{color:#cbd5e1; font-size:.9rem; margin-top:.15rem}
+
+/* Stepper (rail + animated fill + nodes) */
+.sa-stepper{position:relative; margin:10px 0 16px; padding:16px 10px 8px}
+.sa-rail{position:absolute; left:18px; right:18px; top:28px; height:3px; background:var(--gray-200); border-radius:999px; overflow:hidden}
+.sa-rail-fill{position:absolute; left:0; top:0; height:100%; width:100%; background:linear-gradient(90deg,#2563eb,#22d3ee); background-size:200% 100%; animation:saFlow 4s linear infinite; transform-origin:left; transform:scaleX(var(--sa-scale,0)); transition:transform .6s ease}
+.sa-nodes{position:relative; z-index:1; display:flex; justify-content:space-between; gap:8px}
+.sa-node{display:flex; flex-direction:column; align-items:center; min-width:0}
+.sa-node-circle{width:28px; height:28px; border-radius:999px; display:flex; align-items:center; justify-content:center; font-weight:700; color:#1f2937; background:#e5e7eb; border:2px solid #e5e7eb}
+.sa-node-label{font-size:.8rem; color:#475569; margin-top:4px; text-align:center}
+.sa-node.completed .sa-node-circle{background:#3b82f6; border-color:#3b82f6; color:#fff}
+.sa-node.current .sa-node-circle{background:linear-gradient(135deg,#2563eb,#22d3ee); border-color:#22d3ee; color:#fff; box-shadow:0 0 0 4px rgba(34,211,238,.18); animation:saBlink 1.8s ease-in-out infinite}
+
+/* Cards */
+.sa-card{background:#fff; border:1px solid var(--gray-200); border-radius:12px; padding:14px 16px; box-shadow:var(--shadow-sm)}
+
+/* Motion */
+.sa-fade-up{animation:saFadeUp .35s ease-out both}
+@keyframes saFadeUp{from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:translateY(0)}}
+
+/* Flowing gradient and blinking current node */
+@keyframes saFlow{0%{background-position:0% 50%}100%{background-position:100% 50%}}
+@keyframes saBlink{0%,100%{filter:brightness(1); box-shadow:0 0 0 2px rgba(34,211,238,.12)}50%{filter:brightness(1.08); box-shadow:0 0 0 8px rgba(34,211,238,.22)}}
+
+@media (max-width: 768px){
+  .sa-hero{padding:12px 14px}
+  .sa-hero .sa-hero-title{font-size:1.2rem}
+  .sa-stepper{grid-template-columns: repeat(4, 1fr); gap:6px}
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def _render_analysis_stepper(stage_key: str):
+    order = ['input', 'files', 'analyze', 'results']
+    titles = {'input': '입력', 'files': '파일', 'analyze': '분석', 'results': '결과'}
+    idx = order.index(stage_key) if stage_key in order else 0
+
+    # scale 계산: 0~1 사이 (노드 간 동일 간격) - 현재 노드까지 자연스럽게 채움
+    total_segments = max(1, len(order) - 1)
+    scale = max(0.0, min(1.0, idx / total_segments))
+
+    nodes_html = []
+    for i, key in enumerate(order):
+        status = 'completed' if i < idx else ('current' if i == idx else '')
+        nodes_html.append(
+            f"<div class='sa-node {status}'><div class='sa-node-circle'>{i+1}</div><div class='sa-node-label'>{titles.get(key, key)}</div></div>"
+        )
+
+    html = textwrap.dedent(
+        f"""
+        <div class='sa-stepper sa-fade-up' style='--sa-scale:{scale};'>
+          <div class='sa-rail'>
+            <div class='sa-rail-fill'></div>
+          </div>
+          <div class='sa-nodes'>
+            {''.join(nodes_html)}
+          </div>
+        </div>
+        """
+    )
+    st.markdown(html, unsafe_allow_html=True)
+
+
 def render_code_analysis_tab():
     """메인 코드 분석 탭 - 단계별 UI"""
-    st.markdown('<h1><span class="material-symbols-outlined">security</span> 보안 분석</h1>', unsafe_allow_html=True)
+    _inject_analysis_css()
+    st.markdown(
+        """
+<div class="sa-wrap">
+  <div class="sa-hero sa-fade-up">
+    <div class="sa-hero-title"><span class="material-symbols-outlined">shield_person</span>보안 분석</div>
+    <div class="sa-hero-sub">AI 기반 취약점 탐지와 SBOM 생성 워크플로우</div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+    if 'analysis_stage' not in st.session_state:
+        st.session_state.analysis_stage = 'input'
+    st.markdown('<div class="sa-wrap">', unsafe_allow_html=True)
+    _render_analysis_stepper(st.session_state.analysis_stage)
+    st.markdown('</div>', unsafe_allow_html=True)
     
-    # 단계 초기화
+    # 단계 초기화 (유지)
     if 'analysis_stage' not in st.session_state:
         st.session_state.analysis_stage = 'input'  # input -> files -> analyze -> results
     
@@ -58,13 +153,16 @@ def reset_analysis_state():
 
 def render_input_stage():
     """1단계: 입력 선택"""
-    st.markdown('<h3><span class="material-symbols-outlined">upload_file</span> 1단계: 소스 코드 입력</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 class="sa-fade-up"><span class="material-symbols-outlined">upload_file</span> 1단계: 소스 코드 입력</h3>', unsafe_allow_html=True)
     
-    input_method = st.radio(
-        "입력 방법 선택:",
-        ["GitHub URL", "파일 업로드", "직접 입력"],
-        horizontal=True
-    )
+    with st.container():
+        st.markdown('<div class="sa-card sa-fade-up">', unsafe_allow_html=True)
+        input_method = st.radio(
+            "입력 방법 선택:",
+            ["GitHub URL", "파일 업로드", "직접 입력"],
+            horizontal=True
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
     
     if input_method == "GitHub URL":
         handle_github_input()
@@ -314,7 +412,7 @@ def handle_direct_input():
 
 def render_file_selection_stage():
     """2단계: 파일 선택"""
-    st.markdown('<h3><span class="material-symbols-outlined">folder_open</span> 2단계: 분석할 파일 선택</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 class="sa-fade-up"><span class="material-symbols-outlined">folder_open</span> 2단계: 분석할 파일 선택</h3>', unsafe_allow_html=True)
     
     if st.button("← 이전 단계"):
         st.session_state.analysis_stage = 'input'
@@ -333,7 +431,10 @@ def render_file_selection_stage():
         return
     
     selector = MemoryFileSelector(project_files)
-    selected_paths = selector.render()
+    with st.container():
+        st.markdown('<div class="sa-card sa-fade-up">', unsafe_allow_html=True)
+        selected_paths = selector.render()
+        st.markdown('</div>', unsafe_allow_html=True)
     
     st.divider()
     
@@ -459,7 +560,7 @@ def render_file_selection_stage():
 
 def render_analysis_stage():
     """3단계: 분석 실행"""
-    st.markdown('<h3><span class="material-symbols-outlined">play_circle</span> 3단계: 보안 분석 실행</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 class="sa-fade-up"><span class="material-symbols-outlined">play_circle</span> 3단계: 보안 분석 실행</h3>', unsafe_allow_html=True)
     
     file_list = st.session_state.get('analysis_file_list', [])
     code = st.session_state.get('analysis_code', '')
@@ -485,7 +586,7 @@ def render_analysis_stage():
 
 def render_results_stage():
     """4단계: 결과 표시"""
-    st.markdown('<h3><span class="material-symbols-outlined">insights</span> 4단계: 분석 결과</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 class="sa-fade-up"><span class="material-symbols-outlined">insights</span> 4단계: 분석 결과</h3>', unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
     
