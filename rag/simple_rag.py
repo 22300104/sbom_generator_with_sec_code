@@ -35,17 +35,35 @@ class SimpleRAG:
         
         self.client = OpenAI(api_key=api_key)
         
-    def search_similar(self, query: str, top_k: int = 5) -> Dict:
-        """유사한 문서 검색 (ChromaDB 있을 때만) - 개선된 버전"""
+    # rag/simple_rag.py
+# search_similar 메서드 수정
+
+    def search_similar(self, query: str, top_k: int = 5, filter_metadata: Dict = None) -> Dict:
+        """유사한 문서 검색 - 메타데이터 필터링 추가"""
         if self.chroma_available and self.collection:
             try:
-                results = self.collection.query(
-                    query_texts=[query],
-                    n_results=top_k
-                )
+                # 메타데이터 필터 구성
+                where_clause = None
+                if filter_metadata:
+                    where_clause = filter_metadata
+                
+                # ChromaDB 쿼리 실행
+                if where_clause:
+                    results = self.collection.query(
+                        query_texts=[query],
+                        n_results=top_k,
+                        where=where_clause  # 메타데이터 필터 추가
+                    )
+                else:
+                    results = self.collection.query(
+                        query_texts=[query],
+                        n_results=top_k
+                    )
+                
                 # 컬렉션 이름 추가
                 results['collection_name'] = self.collection.name if hasattr(self.collection, 'name') else 'unknown'
                 return results
+                
             except Exception as e:
                 print(f"검색 오류: {e}")
                 return {'documents': [[]], 'metadatas': [[]], 'collection_name': 'error'}

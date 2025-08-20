@@ -223,7 +223,7 @@ class ImprovedSecurityAnalyzer:
     {{
         "vulnerabilities": [
             {{
-                "type": "취약점타입",
+                "type": "영어로_작성_필수",  // MUST BE IN ENGLISH (e.g., "SQL Injection", "XSS", "Command Injection")
                 "severity": "CRITICAL/HIGH/MEDIUM/LOW",
                 "confidence": "HIGH/MEDIUM/LOW",
                 "location": {{
@@ -242,6 +242,21 @@ class ImprovedSecurityAnalyzer:
             }}
         ]
     }}
+
+    ⚠️ 중요 규칙:
+    - type 필드는 반드시 영어로 작성 (예: "SQL Injection", "XSS", "Path Traversal", "Command Injection", "Hardcoded Secret")
+    - description과 다른 필드는 한국어로 작성
+    - 표준 영어 취약점 명칭 사용:
+      * SQL Injection (SQL 인젝션)
+      * XSS 또는 Cross-Site Scripting (크로스 사이트 스크립팅)  
+      * Command Injection (명령어 삽입)
+      * Path Traversal (경로 조작)
+      * Hardcoded Secret (하드코딩된 시크릿)
+      * Weak Cryptography (약한 암호화)
+      * Insecure Deserialization (안전하지 않은 역직렬화)
+      * Information Disclosure (정보 노출)
+      * Race Condition (경쟁 상태)
+      * 기타 영어 표준 명칭
 
     주의: JSON만 출력. 다른 텍스트 없음."""
     
@@ -565,78 +580,239 @@ class ImprovedSecurityAnalyzer:
     # core/improved_llm_analyzer.py
 
 
+    # core/improved_llm_analyzer.py
+# _add_rag_evidence 메서드 전체 교체
+
     def _add_rag_evidence(self, vulnerabilities: List[Dict]) -> List[Dict]:
         """각 취약점에 RAG 근거 추가 - 개선된 버전"""
         if not self.rag:
             return vulnerabilities
         
         print("📚 RAG로 공식 가이드라인 근거 찾는 중...")
+        
+        # VulnerabilityTypeMapper 초기화
+        try:
+            from rag.vulnerability_type_mapper import VulnerabilityTypeMapper
+            mapper = VulnerabilityTypeMapper()
+        except:
+            mapper = None
+            print("⚠️ VulnerabilityTypeMapper 로드 실패")
+        
         try:
             for vuln in vulnerabilities:
                 vuln_type = vuln.get('type', '')
                 
-                # RAG에서 관련 가이드라인 검색
-                search_query = f"{vuln_type} 방어 방법 보안 가이드라인"
-                results = self.rag.search_similar(search_query, top_k=3)  # top_k를 3으로 증가
+                # 1. 취약점 타입 표준화
+                if mapper:
+                    original_type = vuln_type
+                    standard_type = mapper.normalize_vuln_type(vuln_type)
+                    search_query = mapper.get_search_query(standard_type, original_type)
+                    print(f"  - {original_type} → {standard_type} (쿼리: {search_query})")
+                else:
+                    # 폴백: 기본 쿼리
+                    search_query = f"{vuln_type} 취약점 방어 보안 가이드라인"
+                
+                # 2. 더 구체적인 검색어 추가
+                if vuln.get('description'):
+                    # 설명에서 키워드 추출
+                    keywords = self._extract_keywords_from_description(vuln['description'])
+                    if keywords:
+                        search_query += f" {' '.join(keywords[:2])}"
+                
+                # 3. RAG 검색 실행
+                results = self.rag.search_similar(search_query, top_k=5)  # top_k 증가
                 
                 if results['documents'] and results['documents'][0]:
-                    # 가장 관련성 높은 문서
-                    evidence = results['documents'][0][0]
+                    # 4. 가장 관련성 높은 문서 선택
+                    best_doc_idx = self._find_most_relevant_document(
+                        results['documents'][0], 
+                        results.get('metadatas', [[]])[0],
+                        vuln_type,
+                        standard_type if mapper else vuln_type
+                    )
                     
-                    # 메타데이터가 있으면 상세 정보 추가
-                    if results.get('metadatas') and results['metadatas'][0]:
-                        metadata = results['metadatas'][0][0]
+                    if best_doc_idx is not None and best_doc_idx < len(results['documents'][0]):
+                        evidence = results['documents'][0][best_doc_idx]
                         
-                        # 페이지 정보 추출
-                        page = metadata.get('page', '?')
-                        page_start = metadata.get('page_start', page)
-                        page_end = metadata.get('page_end', page)
-                        
-                        # 페이지 범위 결정
-                        if page_start and page_end and page_start != page_end:
-                            page_info = f"{page_start}-{page_end}"
-                        else:
-                            page_info = str(page)
-                        
-                        # 메타데이터에서 문서 정보 동적 추출
-                        source_doc = metadata.get('source_document', 'Python_시큐어코딩_가이드(2023년_개정본).pdf')
-                        doc_type = metadata.get('document_type', 'KISIA')
-
-                        vuln['evidence'] = {
-                            'source': f'{doc_type} 가이드라인' if doc_type else '보안 가이드라인',
-                            'document': source_doc,
-                            'page': page_info,
-                            'page_start': page_start,
-                            'page_end': page_end,
-                            'section_title': metadata.get('title', ''),
-                            'vulnerability_types': metadata.get('vulnerability_types', ''),
-                            'content': evidence[:500] + "..." if len(evidence) > 500 else evidence,
-                            'full_content': evidence,  # 전체 내용 보관
-                            'collection': results.get('collection_name', 'unknown')
-                        }
-                        
-                        # 추가 관련 문서들도 저장 (있으면)
-                        if len(results['documents'][0]) > 1:
-                            related_docs = []
-                            for i in range(1, min(3, len(results['documents'][0]))):
-                                if i < len(results['metadatas'][0]):
-                                    related_meta = results['metadatas'][0][i]
-                                    related_docs.append({
-                                        'page': related_meta.get('page', '?'),
-                                        'type': related_meta.get('type', ''),
-                                        'keywords': related_meta.get('keywords', '')
-                                    })
-                            vuln['evidence']['related_sections'] = related_docs
-                    else:
-                        vuln['evidence'] = {
-                            'source': 'KISIA 가이드라인',
-                            'content': evidence[:500] + "..." if len(evidence) > 500 else evidence
-                        }
+                        # 메타데이터가 있으면 상세 정보 추가
+                        if results.get('metadatas') and results['metadatas'][0]:
+                            if best_doc_idx < len(results['metadatas'][0]):
+                                metadata = results['metadatas'][0][best_doc_idx]
+                                
+                                # 페이지 정보 추출 (수정됨)
+                                page_start = metadata.get('page_start')
+                                page_end = metadata.get('page_end')
+                                
+                                # 페이지 범위 결정
+                                if page_start and page_end:
+                                    if page_start != page_end:
+                                        page_info = f"{page_start}-{page_end}"
+                                    else:
+                                        page_info = str(page_start)
+                                else:
+                                    # page 필드가 있으면 사용 (폴백)
+                                    page_info = metadata.get('page', '알 수 없음')
+                                
+                                # 메타데이터에서 문서 정보 동적 추출
+                                source_doc = metadata.get('source_document', 'Python_시큐어코딩_가이드(2023년_개정본).pdf')
+                                doc_type = metadata.get('document_type', 'KISIA')
+                                vuln_types_in_doc = metadata.get('vulnerability_types', '')
+                                
+                                vuln['evidence'] = {
+                                    'source': f'{doc_type} 가이드라인' if doc_type else '보안 가이드라인',
+                                    'document': source_doc,
+                                    'page': page_info,
+                                    'page_start': page_start,
+                                    'page_end': page_end,
+                                    'section_title': metadata.get('title', ''),
+                                    'vulnerability_types': vuln_types_in_doc,
+                                    'content': evidence[:500] + "..." if len(evidence) > 500 else evidence,
+                                    'full_content': evidence,
+                                    'collection': results.get('collection_name', 'unknown'),
+                                    'relevance_score': self._calculate_relevance_score(
+                                        evidence, vuln_type, vuln.get('description', '')
+                                    )
+                                }
+                                
+                                # 관련성이 낮으면 경고
+                                if vuln['evidence']['relevance_score'] < 0.3:
+                                    print(f"    ⚠️ 관련성 낮음 ({vuln['evidence']['relevance_score']:.2f})")
+                                    vuln['evidence']['low_relevance_warning'] = True
+                            else:
+                                # 메타데이터 없으면 기본 정보만
+                                vuln['evidence'] = {
+                                    'source': 'KISIA 가이드라인',
+                                    'content': evidence[:500] + "..." if len(evidence) > 500 else evidence,
+                                    'page': '알 수 없음'
+                                }
+                
+                # 5. 적절한 근거를 찾지 못한 경우 로깅
+                if 'evidence' not in vuln:
+                    print(f"    ❌ {vuln_type}에 대한 적절한 가이드라인 없음")
             
             return vulnerabilities
+            
         except Exception as e:
             print(f"⚠️ RAG 처리 실패: {e}")
             return vulnerabilities
+
+    def _extract_keywords_from_description(self, description: str) -> List[str]:
+        """설명에서 보안 관련 키워드 추출"""
+        keywords = []
+        
+        # 보안 관련 중요 키워드
+        security_terms = [
+            '암호화', '해시', '패스워드', '비밀번호', '시크릿', 'secret', 'key',
+            'SQL', 'XSS', 'CSRF', '인젝션', 'injection', '세션', 'session',
+            '인증', '인가', 'authentication', 'authorization', '토큰', 'token',
+            '파일', 'file', '경로', 'path', '명령어', 'command', 'os',
+            '직렬화', 'serialize', 'pickle', 'yaml', 'eval', 'exec'
+        ]
+        
+        description_lower = description.lower()
+        for term in security_terms:
+            if term.lower() in description_lower:
+                keywords.append(term)
+                if len(keywords) >= 3:  # 최대 3개
+                    break
+        
+        return keywords
+
+    def _find_most_relevant_document(self, documents: List[str], metadatas: List[Dict], 
+                                    vuln_type: str, standard_type: str) -> Optional[int]:
+        """가장 관련성 높은 문서 인덱스 찾기"""
+        if not documents:
+            return None
+        
+        best_score = -1
+        best_idx = 0
+        
+        for i, (doc, meta) in enumerate(zip(documents, metadatas if metadatas else [{}]*len(documents))):
+            score = 0
+            
+            # 1. 메타데이터의 vulnerability_types 확인
+            if meta and 'vulnerability_types' in meta:
+                doc_vuln_types = meta['vulnerability_types'].lower()
+                if standard_type.lower() in doc_vuln_types:
+                    score += 3  # 정확한 타입 매칭
+                elif vuln_type.lower() in doc_vuln_types:
+                    score += 2  # 원본 타입 매칭
+            
+            # 2. 문서 내용에 취약점 타입 언급 확인
+            doc_lower = doc.lower()
+            if vuln_type.lower() in doc_lower:
+                score += 1
+            
+            # 3. 특정 키워드 매칭 (취약점별)
+            if 'hardcoded' in vuln_type.lower() or 'secret' in vuln_type.lower():
+                if any(word in doc_lower for word in ['환경변수', '환경 변수', 'environment', 'env', '하드코딩', '노출']):
+                    score += 2
+                if any(word in doc_lower for word in ['rsa', '암호화 키', '대칭키']):
+                    score -= 1  # RSA 관련 내용은 감점 (Hardcoded Secret과 관련 낮음)
+            
+            elif 'sql' in vuln_type.lower():
+                if any(word in doc_lower for word in ['파라미터', 'parameter', '바인딩', 'binding', 'prepared']):
+                    score += 2
+            
+            elif 'xss' in vuln_type.lower():
+                if any(word in doc_lower for word in ['이스케이프', 'escape', 'sanitize', '삭제', 'html']):
+                    score += 2
+            
+            if score > best_score:
+                best_score = score
+                best_idx = i
+        
+        # 최소 점수 미달시 None 반환
+        if best_score < 1:
+            return None
+        
+        return best_idx
+
+    def _calculate_relevance_score(self, content: str, vuln_type: str, description: str) -> float:
+        """컨텐츠와 취약점 간 관련성 점수 계산 (0~1)"""
+        score = 0.0
+        content_lower = content.lower()
+        
+        # 1. 취약점 타입 언급 확인 (30%)
+        if vuln_type.lower() in content_lower:
+            score += 0.3
+        
+        # 2. 취약점별 특정 키워드 확인 (50%)
+        keyword_score = 0.0
+        
+        if 'hardcoded' in vuln_type.lower() or 'secret' in vuln_type.lower():
+            keywords = ['환경변수', '환경 변수', 'environment', '.env', 'config', '설정 파일', '하드코딩']
+            matches = sum(1 for k in keywords if k in content_lower)
+            keyword_score = min(matches * 0.1, 0.5)
+        
+        elif 'sql' in vuln_type.lower() or 'injection' in vuln_type.lower():
+            keywords = ['파라미터', 'parameter', '바인딩', 'binding', 'prepared', 'statement', '?', '%s']
+            matches = sum(1 for k in keywords if k in content_lower)
+            keyword_score = min(matches * 0.1, 0.5)
+        
+        elif 'xss' in vuln_type.lower():
+            keywords = ['이스케이프', 'escape', 'sanitize', '삭제', 'html', 'script', '스크립트']
+            matches = sum(1 for k in keywords if k in content_lower)
+            keyword_score = min(matches * 0.1, 0.5)
+        
+        else:
+            # 일반적인 보안 키워드
+            keywords = ['취약', '공격', '방어', '보안', '안전', '위험', '검증', '확인']
+            matches = sum(1 for k in keywords if k in content_lower)
+            keyword_score = min(matches * 0.08, 0.5)
+        
+        score += keyword_score
+        
+        # 3. 설명과의 유사성 (20%)
+        if description:
+            desc_words = set(description.lower().split())
+            content_words = set(content_lower.split())
+            if desc_words and content_words:
+                intersection = desc_words & content_words
+                similarity = len(intersection) / min(len(desc_words), 20)  # 최대 20단어 비교
+                score += min(similarity * 0.2, 0.2)
+        
+        return min(score, 1.0)
         
     def _calculate_security_score(self, vulnerabilities: List[Dict]) -> int:
         """보안 점수 계산"""

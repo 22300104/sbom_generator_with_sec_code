@@ -68,7 +68,7 @@ SECURITY_PROMPTS = {
 {{
     "vulnerabilities": [
         {{
-            "type": "취약점타입",
+            "type": "MUST BE IN ENGLISH (e.g., "SQL Injection", "XSS", "Command Injection")",  
             "severity": "CRITICAL/HIGH/MEDIUM/LOW",
             "role": "발견한역할(해커/감사관/개발자)",
             "confidence": "HIGH/MEDIUM/LOW",
@@ -192,7 +192,7 @@ SECURITY_PROMPTS = {
 {{
     "vulnerabilities": [
         {{
-            "type": "취약점타입",
+            "type": "MUST BE IN ENGLISH (e.g., "SQL Injection", "XSS", "Command Injection")", 
             "severity": "CRITICAL/HIGH/MEDIUM/LOW",
             "confidence": "HIGH/MEDIUM/LOW",
             "location": {{
@@ -233,6 +233,28 @@ SECURITY_PROMPTS = {
     "reason": "설명",
     "actual_risk_level": "HIGH/MEDIUM/LOW/NONE"
 }}
+
+
+⚠️ 중요 규칙:
+- type 필드는 반드시 영어로 작성 (예: "SQL Injection", "XSS", "Path Traversal", "Command Injection", "Hardcoded Secret")
+- description과 다른 필드는 한국어로 작성
+- 표준 영어 취약점 명칭 사용:
+  * SQL Injection (SQL 인젝션)
+  * XSS 또는 Cross-Site Scripting (크로스 사이트 스크립팅)  
+  * Command Injection (명령어 삽입)
+  * Path Traversal (경로 조작)
+  * Hardcoded Secret (하드코딩된 시크릿)
+  * Weak Cryptography (약한 암호화)
+  * Insecure Deserialization (안전하지 않은 역직렬화)
+  * Information Disclosure (정보 노출)
+  * Race Condition (경쟁 상태)
+  * CSRF (Cross-Site Request Forgery)
+  * XXE (XML External Entity)
+  * SSRF (Server-Side Request Forgery)
+  * 기타 영어 표준 명칭
+
+주의: JSON만 출력. 다른 텍스트 없음.
+
 """
 }
 
