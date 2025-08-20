@@ -162,15 +162,13 @@ def render_input_stage():
         st.markdown('<div class="sa-card sa-fade-up">', unsafe_allow_html=True)
         input_method = st.radio(
             "입력 방법 선택:",
-            ["GitHub MCP (에이전트)", "GitHub MCP", "GitHub URL", "파일 업로드", "직접 입력"],
+            ["Agent Mode", "GitHub URL", "파일 업로드", "직접 입력"],
             horizontal=True
         )
         st.markdown('</div>', unsafe_allow_html=True)
     
-    if input_method == "GitHub MCP (에이전트)":
+    if input_method == "Agent Mode":
         handle_github_mcp_agent()
-    elif input_method == "GitHub MCP":
-        handle_github_mcp_input()
     elif input_method == "GitHub URL":
         handle_github_input()
     elif input_method == "파일 업로드":
@@ -181,7 +179,7 @@ def render_input_stage():
 
 def handle_github_mcp_agent():
     """LLM 에이전트: 자연어 → 슬롯 추출(LLM/폴백) → 검증 → 코드 준비 → 분석 이동"""
-    st.markdown("#### GitHub MCP 에이전트 (챗봇)")
+    st.markdown("#### Agent Mode")
 
     if 'agent_slots' not in st.session_state:
         st.session_state.agent_slots = {"repo": None, "mcp_url": None, "token": None, "base": None, "compare": None, "scope": "diff"}
@@ -304,7 +302,7 @@ def handle_github_mcp_agent():
         st.rerun()
 def handle_github_mcp_input():
     """GitHub MCP 기반 입력 처리: 저장소/브랜치 선택 → 파일 수집"""
-    st.markdown("#### GitHub MCP 에이전트")
+    st.markdown("#### Agent Mode")
 
     if 'mcp_connected' not in st.session_state:
         st.session_state.mcp_connected = None
