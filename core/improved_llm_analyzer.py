@@ -241,8 +241,8 @@ class ImprovedSecurityAnalyzer:
                 "fixed_code": "수정된코드",
                 "fix_explanation": "수정설명",
                 "data_flow": "데이터흐름",
-                "exploit_scenario": "공격시나리오",
-                "recommendation": "권장사항"
+                "exploit_scenario": "공격시나리오(PoC를 이용해서 작성하세요. 단계별로 작성하세요.)",
+                "recommendation": "권장사항(종합적으로 분석하세요. 단계별로 작성하세요.)"
             }}
         ]
     }}

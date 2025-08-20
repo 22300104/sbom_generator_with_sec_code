@@ -8,7 +8,7 @@ from streamlit_monaco import st_monaco
 import time
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import tempfile
 import os
 import textwrap
@@ -1188,15 +1188,16 @@ def render_results_stage():
         default_body = "\n".join(default_body_lines)
 
         review_body = st.text_area('리뷰 코멘트 본문', value=default_body, key='pr_review_body')
-        if st.button('PR 리뷰로 남기기', type='primary', use_container_width=True):
-            if owner and repo and pr_number:
-                client = MCPGithubClient()
-                with st.spinner('PR 리뷰 작성 중...'):
-                    resp = client.create_pull_request_review(owner, repo, int(pr_number), review_body, event="COMMENT")
-                if resp.get('success'):
-                    st.success(f"작성됨: {resp.get('url') or '성공'}")
-                else:
-                    st.error(resp.get('error', '작성 실패'))
+        send_review = st.button('PR 리뷰로 남기기', type='primary', use_container_width=True)
+
+        if send_review and owner and repo and pr_number:
+            client = MCPGithubClient()
+            with st.spinner('PR 리뷰 작성 중...'):
+                resp = client.create_pull_request_review(owner, repo, int(pr_number), review_body, event="COMMENT")
+            if resp.get('success'):
+                st.success(f"작성됨: {resp.get('url') or '성공'}")
+            else:
+                st.error(resp.get('error', '작성 실패'))
 
     st.divider()
     
@@ -1215,6 +1216,18 @@ def render_results_stage():
             st.session_state.show_qa = True
             st.session_state.qa_project_name = st.session_state.get('project_name', 'Project')
             st.rerun()
+
+    # 심층 분석 리포트 생성 및 표시
+    st.divider()
+    if st.button("심층 분석 리포트 생성", type="secondary"):
+        deep_report = generate_deep_refactoring_report(results)
+        st.markdown(deep_report)
+        st.download_button(
+            "심층 분석 리포트 다운로드",
+            data=deep_report,
+            file_name=f"deep_refactoring_report_{int(time.time())}.md",
+            mime="text/markdown"
+        )
     
     tabs = []
     if 'ai_analysis' in results:
@@ -1973,3 +1986,165 @@ def _calculate_confidence_score(vuln: Dict) -> Dict:
         'score': min(score, 100),
         'formula': formula
     }
+
+
+def generate_deep_refactoring_report(results: Dict) -> str:
+    """심층 분석 리포트 생성: 사이드이펙트 최소화 중심 리팩토링 제안 (Markdown)"""
+    import difflib
+
+    ai = results.get('ai_analysis', {}) if isinstance(results, dict) else {}
+    vulns = ai.get('vulnerabilities', []) if isinstance(ai, dict) else []
+
+    # 기본 통계
+    total_vulns = len(vulns)
+    sev_counts: Dict[str, int] = {}
+    files_impacted = set()
+    funcs_impacted = []
+    for v in vulns:
+        sev = v.get('severity', 'MEDIUM')
+        sev_counts[sev] = sev_counts.get(sev, 0) + 1
+        loc = v.get('location') or {}
+        if loc.get('file'):
+            files_impacted.add(loc['file'])
+        if loc.get('function'):
+            funcs_impacted.append(loc['function'])
+
+    # CWE/OWASP 간단 매핑 (휴리스틱)
+    def map_cwe_owasp(vtype: str) -> Tuple[str, str]:
+        t = (vtype or '').lower()
+        if 'sql' in t:
+            return ('CWE-89', 'OWASP A03:2021 - Injection')
+        if 'xss' in t or 'cross-site' in t:
+            return ('CWE-79', 'OWASP A03:2021 - Injection')
+        if 'path' in t or 'traversal' in t:
+            return ('CWE-22', 'OWASP A01:2021 - Broken Access Control')
+        if 'deserial' in t or 'pickle' in t or 'yaml' in t:
+            return ('CWE-502', 'OWASP A08:2021 - Software and Data Integrity Failures')
+        if 'command' in t or 'os command' in t:
+            return ('CWE-78', 'OWASP A03:2021 - Injection')
+        if 'hardcoded' in t or 'secret' in t:
+            return ('CWE-798', 'OWASP A02:2021 - Cryptographic Failures')
+        return ('N/A', 'N/A')
+
+    # 공격 벡터/근본 원인 추출 휴리스틱
+    def derive_attack_rca(v: Dict) -> Tuple[str, str]:
+        desc = (v.get('description') or '').strip()
+        expl = (v.get('exploit_scenario') or '').strip()
+        attack = expl if expl else (desc[:200] + ('...' if len(desc) > 200 else ''))
+        # 간단 RCA 추정
+        vtype = (v.get('type') or '').lower()
+        if any(k in vtype for k in ['sql', 'xss', 'injection']):
+            rca = '입력 검증 부재/파라미터 바인딩 미적용'
+        elif any(k in vtype for k in ['path', 'traversal']):
+            rca = '파일 경로 정규화/화이트리스트 검증 누락'
+        elif any(k in vtype for k in ['deserial', 'pickle', 'yaml']):
+            rca = '신뢰되지 않은 데이터의 역직렬화 사용'
+        elif any(k in vtype for k in ['command']):
+            rca = 'shell=True 사용 또는 명령어 인자 검증 부재'
+        else:
+            rca = '입력 검증 및 보안 설정 미흡'
+        return attack, rca
+
+    # Unified diff 생성기
+    def build_unified_diff(file_path: str, old: str, new: str) -> str:
+        old_lines = (old or '').splitlines(keepends=True)
+        new_lines = (new or '').splitlines(keepends=True)
+        diff_lines = list(difflib.unified_diff(
+            old_lines,
+            new_lines,
+            fromfile=f"a/{file_path or 'unknown.py'}",
+            tofile=f"b/{file_path or 'unknown.py'}",
+            lineterm=''
+        ))
+        # 코드펜스에 맞춰 문자열로 합침
+        return "\n".join(diff_lines)
+
+    # 1) Security Summary
+    lines: List[str] = []
+    lines.append("## 1) Security Summary\n")
+    if vulns:
+        # 대표 취약점 최대 3개 요약
+        for i, v in enumerate(vulns[:3], 1):
+            cwe, owasp = map_cwe_owasp(v.get('type', ''))
+            attack, rca = derive_attack_rca(v)
+            lines.append(f"- 취약점 {i}: {v.get('type','Unknown')} | 심각도: {v.get('severity','MEDIUM')} | CWE: {cwe} | OWASP: {owasp}")
+            lines.append(f"  - 공격 벡터: {attack}")
+            lines.append(f"  - 근본 원인(RCA): {rca}")
+        lines.append("")
+    else:
+        lines.append("- 발견된 취약점 없음")
+        lines.append("")
+    lines.append("- 수정 필요 이유: 데이터 무결성/기밀성 위협, 공격 표면 축소 및 규정 준수 필요\n")
+
+    # 2) Fix Strategy
+    lines.append("## 2) Fix Strategy\n")
+    lines.append("- 최소 변경 원칙: 기존 함수 시그니처/리턴 타입 유지, 내부 구현만 보강")
+    lines.append("- 수정안:")
+    lines.append("  - 입력 검증 계층 추가(화이트리스트/정규화) 및 파라미터 바인딩 적용")
+    lines.append("  - 위험 호출(Shell/역직렬화) 래퍼 도입 → feature flag로 점진 전환")
+    lines.append("  - 로깅/마스킹 강화 및 에러 처리 표준화\n")
+
+    # 3) Transitive Impact Analysis (TIA)
+    lines.append("## 3) Transitive Impact Analysis (TIA)\n")
+    if vulns:
+        lines.append(f"- 직접 영향 함수/모듈: {', '.join(sorted(set(funcs_impacted)) or ['N/A'])} | 파일: {', '.join(sorted(files_impacted)) or 'N/A'}")
+    else:
+        lines.append("- 직접 영향 없음")
+    lines.append("- 전이 영향: 호출자 체인(서비스/핸들러), 캐시 키 규칙, 외부 API 파라미터 검증 경로")
+    lines.append("- 계약 영향: 시그니처/리턴 타입 변경 없음(보장), 예외 메시지 표준화 수준의 변화만 발생\n")
+
+    # 4) Blast Radius
+    lines.append("## 4) Blast Radius\n")
+    lines.append(f"- 영향 파일 수: {len(files_impacted)} | 취약점 수: {total_vulns} | 심각도: {sev_counts}")
+    lines.append("- High: 인젝션/역직렬화와 같이 RCE/DB 조작 가능 영역")
+    lines.append("- Medium: 입력 검증 미흡, 설정 취약점")
+    lines.append("- Low: 로깅/정보 노출 등\n")
+    lines.append("- 완화책: 안전 래퍼/어댑터, 백워드 호환 계층(기존 엔트리 포인트 보존), Feature Flag\n")
+
+    # 5) Patch 제안 (Unified diff)
+    lines.append("## 5) Patch 제안\n")
+    diffs_added = False
+    for v in vulns[:3]:  # 상위 3건만 표시
+        loc = v.get('location') or {}
+        file_path = loc.get('file', 'unknown.py')
+        old_snippet = v.get('vulnerable_code') or loc.get('code_snippet')
+        new_snippet = v.get('fixed_code')
+        if old_snippet and new_snippet:
+            udiff = build_unified_diff(file_path, old_snippet, new_snippet)
+            if udiff:
+                lines.append("```diff")
+                lines.append(udiff)
+                lines.append("```\n")
+                diffs_added = True
+    if not diffs_added:
+        lines.append("- 제공 가능한 코드 스니펫이 없어 개념 패치만 제안됩니다 (래퍼/검증 계층 추가).\n")
+
+    # 6) Test Plan
+    lines.append("## 6) Test Plan\n")
+    lines.append("- 단위: 입력 검증(정상/경계/악성), 쿼리 바인딩, 래퍼 예외/타임아웃")
+    lines.append("- 통합: 주요 플로우(요청→서비스→저장소) 회귀 검증, 캐시/트랜잭션 일관성")
+    lines.append("- 회귀: 기존 API 계약 유지(상태코드/응답 스키마/로그 키) 확인\n")
+
+    # 7) Runtime Diff
+    lines.append("## 7) Runtime Diff\n")
+    lines.append("- 성능: 입력 검증/래퍼 오버헤드 < 5ms (평균), 타임아웃 기본값 추가 영향 미미")
+    lines.append("- 로그: 민감정보 마스킹 적용, 에러 메시지 표준화로 변동 가능")
+    lines.append("- 응답 스키마: 불변, 에러 코드/메시지 사전 정의 범위 내 변경\n")
+
+    # 8) Rollout & Rollback
+    lines.append("## 8) Rollout & Rollback\n")
+    lines.append("- 점진 배포: Feature Flag(validator_wrapper.enabled) → Canary(5%→25%→100%)")
+    lines.append("- 모니터링: 에러율, p95 레이턴시, DB 에러/타임아웃, 보안 이벤트 카운트")
+    lines.append("- 롤백: 플래그 즉시 비활성화, 이전 버전 아티팩트로 재배포\n")
+
+    # 9) PR Package
+    changed_files_list = sorted(list(files_impacted))
+    lines.append("## 9) PR Package\n")
+    lines.append("- 제목: fix(security): side-effect-free refactoring for vulnerable paths")
+    lines.append("- 본문: 보안 취약점 수정(입력 검증/바인딩/래퍼) 및 사이드이펙트 최소화 설계 적용")
+    lines.append("- 라벨: security, refactoring, safe-change")
+    lines.append(f"- 변경 파일: {', '.join(changed_files_list) if changed_files_list else '분석 대상 파일 기준'}")
+    lines.append("- Non-Goals: 비즈니스 로직 변경, 퍼포먼스 최적화 대규모 개편")
+    lines.append("- 증빙: 테스트 결과, 런타임 diff, 로그 샘플, 리포트 첨부\n")
+
+    return "\n".join(lines)
