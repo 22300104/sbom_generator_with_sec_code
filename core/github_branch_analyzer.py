@@ -194,6 +194,185 @@ class GitHubBranchAnalyzer:
             
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    def list_pull_requests(self, repo_url: str, state: str = "open") -> Dict:
+        """
+        PR 목록 조회 (기본: 오픈 상태 = 미병합 PR)
+
+        Args:
+            repo_url: GitHub 레포지토리 URL 또는 owner/repo 문자열 포함 URL
+            state: open | closed | all
+
+        Returns:
+            { success, owner, repo, pull_requests: [ {number, title, user, created_at, updated_at, head, base} ], total }
+        """
+        try:
+            owner, repo = self._parse_github_url(repo_url)
+            if not owner or not repo:
+                return {"success": False, "error": "Invalid GitHub URL", "pull_requests": []}
+
+            api_url = f"{self.api_base}/repos/{owner}/{repo}/pulls"
+
+            pulls = []
+            page = 1
+            while True:
+                resp = requests.get(
+                    api_url,
+                    headers=self.headers,
+                    params={"state": state, "page": page, "per_page": 100},
+                )
+                if resp.status_code != 200:
+                    return {"success": False, "error": f"API error: {resp.status_code}", "pull_requests": []}
+
+                page_items = resp.json() or []
+                if not page_items:
+                    break
+
+                for pr in page_items:
+                    pulls.append({
+                        "number": pr.get("number"),
+                        "title": pr.get("title", ""),
+                        "user": (pr.get("user") or {}).get("login"),
+                        "created_at": pr.get("created_at"),
+                        "updated_at": pr.get("updated_at"),
+                        "head": {
+                            "ref": (pr.get("head") or {}).get("ref"),
+                            "sha": (pr.get("head") or {}).get("sha"),
+                            "repo": ((pr.get("head") or {}).get("repo") or {}).get("full_name"),
+                        },
+                        "base": {
+                            "ref": (pr.get("base") or {}).get("ref"),
+                            "sha": (pr.get("base") or {}).get("sha"),
+                            "repo": ((pr.get("base") or {}).get("repo") or {}).get("full_name"),
+                        },
+                        "draft": pr.get("draft", False),
+                        "mergeable": None,
+                    })
+
+                if len(page_items) < 100:
+                    break
+                page += 1
+
+            # 최신 업데이트 순으로 정렬
+            pulls.sort(key=lambda x: x.get("updated_at") or "", reverse=True)
+
+            return {
+                "success": True,
+                "owner": owner,
+                "repo": repo,
+                "pull_requests": pulls,
+                "total": len(pulls),
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e), "pull_requests": []}
+
+    def get_pull_request_diff_code(self, repo_url: str, pull_number: int) -> Dict:
+        """
+        특정 PR의 변경 파일 목록과 코드 수집
+
+        - 추가된 라인만 결합한 코드와 변경 파일의 전체 내용을 모두 제공
+        - 전체 내용은 added/modified/renamed 파일에 대해서만 시도
+
+        Returns:
+            { success, file_analysis, combined_added_code, combined_full_code, base_ref, head_ref }
+        """
+        try:
+            owner, repo = self._parse_github_url(repo_url)
+            if not owner or not repo:
+                return {"success": False, "error": "Invalid GitHub URL"}
+
+            # PR 메타 정보 (base/head 브랜치명 확보)
+            pr_url = f"{self.api_base}/repos/{owner}/{repo}/pulls/{pull_number}"
+            pr_resp = requests.get(pr_url, headers=self.headers)
+            if pr_resp.status_code != 200:
+                return {"success": False, "error": f"PR fetch failed: {pr_resp.status_code}"}
+            pr_data = pr_resp.json()
+            base_ref = (pr_data.get("base") or {}).get("ref")
+            head_ref = (pr_data.get("head") or {}).get("ref")
+
+            # 파일 변경 목록 (pagination 대응)
+            files_url = f"{self.api_base}/repos/{owner}/{repo}/pulls/{pull_number}/files"
+            all_files = []
+            page = 1
+            while True:
+                resp = requests.get(files_url, headers=self.headers, params={"page": page, "per_page": 100})
+                if resp.status_code != 200:
+                    return {"success": False, "error": f"Failed to get PR files: {resp.status_code}"}
+                items = resp.json() or []
+                if not items:
+                    break
+                all_files.extend(items)
+                if len(items) < 100:
+                    break
+                page += 1
+
+            file_analysis: List[Dict] = []
+            combined_added_code_parts: List[str] = []
+            combined_full_code_parts: List[str] = []
+
+            for f in all_files:
+                filename = f.get("filename", "")
+                # Python 파일만 대상으로 제한
+                if not filename.endswith('.py'):
+                    continue
+                status = f.get("status", "")
+                additions = f.get("additions", 0)
+                deletions = f.get("deletions", 0)
+                patch = f.get("patch", "") or ""
+                raw_url = f.get("raw_url") or ""
+                contents_url = f.get("contents_url") or ""
+
+                info = {
+                    "filename": filename,
+                    "status": status,
+                    "additions": additions,
+                    "deletions": deletions,
+                }
+
+                # 추가된 라인만 추출
+                if patch:
+                    info["added_lines"] = self._extract_added_lines(patch)
+                    info["removed_lines"] = self._extract_removed_lines(patch)
+                    if info["added_lines"]:
+                        added_code = "\n".join(info["added_lines"]).strip()
+                        if added_code:
+                            info["added_code"] = added_code
+                            combined_added_code_parts.append(f"# ===== File: {filename} =====\n{added_code}\n")
+
+                # 변경/추가된 파일의 전체 내용 수집 시도
+                if status in ["added", "modified", "renamed"]:
+                    full_content = None
+                    if raw_url:
+                        full_content = self._get_file_content_raw(raw_url)
+                    # contents_url 템플릿은 ?ref=sha 포함이므로 그대로 호출 시도
+                    if full_content is None and contents_url:
+                        try:
+                            c_resp = requests.get(contents_url, headers=self.headers)
+                            if c_resp.status_code == 200:
+                                data = c_resp.json()
+                                if data.get("encoding") == "base64":
+                                    full_content = base64.b64decode(data.get("content", "")).decode("utf-8", errors="ignore")
+                                elif data.get("download_url"):
+                                    full_content = self._get_file_content_raw(data.get("download_url"))
+                        except Exception:
+                            full_content = None
+
+                    if full_content:
+                        info["full_content"] = full_content
+                        combined_full_code_parts.append(f"# ===== File: {filename} =====\n{full_content}\n")
+
+                file_analysis.append(info)
+
+            return {
+                "success": True,
+                "file_analysis": file_analysis,
+                "combined_added_code": "\n".join(combined_added_code_parts),
+                "combined_full_code": "\n".join(combined_full_code_parts),
+                "base_ref": base_ref,
+                "head_ref": head_ref,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
     
     def get_diff_code_only(self, repo_url: str, base_branch: str, compare_branch: str, 
                           selected_files: Optional[List[str]] = None) -> Dict:

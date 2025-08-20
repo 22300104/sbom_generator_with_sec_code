@@ -159,8 +159,8 @@ def render_input_stage():
     """1단계: 입력 선택"""
     st.markdown('<h3 class="sa-fade-up"><span class="material-symbols-outlined">upload_file</span> 1단계: 소스 코드 입력</h3>', unsafe_allow_html=True)
     
-    # Agent Mode 바로 렌더링 (입력 방법 선택 UI 제거)
-    handle_github_mcp_agent()
+    # PR 전용 입력 UI
+    render_pr_selector()
 
 
 def handle_github_mcp_agent():
@@ -329,6 +329,116 @@ def handle_github_mcp_agent():
         }
         st.session_state.analysis_stage = 'files'
         st.rerun()
+
+def render_pr_selector():
+    """레포지토리 URL 입력 → 미병합 PR 드롭다운 → 선택 후 분석 단계로 이동"""
+    st.markdown("#### PR 선택")
+    analyzer = GitHubBranchAnalyzer()
+    
+    if 'pr_repo_url' not in st.session_state:
+        st.session_state.pr_repo_url = ''
+    if 'pr_list' not in st.session_state:
+        st.session_state.pr_list = []
+    if 'selected_pr_number' not in st.session_state:
+        st.session_state.selected_pr_number = None
+    
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        repo_url = st.text_input(
+            "GitHub 저장소 URL (owner/repo 또는 URL)",
+            value=st.session_state.pr_repo_url,
+            placeholder="https://github.com/owner/repo",
+            key="pr_repo_input",
+        )
+    with col2:
+        st.write("")
+        st.write("")
+        load_btn = st.button("PR 불러오기", type="primary", use_container_width=True)
+    
+    # 불러오기 동작
+    if load_btn and repo_url:
+        # 정규화
+        if repo_url and '/' in repo_url and not repo_url.startswith('http'):
+            repo_url = f"https://github.com/{repo_url}"
+        with st.spinner("PR 목록을 불러오는 중..."):
+            prs = analyzer.list_pull_requests(repo_url, state="open")
+        if not prs.get('success'):
+            st.error(prs.get('error', 'PR 조회 실패'))
+            st.session_state.pr_list = []
+        else:
+            st.session_state.pr_repo_url = repo_url
+            st.session_state.pr_list = prs.get('pull_requests', [])
+            st.success(f"미병합 PR {prs.get('total', 0)}개")
+        st.rerun()
+    
+    pr_items = st.session_state.get('pr_list', [])
+    if pr_items:
+        # 표시용 라벨 생성
+        options = []
+        values = []
+        for pr in pr_items:
+            num = pr.get('number')
+            title = pr.get('title', '')
+            head = (pr.get('head') or {}).get('ref', '')
+            base = (pr.get('base') or {}).get('ref', '')
+            label = f"#{num} · {title} ({head} → {base})"
+            options.append(label)
+            values.append(num)
+        
+        idx_default = 0 if st.session_state.selected_pr_number is None else (
+            values.index(st.session_state.selected_pr_number) if st.session_state.selected_pr_number in values else 0
+        )
+        choice = st.selectbox("미병합 PR 선택:", options=options, index=idx_default, key="pr_select_box")
+        selected_number = values[options.index(choice)] if options else None
+        st.session_state.selected_pr_number = selected_number
+        
+        st.divider()
+        col_a, col_b = st.columns([2, 1])
+        with col_a:
+            st.info("선택한 PR의 변경 사항으로 취약점 분석을 진행합니다.")
+        with col_b:
+            start_btn = st.button("PR 분석 시작", type="primary", use_container_width=True)
+        
+        if start_btn and selected_number:
+            with st.spinner("PR 변경 코드 수집 중..."):
+                diff = analyzer.get_pull_request_diff_code(st.session_state.pr_repo_url, int(selected_number))
+            if not diff.get('success'):
+                st.error(diff.get('error', 'PR 코드 수집 실패'))
+                return
+            combined_added = diff.get('combined_added_code', '') or ''
+            combined_full = diff.get('combined_full_code', '') or ''
+            code_to_analyze = combined_added if combined_added.strip() else combined_full
+            if not code_to_analyze.strip():
+                st.warning("분석할 Python 코드 변경이 없습니다.")
+                return
+            # 파일 리스트 구성
+            file_list = []
+            for f in diff.get('file_analysis', [])[:100]:
+                content = f.get('full_content') or f.get('added_code', '') or ''
+                file_list.append({
+                    'path': f.get('filename', 'unknown.py'),
+                    'name': Path(f.get('filename', 'unknown.py')).name,
+                    'size': len(content.encode('utf-8')),
+                    'lines': len(content.splitlines()),
+                })
+            
+            # 컨텍스트 저장 후 분석 단계로 이동
+            st.session_state.analysis_code = code_to_analyze
+            st.session_state.analysis_file_list = file_list
+            # 프로젝트명: owner/repo에서 repo 사용
+            repo_name = (st.session_state.pr_repo_url.rstrip('/').split('/')[-1]).replace('.git', '')
+            st.session_state.project_name = repo_name
+            st.session_state.selected_pr_context = {
+                'repo_url': st.session_state.pr_repo_url,
+                'pr_number': int(selected_number),
+                'base': diff.get('base_ref'),
+                'head': diff.get('head_ref'),
+                'files': len(file_list),
+            }
+            st.session_state.analysis_stage = 'analyze'
+            st.rerun()
+    else:
+        st.info("레포지토리 URL을 입력하고 'PR 불러오기'를 클릭하세요. 미병합 PR이 드롭다운으로 표시됩니다.")
 def handle_github_mcp_input():
     """GitHub MCP 기반 입력 처리: 저장소/브랜치 선택 → 파일 수집"""
     st.markdown("#### Agent Mode")
